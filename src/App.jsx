@@ -1195,29 +1195,285 @@ function loadTraceDone() {
   }
 }
 
+// 52 個字母的筆畫路徑(0–100 座標系,依標準書寫筆順排列)
+// 大寫:頂 15、基線 80;小寫:x 字高 45、基線 80、上伸 15、下伸 100
+const P2 = Math.PI;
+function arcPts(cx, cy, rx, ry, a0, a1, n = 20) {
+  const pts = [];
+  for (let i = 0; i <= n; i++) {
+    const a = a0 + ((a1 - a0) * i) / n;
+    pts.push([cx + rx * Math.cos(a), cy + ry * Math.sin(a)]);
+  }
+  return pts;
+}
+const LETTER_STROKES = {
+  A: [[[50, 15], [28, 80]], [[50, 15], [72, 80]], [[36, 58], [64, 58]]],
+  B: [
+    [[32, 15], [32, 80]],
+    [[32, 15], [48, 15], ...arcPts(48, 31.5, 16, 16.5, -P2 / 2, P2 / 2),
+      [48, 48], [33, 48], [50, 48], ...arcPts(50, 64, 18, 16, -P2 / 2, P2 / 2),
+      [50, 80], [32, 80]],
+  ],
+  C: [arcPts(52, 47.5, 26, 32, -P2 / 3, (-5 * P2) / 3)],
+  D: [
+    [[32, 15], [32, 80]],
+    [[32, 15], [47, 15], ...arcPts(47, 47.5, 26, 32.5, -P2 / 2, P2 / 2),
+      [47, 80], [32, 80]],
+  ],
+  E: [[[34, 15], [34, 80]], [[34, 15], [70, 15]], [[34, 47], [62, 47]], [[34, 80], [70, 80]]],
+  F: [[[34, 15], [34, 80]], [[34, 15], [70, 15]], [[34, 47], [62, 47]]],
+  G: [
+    arcPts(52, 47.5, 26, 32, -P2 / 3, (-5 * P2) / 3),
+    [[50, 55], [73, 55], [73, 68]],
+  ],
+  H: [[[30, 15], [30, 80]], [[70, 15], [70, 80]], [[30, 48], [70, 48]]],
+  I: [[[50, 15], [50, 80]], [[34, 15], [66, 15]], [[34, 80], [66, 80]]],
+  J: [[[62, 15], [62, 62], ...arcPts(46, 62, 16, 16, 0, 0.9 * P2)]],
+  K: [[[32, 15], [32, 80]], [[66, 15], [34, 49], [66, 80]]],
+  L: [[[34, 15], [34, 80], [70, 80]]],
+  M: [[[28, 15], [28, 80]], [[28, 15], [50, 55], [72, 15]], [[72, 15], [72, 80]]],
+  N: [[[30, 15], [30, 80]], [[30, 15], [70, 80]], [[70, 15], [70, 80]]],
+  O: [arcPts(50, 47.5, 26, 32, -P2 / 2, -P2 / 2 - 2 * P2, 28)],
+  P: [
+    [[32, 15], [32, 80]],
+    [[32, 15], [47, 15], ...arcPts(47, 33, 17, 18, -P2 / 2, P2 / 2), [47, 51], [32, 51]],
+  ],
+  Q: [arcPts(50, 47.5, 26, 32, -P2 / 2, -P2 / 2 - 2 * P2, 28), [[58, 64], [75, 84]]],
+  R: [
+    [[32, 15], [32, 80]],
+    [[32, 15], [47, 15], ...arcPts(47, 32, 17, 17, -P2 / 2, P2 / 2),
+      [47, 49], [34, 49], [68, 80]],
+  ],
+  S: [[...arcPts(51, 32, 17, 16, -P2 / 4, (-3 * P2) / 2), ...arcPts(49, 64, 18, 16, -P2 / 2, 0.85 * P2)]],
+  T: [[[50, 15], [50, 80]], [[26, 15], [74, 15]]],
+  U: [[[30, 15], [30, 58], ...arcPts(50, 58, 20, 22, P2, 0), [70, 58], [70, 15]]],
+  V: [[[28, 15], [50, 80], [72, 15]]],
+  W: [[[24, 15], [38, 80], [50, 30], [62, 80], [76, 15]]],
+  X: [[[30, 15], [70, 80]], [[70, 15], [30, 80]]],
+  Y: [[[28, 15], [50, 48]], [[72, 15], [50, 48], [50, 80]]],
+  Z: [[[28, 15], [72, 15], [28, 80], [72, 80]]],
+  a: [arcPts(48, 62.5, 16, 17.5, -P2 / 4, -P2 / 4 - 1.98 * P2, 26), [[64, 45], [64, 80]]],
+  b: [[[34, 15], [34, 80]], arcPts(49, 62.5, 16, 17.5, -0.75 * P2, 0.75 * P2)],
+  c: [arcPts(50, 62.5, 17, 17.5, -P2 / 3, (-5 * P2) / 3)],
+  d: [arcPts(47, 62.5, 16, 17.5, -P2 / 3, (-5 * P2) / 3), [[63, 15], [63, 80]]],
+  e: [[[33, 61], [64, 61], ...arcPts(48.5, 62.5, 16.5, 17.5, -0.05 * P2, -1.65 * P2)]],
+  f: [
+    [...arcPts(58, 28, 11, 10, -0.15 * P2, -P2), [47, 28], [47, 80]],
+    [[34, 46], [60, 46]],
+  ],
+  g: [
+    arcPts(47, 62.5, 16, 17.5, -P2 / 3, (-5 * P2) / 3),
+    [[63, 45], [63, 86], ...arcPts(49, 86, 14, 12, 0, 0.9 * P2)],
+  ],
+  h: [[[34, 15], [34, 80]], [...arcPts(48, 58, 14, 13, -P2, 0), [62, 58], [62, 80]]],
+  i: [[[50, 45], [50, 80]], [[50, 30], [50.5, 30]]],
+  j: [[[56, 45], [56, 86], ...arcPts(44, 86, 12, 11, 0, 0.85 * P2)], [[56, 30], [56.5, 30]]],
+  k: [[[34, 15], [34, 80]], [[60, 48], [34, 64], [60, 80]]],
+  l: [[[50, 15], [50, 80]]],
+  m: [
+    [[30, 45], [30, 80]],
+    [...arcPts(40, 58, 10, 13, -P2, 0), [50, 58], [50, 80]],
+    [...arcPts(60, 58, 10, 13, -P2, 0), [70, 58], [70, 80]],
+  ],
+  n: [[[34, 45], [34, 80]], [...arcPts(49, 58, 15, 13, -P2, 0), [64, 58], [64, 80]]],
+  o: [arcPts(50, 62.5, 17, 17.5, -P2 / 2, -P2 / 2 - 2 * P2, 26)],
+  p: [[[34, 45], [34, 100]], arcPts(49, 62.5, 16, 17.5, -0.75 * P2, 0.75 * P2)],
+  q: [arcPts(47, 62.5, 16, 17.5, -P2 / 3, (-5 * P2) / 3), [[63, 45], [63, 98], [70, 91]]],
+  r: [[[38, 45], [38, 80]], arcPts(50, 58, 12, 13, -P2, -0.25 * P2)],
+  s: [[...arcPts(50, 53, 12, 9, -P2 / 4, (-3 * P2) / 2), ...arcPts(49, 71, 13, 9.5, -P2 / 2, 0.85 * P2)]],
+  t: [[[46, 22], [46, 80]], [[32, 45], [62, 45]]],
+  u: [
+    [[34, 45], [34, 64], ...arcPts(48, 64, 14, 14, P2, 0), [62, 64], [62, 45]],
+    [[62, 45], [62, 80]],
+  ],
+  v: [[[34, 45], [50, 80], [66, 45]]],
+  w: [[[30, 45], [40, 80], [50, 52], [60, 80], [70, 45]]],
+  x: [[[34, 45], [66, 80]], [[66, 45], [34, 80]]],
+  y: [[[34, 45], [52, 71]], [[66, 45], [40, 100]]],
+  z: [[[34, 45], [66, 45], [34, 80], [66, 80]]],
+};
+
+const TRACE_PAD = 20;
+const TRACE_SC = (TRACE_SIZE - TRACE_PAD * 2) / 100;
+const toPx = ([x, y]) => [TRACE_PAD + x * TRACE_SC, TRACE_PAD + y * TRACE_SC];
+const STROKE_BADGE_COLORS = ["#6C5CE7", "#FF6B9D", "#00B8A9", "#F0932B"];
+
+// 沿折線走 dist 距離,回傳該點位置與方向
+function walkPolyline(pts, dist) {
+  let acc = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const dx = pts[i][0] - pts[i - 1][0];
+    const dy = pts[i][1] - pts[i - 1][1];
+    const seg = Math.hypot(dx, dy);
+    if (seg === 0) continue;
+    if (acc + seg >= dist) {
+      const t = (dist - acc) / seg;
+      return {
+        x: pts[i - 1][0] + dx * t, y: pts[i - 1][1] + dy * t,
+        dx: dx / seg, dy: dy / seg,
+      };
+    }
+    acc += seg;
+  }
+  const [lx, ly] = pts[pts.length - 1];
+  return { x: lx, y: ly, dx: 0, dy: 1 };
+}
+
+function polylineLength(pts) {
+  let len = 0;
+  for (let i = 1; i < pts.length; i++)
+    len += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+  return len;
+}
+
 function TraceCanvas({ char, strokeColor, onProgress, onComplete }) {
   const guideRef = useRef(null);
   const drawRef = useRef(null);
   const pointsRef = useRef([]); // 引導字母的取樣點
   const drawingRef = useRef(false);
   const doneRef = useRef(false);
+  const rafRef = useRef(0);
 
-  // 換字母:重畫引導、清空筆跡
-  useEffect(() => {
-    doneRef.current = false;
+  const pxStrokes = useCallback(() => {
+    const strokes = LETTER_STROKES[char];
+    return strokes ? strokes.map((s) => s.map(toPx)) : null;
+  }, [char]);
+
+  // 畫引導:淡色粗筆身(withDecor 再加虛線中心線、筆順編號、方向箭頭)
+  const paintGuide = useCallback(
+    (withDecor) => {
+      const g = guideRef.current.getContext("2d");
+      g.clearRect(0, 0, TRACE_SIZE, TRACE_SIZE);
+      const strokes = pxStrokes();
+      if (!strokes) {
+        // 沒有筆畫資料的字元退回字型描邊
+        g.font = `700 ${TRACE_SIZE * 0.72}px 'Fredoka', 'Comic Sans MS', ui-rounded, sans-serif`;
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.fillStyle = "#E6E0FB";
+        g.fillText(char, TRACE_SIZE / 2, TRACE_SIZE * 0.55);
+        return;
+      }
+      g.lineCap = "round";
+      g.lineJoin = "round";
+      g.lineWidth = 46;
+      g.strokeStyle = "#E6E0FB";
+      g.setLineDash([]);
+      for (const s of strokes) {
+        g.beginPath();
+        g.moveTo(s[0][0], s[0][1]);
+        for (const [x, y] of s) g.lineTo(x, y);
+        g.stroke();
+      }
+      if (!withDecor) return;
+      // 虛線中心線
+      g.lineWidth = 4;
+      g.strokeStyle = "#B9AFF0";
+      g.setLineDash([11, 9]);
+      for (const s of strokes) {
+        g.beginPath();
+        g.moveTo(s[0][0], s[0][1]);
+        for (const [x, y] of s) g.lineTo(x, y);
+        g.stroke();
+      }
+      g.setLineDash([]);
+      // 每一筆:方向箭頭 + 筆順編號圓點
+      const badges = [];
+      strokes.forEach((s, i) => {
+        const color = STROKE_BADGE_COLORS[i % STROKE_BADGE_COLORS.length];
+        const a = walkPolyline(s, 46);
+        g.fillStyle = color;
+        g.beginPath();
+        g.moveTo(a.x + a.dx * 13, a.y + a.dy * 13);
+        g.lineTo(a.x - a.dy * 9, a.y + a.dx * 9);
+        g.lineTo(a.x + a.dy * 9, a.y - a.dx * 9);
+        g.closePath();
+        g.fill();
+        // 編號放在起點沿反方向外推處,跟前面的編號重疊就往旁邊挪
+        const s0 = walkPolyline(s, 0.1);
+        let bx = s[0][0] - s0.dx * 32;
+        let by = s[0][1] - s0.dy * 32;
+        for (const [ox, oy] of badges) {
+          if (Math.hypot(bx - ox, by - oy) < 34) {
+            bx += -s0.dy * 38;
+            by += s0.dx * 38;
+          }
+        }
+        badges.push([bx, by]);
+        g.beginPath();
+        g.arc(bx, by, 16, 0, 2 * P2);
+        g.fillStyle = color;
+        g.fill();
+        g.fillStyle = "#fff";
+        g.font = "700 20px 'Fredoka', sans-serif";
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.fillText(String(i + 1), bx, by + 1);
+      });
+    },
+    [char, pxStrokes]
+  );
+
+  // 筆順示範:小鉛筆照 1→2→3 順序畫一次給小朋友看
+  const playDemo = useCallback(() => {
+    cancelAnimationFrame(rafRef.current);
+    const strokes = pxStrokes();
+    if (!strokes) return;
+    const lens = strokes.map(polylineLength);
+    const total = lens.reduce((a, b) => a + b, 0);
+    const SPEED = 0.28; // px/ms
+    let t0 = null;
     const g = guideRef.current.getContext("2d");
-    g.clearRect(0, 0, TRACE_SIZE, TRACE_SIZE);
-    g.font = `700 ${TRACE_SIZE * 0.72}px 'Fredoka', 'Comic Sans MS', ui-rounded, sans-serif`;
-    g.textAlign = "center";
-    g.textBaseline = "middle";
-    g.fillStyle = "#E6E0FB";
-    g.fillText(char, TRACE_SIZE / 2, TRACE_SIZE * 0.55);
-    g.setLineDash([12, 10]);
-    g.lineWidth = 4;
-    g.strokeStyle = "#B9AFF0";
-    g.strokeText(char, TRACE_SIZE / 2, TRACE_SIZE * 0.55);
+    const step = (ts) => {
+      if (t0 === null) t0 = ts;
+      const drawn = Math.min((ts - t0) * SPEED, total);
+      paintGuide(true);
+      g.lineCap = "round";
+      g.lineJoin = "round";
+      g.lineWidth = 12;
+      g.strokeStyle = strokeColor;
+      let remain = drawn;
+      let tip = null;
+      for (let i = 0; i < strokes.length && remain > 0; i++) {
+        const seg = Math.min(remain, lens[i]);
+        const s = strokes[i];
+        g.beginPath();
+        g.moveTo(s[0][0], s[0][1]);
+        let acc = 0;
+        for (let k = 1; k < s.length; k++) {
+          const d = Math.hypot(s[k][0] - s[k - 1][0], s[k][1] - s[k - 1][1]);
+          if (acc + d <= seg) {
+            g.lineTo(s[k][0], s[k][1]);
+            acc += d;
+          } else {
+            const p = walkPolyline(s, seg);
+            g.lineTo(p.x, p.y);
+            tip = p;
+            break;
+          }
+        }
+        g.stroke();
+        if (seg >= lens[i]) tip = walkPolyline(s, lens[i]);
+        remain -= seg;
+      }
+      if (tip) {
+        g.font = "44px serif";
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.fillText("✏️", tip.x + 14, tip.y - 16);
+      }
+      if (drawn < total) rafRef.current = requestAnimationFrame(step);
+      else setTimeout(() => paintGuide(true), 600);
+    };
+    rafRef.current = requestAnimationFrame(step);
+  }, [pxStrokes, paintGuide, strokeColor]);
 
-    // 取樣引導字母的像素點,之後用來計算描寫覆蓋率
+  // 換字母:重畫引導、取樣覆蓋率基準點、清空筆跡
+  useEffect(() => {
+    cancelAnimationFrame(rafRef.current);
+    doneRef.current = false;
+    paintGuide(false); // 先只畫筆身取樣,編號和箭頭才不會被算進覆蓋率
+    const g = guideRef.current.getContext("2d");
     const img = g.getImageData(0, 0, TRACE_SIZE, TRACE_SIZE).data;
     const pts = [];
     const step = 10;
@@ -1225,10 +1481,12 @@ function TraceCanvas({ char, strokeColor, onProgress, onComplete }) {
       for (let x = 0; x < TRACE_SIZE; x += step)
         if (img[(y * TRACE_SIZE + x) * 4 + 3] > 100) pts.push([x, y]);
     pointsRef.current = pts;
+    paintGuide(true);
 
     const d = drawRef.current.getContext("2d");
     d.clearRect(0, 0, TRACE_SIZE, TRACE_SIZE);
-  }, [char]);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [char, paintGuide]);
 
   const toCanvasXY = (e) => {
     const rect = drawRef.current.getBoundingClientRect();
@@ -1316,6 +1574,18 @@ function TraceCanvas({ char, strokeColor, onProgress, onComplete }) {
         }}
       />
       <button
+        onClick={playDemo}
+        style={{
+          position: "absolute", left: 10, bottom: 10,
+          fontFamily: "inherit", fontWeight: 700, fontSize: 15,
+          background: T.purple, color: "#fff", border: "none",
+          borderRadius: 999, padding: "8px 14px", cursor: "pointer",
+          boxShadow: `0 3px 0 ${T.purpleDark}`,
+        }}
+      >
+        ✏️ 筆順示範
+      </button>
+      <button
         onClick={clear}
         style={{
           position: "absolute", right: 10, bottom: 10,
@@ -1389,7 +1659,7 @@ function WriteMode({ speak, addStars }) {
   return (
     <div style={{ textAlign: "center" }}>
       <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>
-        用手指把淡淡的字母描出來,描滿就成功!已完成{" "}
+        跟著 1、2、3 號碼和箭頭的方向描,描滿就成功!已完成{" "}
         <b style={{ color: T.purple }}>{doneSet.size}</b> / {LETTERS.length * 2}
       </p>
 
