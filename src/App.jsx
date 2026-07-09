@@ -1173,6 +1173,337 @@ function SayItMode({ speak, addStars }) {
   );
 }
 
+// ---------- 手寫練習(A–Z 描寫)----------
+const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+const TRACE_SIZE = 480; // 畫布內部解析度(正方形)
+const TRACE_KEY = "wordpop-trace-done";
+
+// 找一個以該字母開頭的單字當例字(A is for apple)
+function exampleWordFor(letter) {
+  return ALL_WORDS.find(
+    (w) => /^[a-z]+$/i.test(w.en) && w.en[0].toUpperCase() === letter
+  );
+}
+
+function loadTraceDone() {
+  try {
+    const raw = localStorage.getItem(TRACE_KEY);
+    const arr = JSON.parse(raw || "[]");
+    return Array.isArray(arr) ? new Set(arr) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function TraceCanvas({ char, strokeColor, onProgress, onComplete }) {
+  const guideRef = useRef(null);
+  const drawRef = useRef(null);
+  const pointsRef = useRef([]); // 引導字母的取樣點
+  const drawingRef = useRef(false);
+  const doneRef = useRef(false);
+
+  // 換字母:重畫引導、清空筆跡
+  useEffect(() => {
+    doneRef.current = false;
+    const g = guideRef.current.getContext("2d");
+    g.clearRect(0, 0, TRACE_SIZE, TRACE_SIZE);
+    g.font = `700 ${TRACE_SIZE * 0.72}px 'Fredoka', 'Comic Sans MS', ui-rounded, sans-serif`;
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.fillStyle = "#E6E0FB";
+    g.fillText(char, TRACE_SIZE / 2, TRACE_SIZE * 0.55);
+    g.setLineDash([12, 10]);
+    g.lineWidth = 4;
+    g.strokeStyle = "#B9AFF0";
+    g.strokeText(char, TRACE_SIZE / 2, TRACE_SIZE * 0.55);
+
+    // 取樣引導字母的像素點,之後用來計算描寫覆蓋率
+    const img = g.getImageData(0, 0, TRACE_SIZE, TRACE_SIZE).data;
+    const pts = [];
+    const step = 10;
+    for (let y = 0; y < TRACE_SIZE; y += step)
+      for (let x = 0; x < TRACE_SIZE; x += step)
+        if (img[(y * TRACE_SIZE + x) * 4 + 3] > 100) pts.push([x, y]);
+    pointsRef.current = pts;
+
+    const d = drawRef.current.getContext("2d");
+    d.clearRect(0, 0, TRACE_SIZE, TRACE_SIZE);
+  }, [char]);
+
+  const toCanvasXY = (e) => {
+    const rect = drawRef.current.getBoundingClientRect();
+    return [
+      ((e.clientX - rect.left) * TRACE_SIZE) / rect.width,
+      ((e.clientY - rect.top) * TRACE_SIZE) / rect.height,
+    ];
+  };
+
+  const start = (e) => {
+    drawingRef.current = true;
+    drawRef.current.setPointerCapture(e.pointerId);
+    const ctx = drawRef.current.getContext("2d");
+    const [x, y] = toCanvasXY(e);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.lineWidth = 34;
+    ctx.strokeStyle = strokeColor;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    // 點一下也留個圓點
+    ctx.lineTo(x + 0.1, y + 0.1);
+    ctx.stroke();
+  };
+
+  const move = (e) => {
+    if (!drawingRef.current) return;
+    const ctx = drawRef.current.getContext("2d");
+    const [x, y] = toCanvasXY(e);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  };
+
+  const end = () => {
+    if (!drawingRef.current) return;
+    drawingRef.current = false;
+    // 計算覆蓋率:引導點上有筆跡的比例
+    const pts = pointsRef.current;
+    if (!pts.length || doneRef.current) return;
+    const img = drawRef.current
+      .getContext("2d")
+      .getImageData(0, 0, TRACE_SIZE, TRACE_SIZE).data;
+    let hit = 0;
+    for (const [x, y] of pts)
+      if (img[(y * TRACE_SIZE + x) * 4 + 3] > 40) hit++;
+    const ratio = hit / pts.length;
+    if (ratio >= 0.55) {
+      doneRef.current = true;
+      onComplete();
+    } else {
+      onProgress(ratio);
+    }
+  };
+
+  const clear = () => {
+    doneRef.current = false;
+    drawRef.current
+      .getContext("2d")
+      .clearRect(0, 0, TRACE_SIZE, TRACE_SIZE);
+  };
+
+  return (
+    <div style={{ position: "relative", width: "100%", maxWidth: 340, margin: "0 auto" }}>
+      <canvas
+        ref={guideRef}
+        width={TRACE_SIZE}
+        height={TRACE_SIZE}
+        style={{
+          width: "100%", display: "block", background: "#FFFDF5",
+          borderRadius: 24, border: "3px solid #E8E4FA",
+          boxShadow: "0 6px 0 #E0DBF7",
+        }}
+      />
+      <canvas
+        ref={drawRef}
+        width={TRACE_SIZE}
+        height={TRACE_SIZE}
+        onPointerDown={start}
+        onPointerMove={move}
+        onPointerUp={end}
+        onPointerCancel={end}
+        style={{
+          position: "absolute", inset: 0, width: "100%", height: "100%",
+          touchAction: "none", cursor: "crosshair", borderRadius: 24,
+        }}
+      />
+      <button
+        onClick={clear}
+        style={{
+          position: "absolute", right: 10, bottom: 10,
+          fontFamily: "inherit", fontWeight: 700, fontSize: 15,
+          background: "#E8E4FA", color: T.sub, border: "none",
+          borderRadius: 999, padding: "8px 14px", cursor: "pointer",
+        }}
+      >
+        🧽 擦掉
+      </button>
+    </div>
+  );
+}
+
+const TRACE_COLORS = ["#6C5CE7", "#FF6B9D", "#4ECB71", "#F0932B", "#3FA7E0"];
+
+function WriteMode({ speak, addStars }) {
+  const [caseMode, setCaseMode] = useState("upper"); // upper | lower
+  const [letter, setLetter] = useState("A");
+  const [celebrate, setCelebrate] = useState(false);
+  const [cheer, setCheer] = useState(""); // 描到一半的鼓勵語
+  const [doneSet, setDoneSet] = useState(loadTraceDone);
+
+  const displayChar = caseMode === "upper" ? letter : letter.toLowerCase();
+  const doneKey = `${letter}-${caseMode}`;
+  const example = exampleWordFor(letter);
+  const color = TRACE_COLORS[LETTERS.indexOf(letter) % TRACE_COLORS.length];
+
+  // 加句點強迫走合成語音唸「字母名」,避免查到單字 a / I 的發音
+  const sayLetter = useCallback(
+    (L) => speak(L + ".", { rate: 0.8 }),
+    [speak]
+  );
+
+  const selectLetter = (L, cm = caseMode) => {
+    setLetter(L);
+    setCaseMode(cm);
+    setCelebrate(false);
+    setCheer("");
+    sayLetter(L);
+  };
+
+  const markDone = () => {
+    setCelebrate(true);
+    setCheer("");
+    addStars(2);
+    if (example) speak(`${letter}! ${letter} is for ${example.en}!`, { rate: 0.9 });
+    else sayLetter(letter);
+    setDoneSet((prev) => {
+      const next = new Set(prev);
+      next.add(doneKey);
+      try {
+        localStorage.setItem(TRACE_KEY, JSON.stringify([...next]));
+      } catch { /* 無痕模式等寫入失敗就不保存 */ }
+      return next;
+    });
+  };
+
+  const onProgress = (ratio) => {
+    setCheer(
+      ratio >= 0.3 ? "快完成了,繼續描!💪" : "很棒的開始,把字母描滿吧!🖍️"
+    );
+  };
+
+  const nextLetter = () => {
+    const idx = LETTERS.indexOf(letter);
+    if (caseMode === "upper") selectLetter(letter, "lower");
+    else selectLetter(LETTERS[(idx + 1) % LETTERS.length], "upper");
+  };
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>
+        用手指把淡淡的字母描出來,描滿就成功!已完成{" "}
+        <b style={{ color: T.purple }}>{doneSet.size}</b> / {LETTERS.length * 2}
+      </p>
+
+      {/* 大小寫切換 */}
+      <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 12 }}>
+        {[["upper", "大寫 ABC"], ["lower", "小寫 abc"]].map(([cm, label]) => (
+          <button
+            key={cm}
+            onClick={() => selectLetter(letter, cm)}
+            style={{
+              fontFamily: "inherit", fontWeight: 700, fontSize: 15,
+              padding: "9px 18px", borderRadius: 999, border: "none",
+              cursor: "pointer",
+              background: caseMode === cm ? T.purple : "#E8E4FA",
+              color: caseMode === cm ? "#fff" : T.sub,
+              transition: "all .15s",
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* 例字 + 聽發音 */}
+      <div
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "center",
+          gap: 10, marginBottom: 12,
+        }}
+      >
+        <ChunkyButton
+          color={T.yellow} dark={T.yellowDark}
+          onClick={() => sayLetter(letter)}
+          style={{ color: T.ink, padding: "10px 18px", fontSize: 16 }}
+        >
+          🔊 {displayChar} 怎麼唸
+        </ChunkyButton>
+        {example && (
+          <button
+            onClick={() => speak(example.en)}
+            style={{
+              fontFamily: "inherit", fontWeight: 700, fontSize: 15,
+              background: T.card, color: T.ink, border: "3px solid #E8E4FA",
+              borderRadius: 16, padding: "8px 14px", cursor: "pointer",
+              boxShadow: "0 4px 0 #E0DBF7",
+            }}
+          >
+            {example.emoji} {example.en}
+          </button>
+        )}
+      </div>
+
+      <TraceCanvas
+        char={displayChar}
+        strokeColor={color}
+        onProgress={onProgress}
+        onComplete={markDone}
+      />
+
+      {celebrate ? (
+        <div style={{ marginTop: 14 }}>
+          <div style={{ fontSize: 22, color: T.greenDark, fontWeight: 700 }}>
+            🎉 太棒了!{displayChar} 寫得真漂亮!+2 ⭐
+          </div>
+          <ChunkyButton
+            color={T.green} dark={T.greenDark} onClick={nextLetter}
+            style={{ marginTop: 10 }}
+          >
+            {caseMode === "upper" ? `接著寫小寫 ${letter.toLowerCase()} →` : "下一個字母 →"}
+          </ChunkyButton>
+        </div>
+      ) : (
+        cheer && (
+          <div style={{ marginTop: 14, fontSize: 16, color: T.sub, fontWeight: 700 }}>
+            {cheer}
+          </div>
+        )
+      )}
+
+      {/* 字母選擇表 */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(46px, 1fr))",
+          gap: 8, marginTop: 18,
+        }}
+      >
+        {LETTERS.map((L) => {
+          const finished =
+            doneSet.has(`${L}-upper`) && doneSet.has(`${L}-lower`);
+          const active = L === letter;
+          return (
+            <button
+              key={L}
+              onClick={() => selectLetter(L)}
+              style={{
+                fontFamily: "inherit", fontWeight: 700, fontSize: 19,
+                padding: "10px 0", borderRadius: 14, border: "none",
+                cursor: "pointer",
+                background: active ? T.purple : finished ? "#E9FBEF" : T.card,
+                color: active ? "#fff" : finished ? T.greenDark : T.ink,
+                boxShadow: active ? `0 4px 0 ${T.purpleDark}` : "0 4px 0 #E0DBF7",
+                transition: "all .15s",
+              }}
+            >
+              {finished && !active ? "✓" : ""}{L}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ---------- 主程式 ----------
 export default function WordPop() {
   const speak = useSpeech();
@@ -1282,6 +1613,11 @@ export default function WordPop() {
                 onClick={() => setMode("sayit")} style={{ fontSize: 17 }}>
                 🎤 跟讀小勇士
               </ChunkyButton>
+              <ChunkyButton color="#00B8A9" dark="#00897E"
+                onClick={() => setMode("write")}
+                style={{ fontSize: 17, gridColumn: "1 / -1" }}>
+                ✍️ 手寫練習
+              </ChunkyButton>
             </div>
             <p style={{ color: "#B7B2D8", fontSize: 13, marginTop: 30 }}>
               🎙️ 單字使用真人錄音(Wiktionary),查無音檔時自動改用合成語音
@@ -1295,6 +1631,7 @@ export default function WordPop() {
         {mode === "sight" && <SightMode speak={speak} addStars={addStars} />}
         {mode === "sound" && <FirstSoundMode speak={speak} addStars={addStars} />}
         {mode === "sayit" && <SayItMode speak={speak} addStars={addStars} />}
+        {mode === "write" && <WriteMode speak={speak} addStars={addStars} />}
       </div>
     </div>
   );
