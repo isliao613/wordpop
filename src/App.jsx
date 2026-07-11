@@ -869,110 +869,277 @@ function QuizMode({ speak, addStars, onExit }) {
   );
 }
 
-// ---------- 認字快手(Sight Words)----------
-function SightMode({ speak, addStars }) {
-  const [tab, setTab] = useState("learn");
-  const [q, setQ] = useState(null);
-  const [picked, setPicked] = useState(null);
-  const [round, setRound] = useState(0);
-  const [right, setRight] = useState(0);
-  const TOTAL = 8;
+// ---------- 認字快手(Sight Words 闖關版)----------
+// 一關只有 5 個字:先聽熟 → 2~3 選 1 挑戰 → 答錯的字稍後再出現,
+// 直到全部答對,所以永遠會過關,只差拿幾顆星(全對拿皇冠)。
+const SIGHT_LEVEL_SIZE = 5;
+const SIGHT_LEVELS = [];
+for (let i = 0; i < SIGHT_WORDS.length; i += SIGHT_LEVEL_SIZE)
+  SIGHT_LEVELS.push(SIGHT_WORDS.slice(i, i + SIGHT_LEVEL_SIZE));
+const SIGHT_KEY = "wordpop-sight-progress";
 
-  const newQ = () => {
-    const ans = SIGHT_WORDS[Math.floor(Math.random() * SIGHT_WORDS.length)];
-    const others = shuffle(SIGHT_WORDS.filter((w) => w !== ans)).slice(0, 3);
-    setQ({ ans, options: shuffle([ans, ...others]) });
-    setPicked(null);
+function loadSightProgress() {
+  try {
+    const o = JSON.parse(localStorage.getItem(SIGHT_KEY) || "{}");
+    return o && typeof o === "object" && !Array.isArray(o) ? o : {};
+  } catch {
+    return {};
+  }
+}
+
+function SightMode({ speak, addStars }) {
+  const [view, setView] = useState("map"); // map | learn | quiz | clear
+  const [lv, setLv] = useState(0);
+  const [progress, setProgress] = useState(loadSightProgress); // 關卡 -> 最佳星數
+  const [heard, setHeard] = useState(() => new Set());
+  const [queue, setQueue] = useState([]);
+  const [options, setOptions] = useState([]);
+  const [picked, setPicked] = useState(null);
+  const [mastered, setMastered] = useState(() => new Set());
+  const [wrongSet, setWrongSet] = useState(() => new Set()); // 這關曾答錯的字
+  const [encourage, setEncourage] = useState("");
+  const [gotStars, setGotStars] = useState(1);
+
+  const words = SIGHT_LEVELS[lv];
+  const nChoices = lv < 5 ? 2 : 3; // 前 5 關二選一,之後三選一
+  const target = queue[0];
+
+  const makeOptions = (word, lvWords, n) => {
+    const others = shuffle(lvWords.filter((w) => w !== word)).slice(0, n - 1);
+    return shuffle([word, ...others]);
+  };
+
+  const openLevel = (i) => {
+    setLv(i);
+    setHeard(new Set());
+    setView("learn");
   };
 
   const startQuiz = () => {
-    setTab("quiz"); setRound(1); setRight(0); newQ();
+    const q = shuffle(words);
+    setQueue(q);
+    setMastered(new Set());
+    setWrongSet(new Set());
+    setPicked(null);
+    setEncourage("");
+    setOptions(makeOptions(q[0], words, nChoices));
+    setView("quiz");
   };
+
   useEffect(() => {
-    if (tab === "quiz" && q) {
-      const t = setTimeout(() => speak(q.ans), 400);
+    if (view === "quiz" && target) {
+      const t = setTimeout(() => speak(target), 400);
       return () => clearTimeout(t);
     }
-  }, [q, tab, speak]);
+  }, [view, target, speak]);
 
   const pick = (w) => {
-    if (picked) return;
+    if (picked || !target) return;
     setPicked(w);
-    const ok = w === q.ans;
-    if (ok) { setRight((r) => r + 1); addStars(1); speak("Great job!", { rate: 1 }); }
-    else speak(q.ans, { rate: 0.75 });
-    setTimeout(() => {
-      if (round >= TOTAL) setTab("done");
-      else { setRound((r) => r + 1); newQ(); }
-    }, 1300);
+    if (w === target) {
+      addStars(1);
+      speak("Great job!", { rate: 1 });
+      const nm = new Set(mastered).add(target);
+      setTimeout(() => {
+        setMastered(nm);
+        const rest = queue.slice(1);
+        if (rest.length === 0) {
+          // 過關!全對 👑3 星、只錯 1 個字 2 星、其他 1 星
+          const perfect = words.length - wrongSet.size;
+          const starsGot =
+            perfect >= words.length ? 3 : perfect >= words.length - 1 ? 2 : 1;
+          setGotStars(starsGot);
+          addStars(starsGot);
+          setProgress((p) => {
+            const np = { ...p, [lv]: Math.max(p[lv] || 0, starsGot) };
+            try {
+              localStorage.setItem(SIGHT_KEY, JSON.stringify(np));
+            } catch { /* 寫入失敗就不保存 */ }
+            return np;
+          });
+          setView("clear");
+        } else {
+          setQueue(rest);
+          setPicked(null);
+          setEncourage("");
+          setOptions(makeOptions(rest[0], words, nChoices));
+        }
+      }, 1100);
+    } else {
+      setWrongSet((s) => new Set(s).add(target));
+      setEncourage("沒關係!仔細聽,它等一下還會再出現 💪");
+      speak(target, { rate: 0.7 });
+      setTimeout(() => {
+        // 答錯的字排到最後,等一下再考一次
+        const rest = [...queue.slice(1), queue[0]];
+        setQueue(rest);
+        setPicked(null);
+        setOptions(makeOptions(rest[0], words, nChoices));
+      }, 1600);
+    }
   };
 
-  if (tab === "learn")
+  // ----- 關卡地圖 -----
+  if (view === "map") {
+    const crowns = Object.values(progress).filter((s) => s >= 3).length;
     return (
-      <div>
-        <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>
-          Sight words 是「看到就要唸得出來」的常見字,點卡片聽發音,熟了再去快閃測驗 ⚡
+      <div style={{ textAlign: "center" }}>
+        <p style={{ color: T.sub, fontSize: 14, margin: "0 0 4px" }}>
+          Sight words 是「看到就要唸得出來」的常見字。
         </p>
-        <ChunkyButton color={T.pink} dark="#D14B7D" onClick={startQuiz}
-          style={{ width: "100%", marginBottom: 14 }}>
-          ⚡ 開始快閃測驗
-        </ChunkyButton>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))", gap: 10 }}>
-          {SIGHT_WORDS.map((w) => (
-            <button key={w} onClick={() => speak(w)}
-              style={{
-                background: T.card, border: "3px solid #E8E4FA", borderRadius: 16,
-                padding: "16px 4px", fontFamily: "inherit", fontSize: 22,
-                fontWeight: 700, color: T.ink, cursor: "pointer",
-                boxShadow: "0 4px 0 #E0DBF7",
-              }}>
-              {w}
-            </button>
-          ))}
+        <p style={{ color: T.ink, fontSize: 16, fontWeight: 700, margin: "0 0 14px" }}>
+          一關 5 個字,收集皇冠吧!👑 {crowns} / {SIGHT_LEVELS.length}
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
+          {SIGHT_LEVELS.map((lvWords, i) => {
+            const unlocked = i === 0 || (progress[i - 1] || 0) >= 1;
+            const best = progress[i] || 0;
+            return (
+              <button
+                key={i}
+                onClick={() => unlocked && openLevel(i)}
+                style={{
+                  fontFamily: "inherit", fontWeight: 700, border: "none",
+                  borderRadius: 18, padding: "12px 0 10px",
+                  cursor: unlocked ? "pointer" : "default",
+                  background: unlocked ? (best >= 3 ? "#FFF7DA" : T.card) : "#ECEAF6",
+                  color: unlocked ? T.ink : "#C0BBDE",
+                  boxShadow: unlocked ? "0 5px 0 #E0DBF7" : "none",
+                  transition: "all .15s",
+                }}
+              >
+                <div style={{ fontSize: 22 }}>
+                  {unlocked ? (best >= 3 ? "👑" : i + 1) : "🔒"}
+                </div>
+                <div style={{ fontSize: 12, height: 16, color: T.yellowDark }}>
+                  {best > 0 ? "⭐".repeat(best) : ""}
+                </div>
+              </button>
+            );
+          })}
         </div>
+        <p style={{ color: "#B7B2D8", fontSize: 13, marginTop: 16 }}>
+          每一關都一定會過,答錯的字會再出現,答對就好 💜
+        </p>
       </div>
     );
+  }
 
-  if (tab === "done")
+  // ----- 過關畫面 -----
+  if (view === "clear") {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
-        <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : right >= 5 ? "🌟" : "💪"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>答對 {right} / {TOTAL} 題!</h2>
-        <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 16 }}>
-          <ChunkyButton color={T.purple} dark={T.purpleDark} onClick={() => setTab("learn")}>
-            回練習
+        <div style={{ fontSize: 60 }}>{gotStars >= 3 ? "👑" : "🎉"}</div>
+        <h2 style={{ color: T.ink, fontSize: 28, margin: "8px 0 4px" }}>
+          第 {lv + 1} 關完成!
+        </h2>
+        <div style={{ fontSize: 34 }}>{"⭐".repeat(gotStars)}</div>
+        <p style={{ color: T.sub, fontSize: 15, margin: "6px 0 18px" }}>
+          {gotStars >= 3
+            ? "全部一次答對,拿到皇冠!"
+            : "這 5 個字全部學會了,太厲害!"}
+        </p>
+        <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+          <ChunkyButton color={T.purple} dark={T.purpleDark} onClick={() => setView("map")}>
+            回關卡地圖
           </ChunkyButton>
-          <ChunkyButton color={T.green} dark={T.greenDark} onClick={startQuiz}>
-            再玩一次
-          </ChunkyButton>
+          {lv + 1 < SIGHT_LEVELS.length && (
+            <ChunkyButton color={T.green} dark={T.greenDark} onClick={() => openLevel(lv + 1)}>
+              下一關 →
+            </ChunkyButton>
+          )}
         </div>
       </div>
     );
+  }
 
+  // ----- 先聽熟這一關的 5 個新朋友 -----
+  if (view === "learn") {
+    const allHeard = heard.size >= words.length;
+    return (
+      <div style={{ textAlign: "center" }}>
+        <p style={{ color: T.ink, fontSize: 16, fontWeight: 700, margin: "0 0 4px" }}>
+          第 {lv + 1} 關的 5 個新朋友 👋
+        </p>
+        <p style={{ color: T.sub, fontSize: 14, margin: "0 0 14px" }}>
+          每張卡都點一下聽聽看,全部聽過就可以開始挑戰!
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(90px, 1fr))", gap: 10, marginBottom: 16 }}>
+          {words.map((w) => {
+            const ok = heard.has(w);
+            return (
+              <button
+                key={w}
+                onClick={() => {
+                  speak(w);
+                  setHeard((s) => new Set(s).add(w));
+                }}
+                style={{
+                  background: ok ? "#E9FBEF" : T.card,
+                  border: `3px solid ${ok ? T.green : "#E8E4FA"}`,
+                  borderRadius: 18, padding: "20px 4px 14px",
+                  fontFamily: "inherit", fontSize: 24, fontWeight: 700,
+                  color: T.ink, cursor: "pointer",
+                  boxShadow: "0 5px 0 #E0DBF7", transition: "all .15s",
+                }}
+              >
+                {w}
+                <div style={{ fontSize: 12, marginTop: 6, color: ok ? T.greenDark : "#C9C4E8" }}>
+                  {ok ? "✓ 聽過了" : "🔈 點我"}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <ChunkyButton
+          color={T.pink} dark="#D14B7D" onClick={startQuiz} disabled={!allHeard}
+          style={{ width: "100%" }}
+        >
+          {allHeard ? "🎈 開始挑戰!" : `再聽 ${words.length - heard.size} 張卡就能挑戰`}
+        </ChunkyButton>
+        <button
+          onClick={() => setView("map")}
+          style={{
+            marginTop: 12, fontFamily: "inherit", fontWeight: 700, fontSize: 14,
+            background: "none", border: "none", color: T.sub, cursor: "pointer",
+          }}
+        >
+          ← 回關卡地圖
+        </button>
+      </div>
+    );
+  }
+
+  // ----- 挑戰:答對氣球變星星 -----
   return (
-    <div>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 14 }}>
-        第 {round} / {TOTAL} 題・聽聲音,點出正確的字!
+    <div style={{ textAlign: "center" }}>
+      <div style={{ fontSize: 26, letterSpacing: 4, marginBottom: 10 }}>
+        {words.map((w) => (
+          <span key={w}>{mastered.has(w) ? "⭐" : "🎈"}</span>
+        ))}
       </div>
       <div style={{ background: T.card, borderRadius: 22, padding: "20px 16px",
         textAlign: "center", marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
-        <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={() => speak(q.ans)}
+        <p style={{ color: T.sub, margin: "0 0 10px", fontSize: 15 }}>
+          仔細聽,點出正確的字,氣球就會變星星!
+        </p>
+        <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={() => speak(target)}
           style={{ color: T.ink }}>
           🔊 再聽一次
         </ChunkyButton>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        {q.options.map((w) => {
+      <div style={{ display: "grid", gridTemplateColumns: nChoices === 2 ? "1fr 1fr" : "1fr 1fr 1fr", gap: 12 }}>
+        {options.map((w) => {
           let bg = T.card, bd = "#E8E4FA";
           if (picked) {
-            if (w === q.ans) { bg = "#E9FBEF"; bd = T.green; }
-            else if (w === picked) { bg = "#FFEDED"; bd = T.red; }
+            if (w === target) { bg = "#E9FBEF"; bd = T.green; }
+            else if (w === picked) { bg = "#FFF7DA"; bd = T.yellow; }
           }
           return (
             <button key={w} onClick={() => pick(w)}
               style={{
                 background: bg, border: `3px solid ${bd}`, borderRadius: 18,
-                padding: "22px 8px", fontFamily: "inherit", fontSize: 26,
+                padding: "26px 8px", fontFamily: "inherit", fontSize: 30,
                 fontWeight: 700, color: T.ink, cursor: picked ? "default" : "pointer",
                 boxShadow: "0 5px 0 #E0DBF7", transition: "all .15s",
               }}>
@@ -981,6 +1148,11 @@ function SightMode({ speak, addStars }) {
           );
         })}
       </div>
+      {encourage && (
+        <div style={{ marginTop: 14, fontSize: 15, color: T.sub, fontWeight: 700 }}>
+          {encourage}
+        </div>
+      )}
     </div>
   );
 }
