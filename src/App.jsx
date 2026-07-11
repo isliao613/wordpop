@@ -1262,31 +1262,78 @@ function SayItMode({ speak, addStars }) {
     typeof window !== "undefined" &&
     (window.SpeechRecognition || window.webkitSpeechRecognition);
 
-  const next = () => { setWord(pickWord()); setStatus("idle"); setHeard(""); };
+  const recRef = useRef(null);
+  const timerRef = useRef(0);
+
+  const stopListening = useCallback(() => {
+    clearTimeout(timerRef.current);
+    try { recRef.current?.abort(); } catch { /* 已停止就算了 */ }
+    recRef.current = null;
+  }, []);
+  useEffect(() => stopListening, [stopListening]); // 離開頁面時關麥克風
+
+  const next = () => {
+    stopListening();
+    setWord(pickWord()); setStatus("idle"); setHeard("");
+  };
 
   const listen = () => {
-    if (!SR) return;
+    if (!SR || status === "listening") return;
+    // 先停掉還在播的示範音,不然麥克風會收到喇叭的聲音
+    window.speechSynthesis?.cancel();
+    stopListening();
     try {
       const rec = new SR();
+      recRef.current = rec;
       rec.lang = "en-US";
-      rec.interimResults = false;
+      // 邊聽邊出中途結果:唸對「立刻」過關,不用等瀏覽器判定講完
+      rec.interimResults = true;
       rec.maxAlternatives = 5;
+      rec.continuous = false;
       setStatus("listening");
-      rec.onresult = (e) => {
-        const alts = Array.from(e.results[0]).map((r) =>
-          r.transcript.toLowerCase().trim()
-        );
-        setHeard(alts[0] || "");
-        const t = word.en.toLowerCase();
-        const ok = alts.some((a) => a === t || a.includes(t) || t.includes(a));
-        if (ok) {
-          setStatus("correct"); setWins((n) => n + 1);
-          addStars(2); speak("Great job!", { rate: 1 });
-        } else setStatus("tryagain");
+      setHeard("");
+      const t = word.en.toLowerCase();
+      let settled = false;
+      const succeed = () => {
+        if (settled) return;
+        settled = true;
+        stopListening();
+        setStatus("correct");
+        setWins((n) => n + 1);
+        addStars(2);
+        speak("Great job!", { rate: 1 });
       };
-      rec.onerror = () => setStatus("tryagain");
-      rec.onend = () =>
+      const giveUp = () => {
+        if (settled) return;
+        settled = true;
+        stopListening();
+        setStatus("tryagain");
+      };
+      const matches = (a) =>
+        a === t ||
+        a.includes(t) ||
+        // 只聽到一部分也算(至少要有目標字一半長,避免亂猜就過)
+        (a.length >= Math.ceil(t.length / 2) && t.includes(a));
+      rec.onresult = (e) => {
+        const alts = [];
+        for (const res of e.results)
+          for (const alt of res) alts.push(alt.transcript.toLowerCase().trim());
+        if (alts[0]) setHeard(alts[0]);
+        if (alts.some(matches)) {
+          succeed();
+        } else if (e.results[e.results.length - 1].isFinal) {
+          giveUp();
+        }
+      };
+      rec.onerror = giveUp;
+      rec.onend = () => {
+        clearTimeout(timerRef.current);
         setStatus((s) => (s === "listening" ? "tryagain" : s));
+      };
+      // 最多聽 6 秒,不讓小朋友對著麥克風乾等
+      timerRef.current = setTimeout(() => {
+        try { rec.stop(); } catch { giveUp(); }
+      }, 6000);
       rec.start();
     } catch {
       setStatus("tryagain");
@@ -1305,7 +1352,8 @@ function SayItMode({ speak, addStars }) {
         <div style={{ fontSize: 15, color: T.sub, marginBottom: 14 }}>{word.zh}</div>
         <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
           <ChunkyButton color={T.yellow} dark={T.yellowDark}
-            onClick={() => speak(word.en)} style={{ color: T.ink }}>
+            onClick={() => speak(word.en)} style={{ color: T.ink }}
+            disabled={status === "listening"}>
             🔊 先聽一次
           </ChunkyButton>
           {SR ? (
@@ -1322,6 +1370,14 @@ function SayItMode({ speak, addStars }) {
             </ChunkyButton>
           )}
         </div>
+        {status === "listening" && (
+          <div style={{
+            marginTop: 14, fontSize: 17, color: T.pink, fontWeight: 700,
+            animation: "wp-pulse 1s ease-in-out infinite",
+          }}>
+            🎙️ 我在聽,大聲唸出來!{heard && ` 「${heard}」`}
+          </div>
+        )}
         {status === "correct" && (
           <div style={{ marginTop: 14, fontSize: 20, color: T.greenDark, fontWeight: 700 }}>
             🎉 Great job! +2 ⭐
@@ -1962,7 +2018,8 @@ export default function WordPop() {
         padding: "20px 16px 40px",
       }}
     >
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap');`}</style>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap');
+@keyframes wp-pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .6; transform: scale(1.05); } }`}</style>
 
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
         {/* Header */}
