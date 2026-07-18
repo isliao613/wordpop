@@ -360,7 +360,7 @@ const SIGHT_WORDS = [
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
 // 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
-const APP_VERSION = "v1.3";
+const APP_VERSION = "v1.4";
 const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
@@ -2391,6 +2391,21 @@ export default function WordPop() {
   const [mode, setMode] = useState("home");
   const [stars, setStars] = useState(0);
   const addStars = useCallback((n) => setStars((s) => s + n), []);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [cleared, setCleared] = useState(false);
+
+  // 清空所有學習紀錄(星星 + 三個遊戲的關卡/完成進度)
+  const clearRecords = () => {
+    try {
+      localStorage.removeItem(SIGHT_KEY);
+      localStorage.removeItem(MATCH_KEY);
+      localStorage.removeItem(TRACE_KEY);
+    } catch { /* 清不掉就算了 */ }
+    setStars(0);
+    setConfirmClear(false);
+    setCleared(true);
+    setTimeout(() => setCleared(false), 2500);
+  };
 
   return (
     <div
@@ -2492,7 +2507,55 @@ export default function WordPop() {
             <p style={{ color: "#B7B2D8", fontSize: 13, marginTop: 18 }}>
               🎙️ 單字使用真人錄音(Wiktionary),查無音檔時自動改用合成語音
             </p>
-            <p style={{ color: "#C9C4E8", fontSize: 12, marginTop: 8 }}>
+            {/* 家長區:清空紀錄(二次確認,避免小朋友誤觸)*/}
+            <div style={{ marginTop: 18 }}>
+              {cleared ? (
+                <p style={{ color: T.greenDark, fontSize: 14, fontWeight: 700 }}>
+                  ✅ 紀錄已清空,重新開始囉!
+                </p>
+              ) : confirmClear ? (
+                <div>
+                  <p style={{ color: T.ink, fontSize: 14, fontWeight: 700, margin: "0 0 8px" }}>
+                    確定清空所有星星和關卡紀錄嗎?
+                  </p>
+                  <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+                    <button
+                      onClick={clearRecords}
+                      style={{
+                        fontFamily: "inherit", fontWeight: 700, fontSize: 14,
+                        background: T.red, color: "#fff", border: "none",
+                        borderRadius: 999, padding: "9px 18px", cursor: "pointer",
+                        boxShadow: "0 3px 0 #C94F4E",
+                      }}
+                    >
+                      確定清空
+                    </button>
+                    <button
+                      onClick={() => setConfirmClear(false)}
+                      style={{
+                        fontFamily: "inherit", fontWeight: 700, fontSize: 14,
+                        background: "#E8E4FA", color: T.sub, border: "none",
+                        borderRadius: 999, padding: "9px 18px", cursor: "pointer",
+                      }}
+                    >
+                      取消
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirmClear(true)}
+                  style={{
+                    fontFamily: "inherit", fontWeight: 700, fontSize: 13,
+                    background: "none", border: "none", color: "#B7B2D8",
+                    cursor: "pointer", textDecoration: "underline",
+                  }}
+                >
+                  🧹 清空學習紀錄(家長)
+                </button>
+              )}
+            </div>
+            <p style={{ color: "#C9C4E8", fontSize: 12, marginTop: 12 }}>
               WordPop {APP_VERSION}{BUILD_DATE ? ` · ${BUILD_DATE}` : ""}
             </p>
           </div>
