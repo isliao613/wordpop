@@ -360,7 +360,7 @@ const SIGHT_WORDS = [
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
 // 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
-const APP_VERSION = "v1.10";
+const APP_VERSION = "v1.11";
 const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
@@ -424,6 +424,7 @@ function useSpeech() {
     if (voiceRef.current) u.voice = voiceRef.current;
     if (onEnd) u.onend = onEnd;
     ss.speak(u);
+    try { ss.resume(); } catch { /* 部分瀏覽器 cancel 後會卡 paused */ }
   }, []);
 
   const getCtx = useCallback(() => {
@@ -433,6 +434,29 @@ function useSpeech() {
     }
     return ctxRef.current;
   }, []);
+
+  // iOS/行動瀏覽器要在「手勢當下」同步解鎖 AudioContext,
+  // 之後經過網路查詢的 async 播放才不會被擋
+  useEffect(() => {
+    const unlock = () => {
+      const ctx = getCtx();
+      if (ctx && ctx.state !== "running") {
+        ctx.resume().catch(() => { /* 解不開就算了,播放時會走備援 */ });
+        try {
+          // 播一格靜音徹底解鎖
+          const b = ctx.createBuffer(1, 1, 22050);
+          const s = ctx.createBufferSource();
+          s.buffer = b;
+          s.connect(ctx.destination);
+          s.start(0);
+        } catch { /* ignore */ }
+      }
+      // 部分瀏覽器 cancel 後合成引擎會卡在 paused
+      try { window.speechSynthesis?.resume?.(); } catch { /* ignore */ }
+    };
+    window.addEventListener("pointerdown", unlock, { capture: true });
+    return () => window.removeEventListener("pointerdown", unlock, { capture: true });
+  }, [getCtx]);
 
   // 下載 + 解碼音檔,量測響度並算出正規化增益(讓真人音檔和合成音一樣大聲)
   const loadBuffer = useCallback(async (url) => {
@@ -524,7 +548,13 @@ function useSpeech() {
           const ctx = getCtx();
           if (entry && ctx) {
             try {
-              if (ctx.state !== "running") await ctx.resume();
+              if (ctx.state !== "running") {
+                // resume 在部分瀏覽器會永遠不 resolve,用 250ms 競速保底
+                await Promise.race([
+                  ctx.resume().catch(() => {}),
+                  new Promise((r) => setTimeout(r, 250)),
+                ]);
+              }
               if (ctx.state === "running") {
                 const src = ctx.createBufferSource();
                 src.buffer = entry.buf;
