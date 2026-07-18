@@ -360,7 +360,7 @@ const SIGHT_WORDS = [
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
 // 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
-const APP_VERSION = "v1.9";
+const APP_VERSION = "v1.10";
 const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
@@ -386,15 +386,25 @@ function useSpeech() {
   const voiceRef = useRef(null);
   const cacheRef = useRef({});   // word -> 音檔 URL 或 null(查過但沒有)
   const pendingRef = useRef({}); // word -> 查詢中的 Promise(避免重複查)
-  const playersRef = useRef({}); // url -> 預載好的 Audio 元件(重用,免重新下載)
+  const playersRef = useRef({}); // url -> 預載好的 Audio 元件(備援播放用)
+  const buffersRef = useRef({}); // url -> { buf, gain } 解碼後音訊 + 正規化增益
+  const ctxRef = useRef(null);   // AudioContext(懶建立)
+  const srcRef = useRef(null);   // 正在播的 BufferSource
   const audioRef = useRef(null);
 
   useEffect(() => {
     const pick = () => {
       const vs = window.speechSynthesis?.getVoices() || [];
+      const en = vs.filter((v) => v.lang && v.lang.startsWith("en"));
+      // 句子只能合成,盡量挑裝置上最自然的聲音
       voiceRef.current =
-        vs.find((v) => v.lang === "en-US" && v.localService) ||
-        vs.find((v) => v.lang.startsWith("en")) ||
+        en.find((v) => v.lang === "en-US" && /natural|neural|premium|enhanced/i.test(v.name)) ||
+        en.find((v) => /natural|neural|premium|enhanced/i.test(v.name)) ||
+        en.find((v) => v.name === "Google US English") ||
+        en.find((v) => /samantha|aria|jenny/i.test(v.name)) ||
+        en.find((v) => v.lang === "en-US" && v.localService) ||
+        en.find((v) => v.lang === "en-US") ||
+        en[0] ||
         null;
     };
     pick();
@@ -410,10 +420,46 @@ function useSpeech() {
     const u = new SpeechSynthesisUtterance(text);
     u.lang = "en-US";
     u.rate = rate;
+    u.volume = 1;
     if (voiceRef.current) u.voice = voiceRef.current;
     if (onEnd) u.onend = onEnd;
     ss.speak(u);
   }, []);
+
+  const getCtx = useCallback(() => {
+    if (!ctxRef.current) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) ctxRef.current = new AC();
+    }
+    return ctxRef.current;
+  }, []);
+
+  // 下載 + 解碼音檔,量測響度並算出正規化增益(讓真人音檔和合成音一樣大聲)
+  const loadBuffer = useCallback(async (url) => {
+    if (buffersRef.current[url]) return buffersRef.current[url];
+    const ctx = getCtx();
+    if (!ctx) return null;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const raw = await res.arrayBuffer();
+      const buf = await ctx.decodeAudioData(raw);
+      // RMS 響度(取第一聲道)
+      const data = buf.getChannelData(0);
+      let sum = 0;
+      const step = Math.max(1, Math.floor(data.length / 20000));
+      let n = 0;
+      for (let i = 0; i < data.length; i += step) { sum += data[i] * data[i]; n++; }
+      const rms = Math.sqrt(sum / Math.max(1, n));
+      // 目標響度 ~ -18dBFS;增益限制在 0.5~4 倍避免爆音
+      const gain = Math.min(4, Math.max(0.5, 0.125 / Math.max(0.005, rms)));
+      const entry = { buf, gain };
+      buffersRef.current[url] = entry;
+      return entry;
+    } catch {
+      return null;
+    }
+  }, [getCtx]);
 
   // 查 Free Dictionary API 取得 Wiktionary 真人錄音(1.5 秒逾時,查到就預載音檔)
   const findHumanAudio = useCallback((word) => {
@@ -449,23 +495,23 @@ function useSpeech() {
       }
       cacheRef.current[key] = url;
       delete pendingRef.current[key];
-      // 先把音檔載起來,之後點了立刻能播
-      if (url && !playersRef.current[url]) {
-        const a = new Audio(url);
-        a.preload = "auto";
-        playersRef.current[url] = a;
-      }
+      // 先把音檔載好、解碼、算好音量,之後點了立刻能播
+      if (url) loadBuffer(url);
       return url;
     })();
     pendingRef.current[key] = p;
     return p;
-  }, []);
+  }, [loadBuffer]);
 
   const speak = useCallback(
     async (text, { rate = 0.85, onEnd } = {}) => {
       // 停掉正在播的
       const ss = window.speechSynthesis;
       if (ss && (ss.speaking || ss.pending)) ss.cancel();
+      if (srcRef.current) {
+        try { srcRef.current.onended = null; srcRef.current.stop(); } catch { /* 已停 */ }
+        srcRef.current = null;
+      }
       if (audioRef.current) {
         audioRef.current.onended = null;
         audioRef.current.pause();
@@ -473,11 +519,35 @@ function useSpeech() {
       if (SPEAKABLE_RE.test(text.trim())) {
         const url = await findHumanAudio(text);
         if (url) {
+          // 首選:Web Audio 播放(音量已正規化,和合成音一致)
+          const entry = await loadBuffer(url);
+          const ctx = getCtx();
+          if (entry && ctx) {
+            try {
+              if (ctx.state !== "running") await ctx.resume();
+              if (ctx.state === "running") {
+                const src = ctx.createBufferSource();
+                src.buffer = entry.buf;
+                src.playbackRate.value = rate < 0.8 ? 0.85 : 1;
+                const g = ctx.createGain();
+                g.gain.value = entry.gain;
+                src.connect(g).connect(ctx.destination);
+                if (onEnd) src.onended = onEnd;
+                srcRef.current = src;
+                src.start();
+                return "human";
+              }
+            } catch {
+              /* Web Audio 失敗 → 試 Audio 元件 */
+            }
+          }
+          // 備援:一般 Audio 元件
           try {
             const a = playersRef.current[url] || new Audio(url);
             playersRef.current[url] = a;
             audioRef.current = a;
             a.currentTime = 0;
+            a.volume = 1;
             a.playbackRate = rate < 0.8 ? 0.85 : 1;
             a.onended = onEnd || null;
             await a.play();
@@ -490,7 +560,7 @@ function useSpeech() {
       ttsSpeak(text, { rate, onEnd });
       return "tts";
     },
-    [findHumanAudio, ttsSpeak]
+    [findHumanAudio, ttsSpeak, loadBuffer, getCtx]
   );
 
   // speak.prefetch / speak.prefetchMany:題目出現時先在背景查好音檔
