@@ -6,4 +6,10 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   base: '/wordpop/',
+  define: {
+    // 建置當天日期(每次部署自動戳上,顯示在版號旁)
+    __BUILD_DATE__: JSON.stringify(
+      new Date().toLocaleDateString('sv', { timeZone: 'Asia/Taipei' }).replace(/-/g, '.')
+    ),
+  },
 })

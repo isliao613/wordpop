@@ -359,7 +359,9 @@ const SIGHT_WORDS = [
 ];
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
+// 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
 const APP_VERSION = "v1.2";
+const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
 const T = {
@@ -2340,7 +2342,7 @@ export default function WordPop() {
               🎙️ 單字使用真人錄音(Wiktionary),查無音檔時自動改用合成語音
             </p>
             <p style={{ color: "#C9C4E8", fontSize: 12, marginTop: 8 }}>
-              WordPop {APP_VERSION}
+              WordPop {APP_VERSION}{BUILD_DATE ? ` · ${BUILD_DATE}` : ""}
             </p>
           </div>
         )}
