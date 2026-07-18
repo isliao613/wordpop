@@ -360,7 +360,7 @@ const SIGHT_WORDS = [
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
 // 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
-const APP_VERSION = "v1.6";
+const APP_VERSION = "v1.7";
 const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
@@ -3563,54 +3563,72 @@ const MENU_GROUPS = [
   {
     label: "🧠 認識單字",
     items: [
-      { mode: "learn", color: T.purple, dark: T.purpleDark, label: "📚 學習單字" },
-      { mode: "phonics", color: T.green, dark: T.greenDark, label: "🔤 發音練習" },
+      { mode: "learn", color: T.purple, dark: T.purpleDark, label: "📚 學習單字",
+        tip: "當字典用:每天挑一個分類,唸完請她跟著唸一次" },
+      { mode: "phonics", color: T.green, dark: T.greenDark, label: "🔤 發音練習",
+        tip: "先聽字節再聽例字,引導她發現「結尾聲音都一樣」" },
     ],
   },
   {
     label: "👂 聽聲音找字",
     items: [
-      { mode: "quiz", color: T.pink, dark: "#D14B7D", label: "🎯 聽力挑戰" },
-      { mode: "sound", color: "#9B59D0", dark: "#7A3FAC", label: "🕵️ 首音偵探" },
-      { mode: "rhyme", color: "#2E86DE", dark: "#1F5FA8", label: "🚂 押韻火車" },
-      { mode: "bubble", color: "#45AAF2", dark: "#2D87C7", label: "🫧 單字泡泡" },
+      { mode: "quiz", color: T.pink, dark: "#D14B7D", label: "🎯 聽力挑戰",
+        tip: "答錯不用急著解釋,讓她按「再聽一次」自己修正" },
+      { mode: "sound", color: "#9B59D0", dark: "#7A3FAC", label: "🕵️ 首音偵探",
+        tip: "答對後加碼問:還有什麼字也是這個字母開頭?" },
+      { mode: "rhyme", color: "#2E86DE", dark: "#1F5FA8", label: "🚂 押韻火車",
+        tip: "答對時指著粉紅色字尾唸:「cat、hat 屁股一樣!」" },
+      { mode: "bubble", color: "#45AAF2", dark: "#2D87C7", label: "🫧 單字泡泡",
+        tip: "沒有時間壓力,適合當獎勵遊戲放鬆玩" },
     ],
   },
   {
     label: "💬 聽懂句子",
     items: [
-      { mode: "listendo", color: "#E17055", dark: "#B3543F", label: "🎧 聽指令點圖" },
-      { mode: "yesno", color: "#778BEB", dark: "#5568C4", label: "❓ 是不是?" },
-      { mode: "count", color: "#574B90", dark: "#3E3568", label: "🔢 數數小市場" },
-      { mode: "colorgame", color: "#E66767", dark: "#C04747", label: "🎨 聽顏色著色" },
+      { mode: "listendo", color: "#E17055", dark: "#B3543F", label: "🎧 聽指令點圖",
+        tip: "進階玩法:先不看畫面只用聽的,想好了再看再點" },
+      { mode: "yesno", color: "#778BEB", dark: "#5568C4", label: "❓ 是不是?",
+        tip: "鼓勵她先大聲回答 Yes! 或 No! 再按按鈕" },
+      { mode: "count", color: "#574B90", dark: "#3E3568", label: "🔢 數數小市場",
+        tip: "請她用手指一個一個點著數,數完再選答案" },
+      { mode: "colorgame", color: "#E66767", dark: "#C04747", label: "🎨 聽顏色著色",
+        tip: "延伸:找找家裡有什麼東西也是這個顏色" },
     ],
   },
   {
     label: "🧩 拼字與字母",
     items: [
-      { mode: "spell", color: "#6AB04C", dark: "#4F8438", label: "🧩 拼字小廚師" },
-      { mode: "casematch", color: "#BE2EDD", dark: "#8F1DAD", label: "🔠 大小寫配對" },
+      { mode: "spell", color: "#6AB04C", dark: "#4F8438", label: "🧩 拼字小廚師",
+        tip: "拼完請她看著綠色字母,把整個字大聲唸一次" },
+      { mode: "casematch", color: "#BE2EDD", dark: "#8F1DAD", label: "🔠 大小寫配對",
+        tip: "答對後問她:大寫和小寫哪裡長得像?" },
     ],
   },
   {
     label: "📖 故事與分類",
     items: [
-      { mode: "story", color: "#786FA6", dark: "#5A5280", label: "📖 迷你小故事" },
-      { mode: "sort", color: "#CF6A87", dark: "#A84C68", label: "🧺 分類小幫手" },
+      { mode: "story", color: "#786FA6", dark: "#5A5280", label: "📖 迷你小故事",
+        tip: "睡前一天一個剛剛好;唸完請她用中文說一次故事" },
+      { mode: "sort", color: "#CF6A87", dark: "#A84C68", label: "🧺 分類小幫手",
+        tip: "答對時跟著唸整句:The cat is an animal!" },
     ],
   },
   {
     label: "🔤 常見字 Sight Words(同一套字)",
     items: [
-      { mode: "sight", color: "#3FA7E0", dark: "#2B7BAB", label: "👀 認字快手" },
-      { mode: "match", color: "#EE5A6F", dark: "#C43D52", label: "🎴 單字翻翻樂" },
+      { mode: "sight", color: "#3FA7E0", dark: "#2B7BAB", label: "👀 認字快手",
+        tip: "前幾關她都會,先讓她連拿皇冠建立信心再往後玩" },
+      { mode: "match", color: "#EE5A6F", dark: "#C43D52", label: "🎴 單字翻翻樂",
+        tip: "翻牌時鼓勵她跟著唸出聲,字形和聲音記得更牢" },
     ],
   },
   {
     label: "🗣️ 開口與動手",
     items: [
-      { mode: "sayit", color: "#F0932B", dark: "#C4731A", label: "🎤 跟讀小勇士" },
-      { mode: "write", color: "#00B8A9", dark: "#00897E", label: "✍️ 手寫練習" },
+      { mode: "sayit", color: "#F0932B", dark: "#C4731A", label: "🎤 跟讀小勇士",
+        tip: "找安靜環境、離麥克風近一點;唸對瞬間就會過關" },
+      { mode: "write", color: "#00B8A9", dark: "#00897E", label: "✍️ 手寫練習",
+        tip: "先按「筆順示範」看一次,再從 1 號圓點跟著箭頭描" },
     ],
   },
 ];
@@ -3622,6 +3640,7 @@ export default function WordPop() {
   const addStars = useCallback((n) => setStars((s) => s + n), []);
   const [confirmClear, setConfirmClear] = useState(false);
   const [cleared, setCleared] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
 
   // 清空所有學習紀錄(星星 + 三個遊戲的關卡/完成進度)
   const clearRecords = () => {
@@ -3742,6 +3761,52 @@ export default function WordPop() {
                 </div>
               ))}
             </div>
+            {/* 給爸媽的陪玩指南(可收合,不干擾小朋友)*/}
+            <div style={{ maxWidth: 420, margin: "22px auto 0" }}>
+              <button
+                onClick={() => setShowGuide((s) => !s)}
+                style={{
+                  fontFamily: "inherit", fontWeight: 700, fontSize: 14,
+                  background: showGuide ? T.purple : "#E8E4FA",
+                  color: showGuide ? "#fff" : T.sub,
+                  border: "none", borderRadius: 999, padding: "10px 18px",
+                  cursor: "pointer", transition: "all .15s",
+                }}
+              >
+                👨‍👩‍👧 給爸媽的陪玩指南 {showGuide ? "▲ 收起" : "▼ 展開"}
+              </button>
+              {showGuide && (
+                <div
+                  style={{
+                    background: T.card, borderRadius: 20, padding: "16px 16px 8px",
+                    marginTop: 12, boxShadow: "0 5px 0 #E0DBF7", textAlign: "left",
+                  }}
+                >
+                  <p style={{ color: T.sub, fontSize: 13, margin: "0 0 12px" }}>
+                    每個遊戲的一句話陪玩訣竅。共同原則:孩子答錯時不糾正、
+                    讓遊戲自己引導;多讓她「開口跟著唸」效果加倍 💜
+                  </p>
+                  {MENU_GROUPS.map((group) => (
+                    <div key={group.label} style={{ marginBottom: 12 }}>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: T.purple, marginBottom: 6 }}>
+                        {group.label}
+                      </div>
+                      {group.items.map((g) => (
+                        <div key={g.mode} style={{ margin: "0 0 8px 4px" }}>
+                          <span style={{ fontWeight: 700, fontSize: 13, color: T.ink }}>
+                            {g.label}
+                          </span>
+                          <div style={{ fontSize: 13, color: T.sub, lineHeight: 1.5 }}>
+                            {g.tip}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <p style={{ color: "#B7B2D8", fontSize: 13, marginTop: 18 }}>
               🎙️ 單字使用真人錄音(Wiktionary),查無音檔時自動改用合成語音
             </p>
