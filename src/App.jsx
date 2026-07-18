@@ -360,7 +360,7 @@ const SIGHT_WORDS = [
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
 // 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
-const APP_VERSION = "v1.12";
+const APP_VERSION = "v1.13";
 const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
@@ -381,6 +381,14 @@ const T = {
 
 // ---------- 發音(真人優先,合成備援)----------
 const SPEAKABLE_RE = /^[a-z]+(?:[ -][a-z]+){0,2}$/i; // 單字或 2~3 字的複合詞
+
+// iOS(含 iPhone 上的 Chrome,底層都是 WebKit):
+// Web Audio 會被實體靜音鍵消音,但 <audio> 媒體播放不會,
+// 所以 iOS 上真人音檔一律改用祝福過的 Audio 元件播
+const IS_IOS =
+  typeof navigator !== "undefined" &&
+  (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
 
 // 產生一小段靜音 WAV(data URI),用來在手勢當下「祝福」Audio 元件
 // (iOS 規定:元件要在手勢裡播過一次,之後才能由程式播放)
@@ -557,8 +565,18 @@ function useSpeech() {
       }
       cacheRef.current[key] = url;
       delete pendingRef.current[key];
-      // 先把音檔載好、解碼、算好音量,之後點了立刻能播
-      if (url) loadBuffer(url);
+      // 先把音檔載好,之後點了立刻能播
+      if (url) {
+        if (IS_IOS) {
+          // iOS 用 Audio 元件播,預載暖 HTTP 快取即可(預載不需要手勢)
+          try {
+            const warm = new Audio(url);
+            warm.preload = "auto";
+          } catch { /* ignore */ }
+        } else {
+          loadBuffer(url);
+        }
+      }
       return url;
     })();
     pendingRef.current[key] = p;
@@ -585,7 +603,8 @@ function useSpeech() {
           const url = await findHumanAudio(text);
           if (!url || attempt.cancelled) return false;
           // 首選:Web Audio 播放(音量已正規化,和合成音一致)
-          const entry = await loadBuffer(url);
+          // iOS 例外:Web Audio 會被實體靜音鍵消音,直接走 Audio 元件
+          const entry = IS_IOS ? null : await loadBuffer(url);
           const ctx = getCtx();
           if (entry && ctx && !attempt.cancelled) {
             try {
