@@ -360,7 +360,7 @@ const SIGHT_WORDS = [
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
 // 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
-const APP_VERSION = "v1.18";
+const APP_VERSION = "v1.19";
 const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
@@ -527,16 +527,26 @@ function useSpeech() {
         if (!res.ok) return null;
         const raw = await res.arrayBuffer();
         const buf = await ctx.decodeAudioData(raw);
-        // RMS 響度(取第一聲道)
         const data = buf.getChannelData(0);
+        const sr = buf.sampleRate;
+        // 剪掉頭尾的靜音/底噪(正規化會放大尾巴雜訊,不剪會有電子音)
+        const thr = 0.012;
+        let si = 0;
+        while (si < data.length && Math.abs(data[si]) < thr) si++;
+        let ei = data.length - 1;
+        while (ei > si && Math.abs(data[ei]) < thr) ei--;
+        const start = Math.max(0, si - 0.012 * sr) / sr;
+        const end = Math.min(data.length, ei + 0.05 * sr) / sr;
+        const dur = Math.max(0.05, end - start);
+        // RMS 響度只算有聲音的區段
         let sum = 0;
-        const step = Math.max(1, Math.floor(data.length / 20000));
+        const step = Math.max(1, Math.floor((ei - si) / 20000));
         let n = 0;
-        for (let i = 0; i < data.length; i += step) { sum += data[i] * data[i]; n++; }
+        for (let i = si; i <= ei; i += step) { sum += data[i] * data[i]; n++; }
         const rms = Math.sqrt(sum / Math.max(1, n));
-        // 目標響度 ~ -18dBFS;增益限制在 0.5~4 倍避免爆音
-        const gain = Math.min(4, Math.max(0.5, 0.125 / Math.max(0.005, rms)));
-        const entry = { buf, gain };
+        // 目標響度 ~ -18dBFS;增益限制在 0.5~3 倍避免放大底噪
+        const gain = Math.min(3, Math.max(0.5, 0.125 / Math.max(0.005, rms)));
+        const entry = { buf, gain, start, dur };
         buffersRef.current[url] = entry;
         return entry;
       } catch {
@@ -594,11 +604,23 @@ function useSpeech() {
 
   const speak = useCallback(
     async (text, { rate = 0.85, onEnd } = {}) => {
-      // 停掉正在播的
+      // 停掉正在播的(增益快速滑到 0 再停,避免「喀」一聲)
       const ss = window.speechSynthesis;
       if (ss && (ss.speaking || ss.pending)) ss.cancel();
       if (srcRef.current) {
-        try { srcRef.current.onended = null; srcRef.current.stop(); } catch { /* 已停 */ }
+        const { src: oldSrc, g: oldG } = srcRef.current;
+        try {
+          oldSrc.onended = null;
+          const ctx0 = ctxRef.current;
+          if (oldG && ctx0) {
+            oldG.gain.cancelScheduledValues(ctx0.currentTime);
+            oldG.gain.setValueAtTime(oldG.gain.value, ctx0.currentTime);
+            oldG.gain.linearRampToValueAtTime(0.0001, ctx0.currentTime + 0.015);
+            oldSrc.stop(ctx0.currentTime + 0.02);
+          } else {
+            oldSrc.stop();
+          }
+        } catch { /* 已停 */ }
         srcRef.current = null;
       }
       if (audioRef.current) {
@@ -641,13 +663,21 @@ function useSpeech() {
               if (ctx.state === "running" && iosOk && !attempt.cancelled) {
                 const src = ctx.createBufferSource();
                 src.buffer = entry.buf;
-                src.playbackRate.value = rate < 0.8 ? 0.85 : 1;
+                const pr = rate < 0.8 ? 0.85 : 1;
+                src.playbackRate.value = pr;
                 const g = ctx.createGain();
-                g.gain.value = entry.gain;
                 src.connect(g).connect(out);
+                // 淡入淡出包絡:頭尾平滑歸零,不會有突兀的電子音
+                const t0 = ctx.currentTime;
+                const durS = (entry.dur ?? entry.buf.duration) / pr;
+                g.gain.setValueAtTime(0.0001, t0);
+                g.gain.exponentialRampToValueAtTime(entry.gain, t0 + 0.015);
+                const fadeAt = Math.max(t0 + 0.02, t0 + durS - 0.045);
+                g.gain.setValueAtTime(entry.gain, fadeAt);
+                g.gain.linearRampToValueAtTime(0.0001, t0 + durS);
                 if (onEnd) src.onended = onEnd;
-                srcRef.current = src;
-                src.start();
+                srcRef.current = { src, g };
+                src.start(0, entry.start ?? 0, entry.dur ?? undefined);
                 return true;
               }
             } catch {
