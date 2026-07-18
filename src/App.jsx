@@ -360,7 +360,7 @@ const SIGHT_WORDS = [
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
 // 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
-const APP_VERSION = "v1.7";
+const APP_VERSION = "v1.8";
 const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
@@ -448,8 +448,8 @@ function useSpeech() {
         audioRef.current.onended = null;
         audioRef.current.pause();
       }
-      // 單一單字才查真人音檔;片語直接用合成
-      const isSingleWord = /^[a-z]+$/i.test(text.trim());
+      // 單字和常見複合詞(ice cream、hot dog)都先查真人音檔;句子才用合成
+      const isSingleWord = /^[a-z]+(?:[ -][a-z]+){0,2}$/i.test(text.trim());
       if (isSingleWord) {
         const url = await findHumanAudio(text);
         if (url) {
@@ -1406,7 +1406,8 @@ function SpellMode({ speak, addStars }) {
         setDoneWord(true);
         setWins((w) => w + 1);
         addStars(2);
-        speak(`${target}! Great job!`, { rate: 0.95 });
+        // 先用真人音檔唸單字,唸完再接稱讚
+        speak(target, { rate: 0.95, onEnd: () => speak("Great job!", { rate: 1 }) });
       } else {
         // 唸剛拼上的字母名(加句點強迫走合成語音)
         speak(tile.ch.toUpperCase() + ".", { rate: 1 });
@@ -1545,10 +1546,11 @@ function RhymeMode({ speak, addStars }) {
       setRight((r) => r + 1);
       addStars(1);
       setFeedback(`🎉 ${q.target} 和 ${w} 都是 -${q.s} 結尾,押韻!`);
-      speak(`${q.target}, ${w}!`, { rate: 0.9 });
+      // 兩個字各自用真人音檔連著唸
+      speak(q.target, { rate: 0.9, onEnd: () => speak(w, { rate: 0.9 }) });
     } else {
       setFeedback(`沒關係!${q.target} 的好朋友是 ${q.correct},聽聽看 👂`);
-      speak(`${q.target}, ${q.correct}`, { rate: 0.75 });
+      speak(q.target, { rate: 0.75, onEnd: () => speak(q.correct, { rate: 0.75 }) });
     }
     setTimeout(() => {
       if (roundNo >= TOTAL) setDone(true);
@@ -1864,7 +1866,7 @@ function CountMode({ speak, addStars }) {
     setPicked(k);
     const ok = k === q.n;
     if (ok) { setRight((r) => r + 1); addStars(1); speak(`Yes! ${phrase}!`, { rate: 0.9 }); }
-    else speak(phrase, { rate: 0.7 });
+    else speak(phrase + ".", { rate: 0.7 });
     setTimeout(() => {
       if (roundNo >= TOTAL) setDone(true);
       else { setRoundNo((r) => r + 1); setQ(makeCountQ()); setPicked(null); }
@@ -2083,8 +2085,9 @@ function ColorGameMode({ speak, addStars }) {
     if (picked) return;
     setPicked(c.en);
     const ok = c.en === q.color.en;
-    if (ok) { setRight((r) => r + 1); addStars(1); speak(`${q.color.en}! Great job!`, { rate: 0.95 }); }
-    else speak(`This is ${q.color.en}.`, { rate: 0.75 });
+    // 顏色單字用真人音檔
+    if (ok) { setRight((r) => r + 1); addStars(1); speak(q.color.en, { rate: 0.95, onEnd: () => speak("Great job!", { rate: 1 }) }); }
+    else speak(q.color.en, { rate: 0.7 });
     setTimeout(() => {
       if (roundNo >= TOTAL) setDone(true);
       else { setRoundNo((r) => r + 1); setQ(makeColorQ()); setPicked(null); }
@@ -2468,7 +2471,8 @@ function StoryMode({ speak, addStars }) {
     if (ok) {
       addStars(2);
       setCelebrate(true);
-      speak(`${story.q.ans}! Great job!`, { rate: 0.95 });
+      // 答案單字用真人音檔,唸完接稱讚
+      speak(story.q.ans, { rate: 0.95, onEnd: () => speak("Great job!", { rate: 1 }) });
     } else {
       speak(story.q.ans, { rate: 0.75 });
       setTimeout(() => setPicked(null), 1500); // 再試一次,直到答對
@@ -2591,8 +2595,9 @@ function FirstSoundMode({ speak, addStars }) {
     if (picked) return;
     setPicked(L);
     const ok = L === q.ans.en[0].toUpperCase();
-    if (ok) { setRight((r) => r + 1); addStars(1); speak(L + "! " + q.ans.en + "!", { rate: 0.9 }); }
-    else speak(q.ans.en[0].toUpperCase() + "! " + q.ans.en, { rate: 0.8 });
+    // 字母名用合成、單字接真人音檔
+    if (ok) { setRight((r) => r + 1); addStars(1); speak(L + ".", { rate: 0.9, onEnd: () => speak(q.ans.en, { rate: 0.9 }) }); }
+    else speak(q.ans.en[0].toUpperCase() + ".", { rate: 0.8, onEnd: () => speak(q.ans.en, { rate: 0.8 }) });
     setTimeout(() => {
       if (round >= TOTAL) setDone(true);
       else { setRound((r) => r + 1); setQ(makeSoundQ()); setPicked(null); }
@@ -3414,7 +3419,12 @@ function WriteMode({ speak, addStars }) {
     setCelebrate(true);
     setCheer("");
     addStars(2);
-    if (example) speak(`${letter}! ${letter} is for ${example.en}!`, { rate: 0.9 });
+    // 「A! A is for」用合成,例字接真人音檔
+    if (example)
+      speak(`${letter}! ${letter} is for`, {
+        rate: 0.9,
+        onEnd: () => speak(example.en, { rate: 0.9 }),
+      });
     else sayLetter(letter);
     setDoneSet((prev) => {
       const next = new Set(prev);
