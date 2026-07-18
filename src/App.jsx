@@ -360,7 +360,7 @@ const SIGHT_WORDS = [
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
 // 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
-const APP_VERSION = "v1.17";
+const APP_VERSION = "v1.18";
 const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
@@ -4070,13 +4070,15 @@ function TraceCanvas({ char, strokeColor, onStrokeDone, onComplete }) {
             touchAction: "none", cursor: "crosshair", borderRadius: 24,
           }}
         />
+      </div>
+      {/* 按鈕放畫布下方,才不會壓到 g、j、p、q、y 的尾巴 */}
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10 }}>
         <button
           onClick={playDemo}
           style={{
-            position: "absolute", left: 10, bottom: 10,
             fontFamily: "inherit", fontWeight: 700, fontSize: 15,
             background: T.purple, color: "#fff", border: "none",
-            borderRadius: 999, padding: "8px 14px", cursor: "pointer",
+            borderRadius: 999, padding: "9px 16px", cursor: "pointer",
             boxShadow: `0 3px 0 ${T.purpleDark}`,
           }}
         >
@@ -4085,10 +4087,10 @@ function TraceCanvas({ char, strokeColor, onStrokeDone, onComplete }) {
         <button
           onClick={clear}
           style={{
-            position: "absolute", right: 10, bottom: 10,
             fontFamily: "inherit", fontWeight: 700, fontSize: 15,
             background: "#E8E4FA", color: T.sub, border: "none",
-            borderRadius: 999, padding: "8px 14px", cursor: "pointer",
+            borderRadius: 999, padding: "9px 16px", cursor: "pointer",
+            boxShadow: "0 3px 0 #D2CCED",
           }}
         >
           🧽 擦掉
