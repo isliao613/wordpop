@@ -360,7 +360,7 @@ const SIGHT_WORDS = [
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
 // 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
-const APP_VERSION = "v1.11";
+const APP_VERSION = "v1.12";
 const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
@@ -382,14 +382,32 @@ const T = {
 // ---------- 發音(真人優先,合成備援)----------
 const SPEAKABLE_RE = /^[a-z]+(?:[ -][a-z]+){0,2}$/i; // 單字或 2~3 字的複合詞
 
+// 產生一小段靜音 WAV(data URI),用來在手勢當下「祝福」Audio 元件
+// (iOS 規定:元件要在手勢裡播過一次,之後才能由程式播放)
+function makeSilentWavURI() {
+  const n = 256, sr = 22050;
+  const b = new Uint8Array(44 + n * 2);
+  const dv = new DataView(b.buffer);
+  const w = (o, s) => { for (let i = 0; i < s.length; i++) b[o + i] = s.charCodeAt(i); };
+  w(0, "RIFF"); dv.setUint32(4, 36 + n * 2, true); w(8, "WAVE");
+  w(12, "fmt "); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true);
+  dv.setUint16(22, 1, true); dv.setUint32(24, sr, true); dv.setUint32(28, sr * 2, true);
+  dv.setUint16(32, 2, true); dv.setUint16(34, 16, true);
+  w(36, "data"); dv.setUint32(40, n * 2, true);
+  let s = "";
+  for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+  return "data:audio/wav;base64," + btoa(s);
+}
+
 function useSpeech() {
   const voiceRef = useRef(null);
-  const cacheRef = useRef({});   // word -> 音檔 URL 或 null(查過但沒有)
-  const pendingRef = useRef({}); // word -> 查詢中的 Promise(避免重複查)
-  const playersRef = useRef({}); // url -> 預載好的 Audio 元件(備援播放用)
-  const buffersRef = useRef({}); // url -> { buf, gain } 解碼後音訊 + 正規化增益
-  const ctxRef = useRef(null);   // AudioContext(懶建立)
-  const srcRef = useRef(null);   // 正在播的 BufferSource
+  const cacheRef = useRef({});     // word -> 音檔 URL 或 null(查過但沒有)
+  const pendingRef = useRef({});   // word -> 查詢中的 Promise(避免重複查)
+  const buffersRef = useRef({});   // url -> { buf, gain } 解碼後音訊 + 正規化增益
+  const bufPendingRef = useRef({}); // url -> 下載解碼中的 Promise
+  const ctxRef = useRef(null);     // AudioContext(懶建立)
+  const srcRef = useRef(null);     // 正在播的 BufferSource
+  const blessedRef = useRef(null); // 手勢裡祝福過的共用 Audio 元件(iOS 備援用)
   const audioRef = useRef(null);
 
   useEffect(() => {
@@ -451,6 +469,15 @@ function useSpeech() {
           s.start(0);
         } catch { /* ignore */ }
       }
+      // 手勢裡祝福一個共用 Audio 元件:播一小段靜音,
+      // 之後就算經過網路 async,iOS 也允許它由程式播放
+      if (!blessedRef.current) {
+        try {
+          const a = new Audio(makeSilentWavURI());
+          a.play().then(() => a.pause()).catch(() => {});
+          blessedRef.current = a;
+        } catch { /* ignore */ }
+      }
       // 部分瀏覽器 cancel 後合成引擎會卡在 paused
       try { window.speechSynthesis?.resume?.(); } catch { /* ignore */ }
     };
@@ -459,30 +486,41 @@ function useSpeech() {
   }, [getCtx]);
 
   // 下載 + 解碼音檔,量測響度並算出正規化增益(讓真人音檔和合成音一樣大聲)
-  const loadBuffer = useCallback(async (url) => {
-    if (buffersRef.current[url]) return buffersRef.current[url];
-    const ctx = getCtx();
-    if (!ctx) return null;
-    try {
-      const res = await fetch(url);
-      if (!res.ok) return null;
-      const raw = await res.arrayBuffer();
-      const buf = await ctx.decodeAudioData(raw);
-      // RMS 響度(取第一聲道)
-      const data = buf.getChannelData(0);
-      let sum = 0;
-      const step = Math.max(1, Math.floor(data.length / 20000));
-      let n = 0;
-      for (let i = 0; i < data.length; i += step) { sum += data[i] * data[i]; n++; }
-      const rms = Math.sqrt(sum / Math.max(1, n));
-      // 目標響度 ~ -18dBFS;增益限制在 0.5~4 倍避免爆音
-      const gain = Math.min(4, Math.max(0.5, 0.125 / Math.max(0.005, rms)));
-      const entry = { buf, gain };
-      buffersRef.current[url] = entry;
-      return entry;
-    } catch {
-      return null;
-    }
+  // 下載限時 2 秒,超時回 null(播放層會走備援),同網址不重複下載
+  const loadBuffer = useCallback((url) => {
+    if (buffersRef.current[url]) return Promise.resolve(buffersRef.current[url]);
+    if (bufPendingRef.current[url]) return bufPendingRef.current[url];
+    const p = (async () => {
+      const ctx = getCtx();
+      if (!ctx) return null;
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 2000);
+      try {
+        const res = await fetch(url, { signal: ctrl.signal });
+        if (!res.ok) return null;
+        const raw = await res.arrayBuffer();
+        const buf = await ctx.decodeAudioData(raw);
+        // RMS 響度(取第一聲道)
+        const data = buf.getChannelData(0);
+        let sum = 0;
+        const step = Math.max(1, Math.floor(data.length / 20000));
+        let n = 0;
+        for (let i = 0; i < data.length; i += step) { sum += data[i] * data[i]; n++; }
+        const rms = Math.sqrt(sum / Math.max(1, n));
+        // 目標響度 ~ -18dBFS;增益限制在 0.5~4 倍避免爆音
+        const gain = Math.min(4, Math.max(0.5, 0.125 / Math.max(0.005, rms)));
+        const entry = { buf, gain };
+        buffersRef.current[url] = entry;
+        return entry;
+      } catch {
+        return null;
+      } finally {
+        clearTimeout(timer);
+        delete bufPendingRef.current[url];
+      }
+    })();
+    bufPendingRef.current[url] = p;
+    return p;
   }, [getCtx]);
 
   // 查 Free Dictionary API 取得 Wiktionary 真人錄音(1.5 秒逾時,查到就預載音檔)
@@ -541,12 +579,15 @@ function useSpeech() {
         audioRef.current.pause();
       }
       if (SPEAKABLE_RE.test(text.trim())) {
-        const url = await findHumanAudio(text);
-        if (url) {
+        // 整條真人路徑限時 2.5 秒:一定會出聲,最壞情況退合成
+        const attempt = { cancelled: false };
+        const tryHuman = async () => {
+          const url = await findHumanAudio(text);
+          if (!url || attempt.cancelled) return false;
           // 首選:Web Audio 播放(音量已正規化,和合成音一致)
           const entry = await loadBuffer(url);
           const ctx = getCtx();
-          if (entry && ctx) {
+          if (entry && ctx && !attempt.cancelled) {
             try {
               if (ctx.state !== "running") {
                 // resume 在部分瀏覽器會永遠不 resolve,用 250ms 競速保底
@@ -555,7 +596,7 @@ function useSpeech() {
                   new Promise((r) => setTimeout(r, 250)),
                 ]);
               }
-              if (ctx.state === "running") {
+              if (ctx.state === "running" && !attempt.cancelled) {
                 const src = ctx.createBufferSource();
                 src.buffer = entry.buf;
                 src.playbackRate.value = rate < 0.8 ? 0.85 : 1;
@@ -565,27 +606,34 @@ function useSpeech() {
                 if (onEnd) src.onended = onEnd;
                 srcRef.current = src;
                 src.start();
-                return "human";
+                return true;
               }
             } catch {
-              /* Web Audio 失敗 → 試 Audio 元件 */
+              /* Web Audio 失敗 → 試祝福過的 Audio 元件 */
             }
           }
-          // 備援:一般 Audio 元件
+          if (attempt.cancelled) return false;
+          // 備援:手勢裡祝福過的共用 Audio 元件(iOS 允許它由程式播放)
           try {
-            const a = playersRef.current[url] || new Audio(url);
-            playersRef.current[url] = a;
+            const a = blessedRef.current || new Audio();
+            blessedRef.current = a;
             audioRef.current = a;
-            a.currentTime = 0;
+            a.src = url;
             a.volume = 1;
             a.playbackRate = rate < 0.8 ? 0.85 : 1;
             a.onended = onEnd || null;
             await a.play();
-            return "human";
+            return !attempt.cancelled;
           } catch {
-            /* 播放失敗 → 退回合成 */
+            return false;
           }
-        }
+        };
+        const ok = await Promise.race([
+          tryHuman().catch(() => false),
+          new Promise((r) => setTimeout(() => r("timeout"), 2500)),
+        ]);
+        if (ok === true) return "human";
+        attempt.cancelled = true; // 超時後就算晚到也不要突然出聲
       }
       ttsSpeak(text, { rate, onEnd });
       return "tts";
