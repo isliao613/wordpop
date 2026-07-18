@@ -878,19 +878,25 @@ for (let i = 0; i < SIGHT_WORDS.length; i += SIGHT_LEVEL_SIZE)
   SIGHT_LEVELS.push(SIGHT_WORDS.slice(i, i + SIGHT_LEVEL_SIZE));
 const SIGHT_KEY = "wordpop-sight-progress";
 
-function loadSightProgress() {
+function loadProgress(key) {
   try {
-    const o = JSON.parse(localStorage.getItem(SIGHT_KEY) || "{}");
+    const o = JSON.parse(localStorage.getItem(key) || "{}");
     return o && typeof o === "object" && !Array.isArray(o) ? o : {};
   } catch {
     return {};
   }
 }
 
+function saveProgress(key, np) {
+  try {
+    localStorage.setItem(key, JSON.stringify(np));
+  } catch { /* 寫入失敗就不保存 */ }
+}
+
 function SightMode({ speak, addStars }) {
   const [view, setView] = useState("map"); // map | learn | quiz | clear
   const [lv, setLv] = useState(0);
-  const [progress, setProgress] = useState(loadSightProgress); // 關卡 -> 最佳星數
+  const [progress, setProgress] = useState(() => loadProgress(SIGHT_KEY)); // 關卡 -> 最佳星數
   const [heard, setHeard] = useState(() => new Set());
   const [queue, setQueue] = useState([]);
   const [options, setOptions] = useState([]);
@@ -952,9 +958,7 @@ function SightMode({ speak, addStars }) {
           addStars(starsGot);
           setProgress((p) => {
             const np = { ...p, [lv]: Math.max(p[lv] || 0, starsGot) };
-            try {
-              localStorage.setItem(SIGHT_KEY, JSON.stringify(np));
-            } catch { /* 寫入失敗就不保存 */ }
+            saveProgress(SIGHT_KEY, np);
             return np;
           });
           setView("clear");
@@ -1153,6 +1157,197 @@ function SightMode({ speak, addStars }) {
           {encourage}
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------- 單字翻翻樂(和認字快手同一套字的配對遊戲)----------
+const MATCH_KEY = "wordpop-match-progress";
+
+function MatchMode({ speak, addStars }) {
+  const [view, setView] = useState("map"); // map | play | clear
+  const [lv, setLv] = useState(0);
+  const [progress, setProgress] = useState(() => loadProgress(MATCH_KEY));
+  const [cards, setCards] = useState([]); // {id, word}
+  const [open, setOpen] = useState([]); // 翻開中(未配對)的卡 index,最多 2 張
+  const [matched, setMatched] = useState(() => new Set()); // 配對完成的字
+  const [misses, setMisses] = useState(0);
+  const [lock, setLock] = useState(false); // 翻錯蓋回去的短暫鎖定
+  const [gotStars, setGotStars] = useState(1);
+  const words = SIGHT_LEVELS[lv];
+
+  const openLevel = (i) => {
+    setLv(i);
+    const deck = shuffle([...SIGHT_LEVELS[i], ...SIGHT_LEVELS[i]]).map(
+      (w, k) => ({ id: k, word: w })
+    );
+    setCards(deck);
+    setOpen([]);
+    setMatched(new Set());
+    setMisses(0);
+    setLock(false);
+    setView("play");
+  };
+
+  const flip = (i) => {
+    if (lock || open.includes(i) || matched.has(cards[i].word)) return;
+    speak(cards[i].word);
+    if (open.length === 0) {
+      setOpen([i]);
+      return;
+    }
+    const j = open[0];
+    if (cards[j].word === cards[i].word) {
+      const nm = new Set(matched).add(cards[i].word);
+      setMatched(nm);
+      setOpen([]);
+      addStars(1);
+      if (nm.size === words.length) {
+        // 全部配對完成!失誤少拿越多星
+        const s = misses <= 2 ? 3 : misses <= 5 ? 2 : 1;
+        setGotStars(s);
+        addStars(s);
+        setProgress((p) => {
+          const np = { ...p, [lv]: Math.max(p[lv] || 0, s) };
+          saveProgress(MATCH_KEY, np);
+          return np;
+        });
+        setTimeout(() => setView("clear"), 900);
+      }
+    } else {
+      setOpen([j, i]);
+      setLock(true);
+      setMisses((m) => m + 1);
+      setTimeout(() => {
+        setOpen([]);
+        setLock(false);
+      }, 950);
+    }
+  };
+
+  // ----- 關卡地圖 -----
+  if (view === "map") {
+    const crowns = Object.values(progress).filter((s) => s >= 3).length;
+    return (
+      <div style={{ textAlign: "center" }}>
+        <p style={{ color: T.sub, fontSize: 14, margin: "0 0 4px" }}>
+          跟認字快手同一套字!翻牌找到兩個一樣的字配成對。
+        </p>
+        <p style={{ color: T.ink, fontSize: 16, fontWeight: 700, margin: "0 0 14px" }}>
+          記性越好星星越多!👑 {crowns} / {SIGHT_LEVELS.length}
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
+          {SIGHT_LEVELS.map((_, i) => {
+            const unlocked = i === 0 || (progress[i - 1] || 0) >= 1;
+            const best = progress[i] || 0;
+            return (
+              <button
+                key={i}
+                onClick={() => unlocked && openLevel(i)}
+                style={{
+                  fontFamily: "inherit", fontWeight: 700, border: "none",
+                  borderRadius: 18, padding: "12px 0 10px",
+                  cursor: unlocked ? "pointer" : "default",
+                  background: unlocked ? (best >= 3 ? "#FFF7DA" : T.card) : "#ECEAF6",
+                  color: unlocked ? T.ink : "#C0BBDE",
+                  boxShadow: unlocked ? "0 5px 0 #E0DBF7" : "none",
+                  transition: "all .15s",
+                }}
+              >
+                <div style={{ fontSize: 22 }}>
+                  {unlocked ? (best >= 3 ? "👑" : i + 1) : "🔒"}
+                </div>
+                <div style={{ fontSize: 12, height: 16, color: T.yellowDark }}>
+                  {best > 0 ? "⭐".repeat(best) : ""}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <p style={{ color: "#B7B2D8", fontSize: 13, marginTop: 16 }}>
+          翻開的每張卡都會唸給你聽,慢慢找沒關係 💜
+        </p>
+      </div>
+    );
+  }
+
+  // ----- 過關畫面 -----
+  if (view === "clear") {
+    return (
+      <div style={{ textAlign: "center", padding: "24px 0" }}>
+        <div style={{ fontSize: 60 }}>{gotStars >= 3 ? "👑" : "🎉"}</div>
+        <h2 style={{ color: T.ink, fontSize: 28, margin: "8px 0 4px" }}>
+          第 {lv + 1} 關配對完成!
+        </h2>
+        <div style={{ fontSize: 34 }}>{"⭐".repeat(gotStars)}</div>
+        <p style={{ color: T.sub, fontSize: 15, margin: "6px 0 18px" }}>
+          {gotStars >= 3 ? "記性太好了,拿到皇冠!" : "5 對全部找到,好厲害!"}
+        </p>
+        <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+          <ChunkyButton color={T.purple} dark={T.purpleDark} onClick={() => setView("map")}>
+            回關卡地圖
+          </ChunkyButton>
+          {lv + 1 < SIGHT_LEVELS.length && (
+            <ChunkyButton color={T.green} dark={T.greenDark} onClick={() => openLevel(lv + 1)}>
+              下一關 →
+            </ChunkyButton>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ----- 翻牌盤面 -----
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
+        color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
+        <span>第 {lv + 1} 關</span>
+        <span>
+          找到 {matched.size} / {words.length} 對
+          {"⭐".repeat(matched.size)}
+        </span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+        {cards.map((c, i) => {
+          const isUp = open.includes(i) || matched.has(c.word);
+          const isMatched = matched.has(c.word);
+          return (
+            <button
+              key={c.id}
+              onClick={() => flip(i)}
+              style={{
+                aspectRatio: "1 / 1.05",
+                background: isMatched ? "#E9FBEF" : isUp ? "#FFF7DA" : T.purple,
+                border: `3px solid ${isMatched ? T.green : isUp ? T.yellow : T.purpleDark}`,
+                borderRadius: 18,
+                fontFamily: "inherit",
+                fontSize: isUp ? (c.word.length > 4 ? 17 : 22) : 30,
+                fontWeight: 700,
+                color: T.ink,
+                cursor: isUp ? "default" : "pointer",
+                boxShadow: "0 5px 0 #E0DBF7",
+                transition: "all .2s",
+                opacity: isMatched ? 0.85 : 1,
+              }}
+            >
+              {isUp ? c.word : "🎈"}
+            </button>
+          );
+        })}
+      </div>
+      <p style={{ color: "#B7B2D8", fontSize: 13, marginTop: 14 }}>
+        點卡片翻開,找到兩張一樣的字!
+      </p>
+      <button
+        onClick={() => setView("map")}
+        style={{
+          marginTop: 6, fontFamily: "inherit", fontWeight: 700, fontSize: 14,
+          background: "none", border: "none", color: T.sub, cursor: "pointer",
+        }}
+      >
+        ← 回關卡地圖
+      </button>
     </div>
   );
 }
@@ -2113,9 +2308,12 @@ export default function WordPop() {
                 🎤 跟讀小勇士
               </ChunkyButton>
               <ChunkyButton color="#00B8A9" dark="#00897E"
-                onClick={() => setMode("write")}
-                style={{ fontSize: 17, gridColumn: "1 / -1" }}>
+                onClick={() => setMode("write")} style={{ fontSize: 17 }}>
                 ✍️ 手寫練習
+              </ChunkyButton>
+              <ChunkyButton color="#EE5A6F" dark="#C43D52"
+                onClick={() => setMode("match")} style={{ fontSize: 17 }}>
+                🎴 單字翻翻樂
               </ChunkyButton>
             </div>
             <p style={{ color: "#B7B2D8", fontSize: 13, marginTop: 30 }}>
@@ -2131,6 +2329,7 @@ export default function WordPop() {
         {mode === "sound" && <FirstSoundMode speak={speak} addStars={addStars} />}
         {mode === "sayit" && <SayItMode speak={speak} addStars={addStars} />}
         {mode === "write" && <WriteMode speak={speak} addStars={addStars} />}
+        {mode === "match" && <MatchMode speak={speak} addStars={addStars} />}
       </div>
     </div>
   );
