@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 
 // ---------- 單字庫(大班程度・約 200 字)----------
 const WORD_BANK = {
@@ -360,7 +360,7 @@ const SIGHT_WORDS = [
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
 // 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
-const APP_VERSION = "v1.2";
+const APP_VERSION = "v1.3";
 const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
@@ -1754,27 +1754,66 @@ function polylineLength(pts) {
   return len;
 }
 
-function TraceCanvas({ char, strokeColor, onProgress, onComplete }) {
+// 點到線段的最短距離(判斷手指有沒有經過檢查點)
+function segDist(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay;
+  const l2 = dx * dx + dy * dy;
+  let t = l2 ? ((px - ax) * dx + (py - ay) * dy) / l2 : 0;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (ax + dx * t), py - (ay + dy * t));
+}
+
+// 沿筆畫等距佈下檢查點,必須「照順序」逐一經過才算描對這一筆
+function checkpointsFor(pts, spacing) {
+  const total = polylineLength(pts);
+  const n = Math.max(2, Math.round(total / spacing));
+  const cps = [];
+  for (let i = 0; i <= n; i++) {
+    const p = walkPolyline(pts, (total * i) / n);
+    cps.push([p.x, p.y]);
+  }
+  return cps;
+}
+
+// 點到整條折線的最短距離(判斷手指有沒有離開這一筆的軌道)
+function distToPolyline(px, py, pts) {
+  let best = Infinity;
+  for (let i = 1; i < pts.length; i++) {
+    const d = segDist(px, py, pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1]);
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+const TRACE_HIT = 38;        // 手指要多靠近檢查點才算經過(內部像素)
+const TRACE_CP_SPACING = 26; // 檢查點間距,需小於命中半徑才能連續判定
+const TRACE_CORRIDOR = 42;   // 離這一筆的軌道超過這距離就算「離線」,進度歸零
+
+function TraceCanvas({ char, strokeColor, onStrokeDone, onComplete }) {
   const guideRef = useRef(null);
   const drawRef = useRef(null);
-  const pointsRef = useRef([]); // 引導字母的取樣點
-  const drawingRef = useRef(false);
-  const doneRef = useRef(false);
   const rafRef = useRef(0);
+  const drawingRef = useRef(false);
+  const prevRef = useRef(null);
+  const cpsRef = useRef([]);      // 目前這一筆的檢查點
+  const nextCpRef = useRef(0);    // 下一個要經過的檢查點索引
+  const idxRef = useRef(0);       // 目前在描第幾筆
+  const [strokeIdx, setStrokeIdx] = useState(0);
+  const [hint, setHint] = useState("");
 
-  const pxStrokes = useCallback(() => {
-    const strokes = LETTER_STROKES[char];
-    return strokes ? strokes.map((s) => s.map(toPx)) : null;
+  // 這個字母的筆畫(換算成畫布像素)
+  const strokes = useMemo(() => {
+    const s = LETTER_STROKES[char];
+    return s ? s.map((p) => p.map(toPx)) : null;
   }, [char]);
+  const total = strokes ? strokes.length : 1;
 
-  // 畫引導:淡色粗筆身(withDecor 再加虛線中心線、筆順編號、方向箭頭)
+  // 畫引導:已完成的筆變綠打勾,目前這筆亮起(虛線+編號+箭頭+起點光圈),還沒到的筆淡淡的
   const paintGuide = useCallback(
-    (withDecor) => {
+    (activeIdx) => {
       const g = guideRef.current.getContext("2d");
       g.clearRect(0, 0, TRACE_SIZE, TRACE_SIZE);
-      const strokes = pxStrokes();
       if (!strokes) {
-        // 沒有筆畫資料的字元退回字型描邊
         g.font = `700 ${TRACE_SIZE * 0.72}px 'Fredoka', 'Comic Sans MS', ui-rounded, sans-serif`;
         g.textAlign = "center";
         g.textBaseline = "middle";
@@ -1784,40 +1823,32 @@ function TraceCanvas({ char, strokeColor, onProgress, onComplete }) {
       }
       g.lineCap = "round";
       g.lineJoin = "round";
-      g.lineWidth = 46;
-      g.strokeStyle = "#E6E0FB";
       g.setLineDash([]);
-      for (const s of strokes) {
+      // 筆身(依狀態上色)
+      strokes.forEach((s, i) => {
+        g.lineWidth = 46;
+        g.strokeStyle =
+          i < activeIdx ? "#CDEFDD" : i === activeIdx ? "#E6E0FB" : "#F1EEFB";
         g.beginPath();
         g.moveTo(s[0][0], s[0][1]);
         for (const [x, y] of s) g.lineTo(x, y);
         g.stroke();
-      }
-      if (!withDecor) return;
-      // 虛線中心線
-      g.lineWidth = 4;
-      g.strokeStyle = "#B9AFF0";
-      g.setLineDash([11, 9]);
-      for (const s of strokes) {
+      });
+      // 目前這筆的虛線中心線
+      const act = strokes[activeIdx];
+      if (act) {
+        g.lineWidth = 4;
+        g.strokeStyle = "#B9AFF0";
+        g.setLineDash([11, 9]);
         g.beginPath();
-        g.moveTo(s[0][0], s[0][1]);
-        for (const [x, y] of s) g.lineTo(x, y);
+        g.moveTo(act[0][0], act[0][1]);
+        for (const [x, y] of act) g.lineTo(x, y);
         g.stroke();
+        g.setLineDash([]);
       }
-      g.setLineDash([]);
-      // 每一筆:方向箭頭 + 筆順編號圓點
+      // 編號圓點 / 箭頭 / 起點光圈
       const badges = [];
       strokes.forEach((s, i) => {
-        const color = STROKE_BADGE_COLORS[i % STROKE_BADGE_COLORS.length];
-        const a = walkPolyline(s, 46);
-        g.fillStyle = color;
-        g.beginPath();
-        g.moveTo(a.x + a.dx * 13, a.y + a.dy * 13);
-        g.lineTo(a.x - a.dy * 9, a.y + a.dx * 9);
-        g.lineTo(a.x + a.dy * 9, a.y - a.dx * 9);
-        g.closePath();
-        g.fill();
-        // 編號放在起點沿反方向外推處,跟前面的編號重疊就往旁邊挪
         const s0 = walkPolyline(s, 0.1);
         let bx = s[0][0] - s0.dx * 32;
         let by = s[0][1] - s0.dy * 32;
@@ -1828,34 +1859,111 @@ function TraceCanvas({ char, strokeColor, onProgress, onComplete }) {
           }
         }
         badges.push([bx, by]);
+        if (i < activeIdx) {
+          // 已完成:綠色打勾
+          g.beginPath();
+          g.arc(bx, by, 15, 0, 2 * P2);
+          g.fillStyle = T.green;
+          g.fill();
+          g.fillStyle = "#fff";
+          g.font = "700 18px 'Fredoka', sans-serif";
+          g.textAlign = "center";
+          g.textBaseline = "middle";
+          g.fillText("✓", bx, by + 1);
+          return;
+        }
+        const active = i === activeIdx;
+        const color = active ? STROKE_BADGE_COLORS[i % STROKE_BADGE_COLORS.length] : "#D2CCED";
+        if (active) {
+          // 方向箭頭
+          const a = walkPolyline(s, 46);
+          g.fillStyle = color;
+          g.beginPath();
+          g.moveTo(a.x + a.dx * 14, a.y + a.dy * 14);
+          g.lineTo(a.x - a.dy * 10, a.y + a.dx * 10);
+          g.lineTo(a.x + a.dy * 10, a.y - a.dx * 10);
+          g.closePath();
+          g.fill();
+          // 起點光圈:告訴小朋友「從這裡開始」
+          g.beginPath();
+          g.arc(s[0][0], s[0][1], 24, 0, 2 * P2);
+          g.strokeStyle = color;
+          g.lineWidth = 5;
+          g.stroke();
+        }
         g.beginPath();
-        g.arc(bx, by, 16, 0, 2 * P2);
+        g.arc(bx, by, 15, 0, 2 * P2);
         g.fillStyle = color;
         g.fill();
         g.fillStyle = "#fff";
-        g.font = "700 20px 'Fredoka', sans-serif";
+        g.font = "700 19px 'Fredoka', sans-serif";
         g.textAlign = "center";
         g.textBaseline = "middle";
         g.fillText(String(i + 1), bx, by + 1);
       });
     },
-    [char, pxStrokes]
+    [strokes, char]
   );
+
+  // 全筆順示範用的底圖(每一筆都顯示編號和箭頭)
+  const paintDemoBase = useCallback(() => {
+    const g = guideRef.current.getContext("2d");
+    g.clearRect(0, 0, TRACE_SIZE, TRACE_SIZE);
+    if (!strokes) return;
+    g.lineCap = "round";
+    g.lineJoin = "round";
+    g.lineWidth = 46;
+    g.strokeStyle = "#E6E0FB";
+    g.setLineDash([]);
+    for (const s of strokes) {
+      g.beginPath();
+      g.moveTo(s[0][0], s[0][1]);
+      for (const [x, y] of s) g.lineTo(x, y);
+      g.stroke();
+    }
+    const badges = [];
+    strokes.forEach((s, i) => {
+      const color = STROKE_BADGE_COLORS[i % STROKE_BADGE_COLORS.length];
+      const a = walkPolyline(s, 46);
+      g.fillStyle = color;
+      g.beginPath();
+      g.moveTo(a.x + a.dx * 13, a.y + a.dy * 13);
+      g.lineTo(a.x - a.dy * 9, a.y + a.dx * 9);
+      g.lineTo(a.x + a.dy * 9, a.y - a.dx * 9);
+      g.closePath();
+      g.fill();
+      const s0 = walkPolyline(s, 0.1);
+      let bx = s[0][0] - s0.dx * 32;
+      let by = s[0][1] - s0.dy * 32;
+      for (const [ox, oy] of badges) {
+        if (Math.hypot(bx - ox, by - oy) < 34) { bx += -s0.dy * 38; by += s0.dx * 38; }
+      }
+      badges.push([bx, by]);
+      g.beginPath();
+      g.arc(bx, by, 16, 0, 2 * P2);
+      g.fillStyle = color;
+      g.fill();
+      g.fillStyle = "#fff";
+      g.font = "700 20px 'Fredoka', sans-serif";
+      g.textAlign = "center";
+      g.textBaseline = "middle";
+      g.fillText(String(i + 1), bx, by + 1);
+    });
+  }, [strokes]);
 
   // 筆順示範:小鉛筆照 1→2→3 順序畫一次給小朋友看
   const playDemo = useCallback(() => {
     cancelAnimationFrame(rafRef.current);
-    const strokes = pxStrokes();
     if (!strokes) return;
     const lens = strokes.map(polylineLength);
-    const total = lens.reduce((a, b) => a + b, 0);
-    const SPEED = 0.28; // px/ms
+    const totLen = lens.reduce((a, b) => a + b, 0);
+    const SPEED = 0.28;
     let t0 = null;
     const g = guideRef.current.getContext("2d");
     const step = (ts) => {
       if (t0 === null) t0 = ts;
-      const drawn = Math.min((ts - t0) * SPEED, total);
-      paintGuide(true);
+      const drawn = Math.min((ts - t0) * SPEED, totLen);
+      paintDemoBase();
       g.lineCap = "round";
       g.lineJoin = "round";
       g.lineWidth = 12;
@@ -1870,15 +1978,8 @@ function TraceCanvas({ char, strokeColor, onProgress, onComplete }) {
         let acc = 0;
         for (let k = 1; k < s.length; k++) {
           const d = Math.hypot(s[k][0] - s[k - 1][0], s[k][1] - s[k - 1][1]);
-          if (acc + d <= seg) {
-            g.lineTo(s[k][0], s[k][1]);
-            acc += d;
-          } else {
-            const p = walkPolyline(s, seg);
-            g.lineTo(p.x, p.y);
-            tip = p;
-            break;
-          }
+          if (acc + d <= seg) { g.lineTo(s[k][0], s[k][1]); acc += d; }
+          else { const p = walkPolyline(s, seg); g.lineTo(p.x, p.y); tip = p; break; }
         }
         g.stroke();
         if (seg >= lens[i]) tip = walkPolyline(s, lens[i]);
@@ -1890,31 +1991,32 @@ function TraceCanvas({ char, strokeColor, onProgress, onComplete }) {
         g.textBaseline = "middle";
         g.fillText("✏️", tip.x + 14, tip.y - 16);
       }
-      if (drawn < total) rafRef.current = requestAnimationFrame(step);
-      else setTimeout(() => paintGuide(true), 600);
+      if (drawn < totLen) rafRef.current = requestAnimationFrame(step);
+      else setTimeout(() => paintGuide(idxRef.current), 500);
     };
     rafRef.current = requestAnimationFrame(step);
-  }, [pxStrokes, paintGuide, strokeColor]);
+  }, [strokes, paintDemoBase, paintGuide, strokeColor]);
 
-  // 換字母:重畫引導、取樣覆蓋率基準點、清空筆跡
+  const resetTo = useCallback(
+    (i) => {
+      idxRef.current = i;
+      setStrokeIdx(i);
+      setHint("");
+      if (strokes && strokes[i]) cpsRef.current = checkpointsFor(strokes[i], TRACE_CP_SPACING);
+      else cpsRef.current = [];
+      nextCpRef.current = 0;
+      paintGuide(i);
+    },
+    [strokes, paintGuide]
+  );
+
+  // 換字母:回到第一筆、清空筆跡
   useEffect(() => {
     cancelAnimationFrame(rafRef.current);
-    doneRef.current = false;
-    paintGuide(false); // 先只畫筆身取樣,編號和箭頭才不會被算進覆蓋率
-    const g = guideRef.current.getContext("2d");
-    const img = g.getImageData(0, 0, TRACE_SIZE, TRACE_SIZE).data;
-    const pts = [];
-    const step = 10;
-    for (let y = 0; y < TRACE_SIZE; y += step)
-      for (let x = 0; x < TRACE_SIZE; x += step)
-        if (img[(y * TRACE_SIZE + x) * 4 + 3] > 100) pts.push([x, y]);
-    pointsRef.current = pts;
-    paintGuide(true);
-
-    const d = drawRef.current.getContext("2d");
-    d.clearRect(0, 0, TRACE_SIZE, TRACE_SIZE);
+    resetTo(0);
+    drawRef.current.getContext("2d").clearRect(0, 0, TRACE_SIZE, TRACE_SIZE);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [char, paintGuide]);
+  }, [char, resetTo]);
 
   const toCanvasXY = (e) => {
     const rect = drawRef.current.getBoundingClientRect();
@@ -1924,106 +2026,154 @@ function TraceCanvas({ char, strokeColor, onProgress, onComplete }) {
     ];
   };
 
+  const completeStroke = () => {
+    const i = idxRef.current;
+    if (i >= total - 1) {
+      idxRef.current = total;
+      setStrokeIdx(total);
+      paintGuide(total); // 全部打勾
+      onComplete();
+    } else {
+      if (onStrokeDone) onStrokeDone(i + 1, total);
+      resetTo(i + 1);
+    }
+  };
+
+  // 依序判定手指有沒有從起點、照方向、沿著線經過每個檢查點
+  const gate = (ax, ay, bx, by) => {
+    const cps = cpsRef.current;
+    const i = idxRef.current;
+    if (i >= total || !cps.length || !strokes) return;
+    // 離開這一筆的軌道 → 進度歸零(亂塗因此無法過關)
+    if (distToPolyline(bx, by, strokes[i]) > TRACE_CORRIDOR) {
+      if (nextCpRef.current > 0) {
+        nextCpRef.current = 0;
+        setHint(`要沿著線描喔,回到 ${i + 1} 號圓點 →`);
+      }
+      return;
+    }
+    let advanced = false;
+    while (nextCpRef.current < cps.length) {
+      const [cx, cy] = cps[nextCpRef.current];
+      if (segDist(cx, cy, ax, ay, bx, by) <= TRACE_HIT) {
+        nextCpRef.current += 1;
+        advanced = true;
+      } else break;
+    }
+    if (advanced) {
+      setHint("");
+      if (nextCpRef.current >= cps.length) completeStroke();
+    }
+  };
+
+  const inkSeg = (px, py, x, y) => {
+    const c = drawRef.current.getContext("2d");
+    c.lineCap = "round";
+    c.lineJoin = "round";
+    c.lineWidth = 30;
+    c.strokeStyle = strokeColor;
+    c.beginPath();
+    c.moveTo(px, py);
+    c.lineTo(x, y);
+    c.stroke();
+  };
+
   const start = (e) => {
+    if (!strokes || idxRef.current >= total) return;
     drawingRef.current = true;
     drawRef.current.setPointerCapture(e.pointerId);
-    const ctx = drawRef.current.getContext("2d");
     const [x, y] = toCanvasXY(e);
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.lineWidth = 34;
-    ctx.strokeStyle = strokeColor;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    // 點一下也留個圓點
-    ctx.lineTo(x + 0.1, y + 0.1);
-    ctx.stroke();
+    prevRef.current = [x, y];
+    inkSeg(x, y, x + 0.1, y + 0.1);
+    gate(x, y, x, y);
   };
 
   const move = (e) => {
     if (!drawingRef.current) return;
-    const ctx = drawRef.current.getContext("2d");
     const [x, y] = toCanvasXY(e);
-    ctx.lineTo(x, y);
-    ctx.stroke();
+    const [px, py] = prevRef.current;
+    inkSeg(px, py, x, y);
+    gate(px, py, x, y);
+    prevRef.current = [x, y];
   };
 
   const end = () => {
     if (!drawingRef.current) return;
     drawingRef.current = false;
-    // 計算覆蓋率:引導點上有筆跡的比例
-    const pts = pointsRef.current;
-    if (!pts.length || doneRef.current) return;
-    const img = drawRef.current
-      .getContext("2d")
-      .getImageData(0, 0, TRACE_SIZE, TRACE_SIZE).data;
-    let hit = 0;
-    for (const [x, y] of pts)
-      if (img[(y * TRACE_SIZE + x) * 4 + 3] > 40) hit++;
-    const ratio = hit / pts.length;
-    if (ratio >= 0.55) {
-      doneRef.current = true;
-      onComplete();
-    } else {
-      onProgress(ratio);
-    }
+    prevRef.current = null;
+    // 這一筆還沒開始就放手 → 溫柔提示從起點開始
+    if (idxRef.current < total && nextCpRef.current === 0)
+      setHint(`從 ${idxRef.current + 1} 號圓點開始,跟著箭頭描 →`);
   };
 
   const clear = () => {
-    doneRef.current = false;
-    drawRef.current
-      .getContext("2d")
-      .clearRect(0, 0, TRACE_SIZE, TRACE_SIZE);
+    cancelAnimationFrame(rafRef.current);
+    resetTo(0);
+    drawRef.current.getContext("2d").clearRect(0, 0, TRACE_SIZE, TRACE_SIZE);
   };
 
+  const allDone = strokeIdx >= total;
+
   return (
-    <div style={{ position: "relative", width: "100%", maxWidth: 340, margin: "0 auto" }}>
-      <canvas
-        ref={guideRef}
-        width={TRACE_SIZE}
-        height={TRACE_SIZE}
-        style={{
-          width: "100%", display: "block", background: "#FFFDF5",
-          borderRadius: 24, border: "3px solid #E8E4FA",
-          boxShadow: "0 6px 0 #E0DBF7",
-        }}
-      />
-      <canvas
-        ref={drawRef}
-        width={TRACE_SIZE}
-        height={TRACE_SIZE}
-        onPointerDown={start}
-        onPointerMove={move}
-        onPointerUp={end}
-        onPointerCancel={end}
-        style={{
-          position: "absolute", inset: 0, width: "100%", height: "100%",
-          touchAction: "none", cursor: "crosshair", borderRadius: 24,
-        }}
-      />
-      <button
-        onClick={playDemo}
-        style={{
-          position: "absolute", left: 10, bottom: 10,
-          fontFamily: "inherit", fontWeight: 700, fontSize: 15,
-          background: T.purple, color: "#fff", border: "none",
-          borderRadius: 999, padding: "8px 14px", cursor: "pointer",
-          boxShadow: `0 3px 0 ${T.purpleDark}`,
-        }}
-      >
-        ✏️ 筆順示範
-      </button>
-      <button
-        onClick={clear}
-        style={{
-          position: "absolute", right: 10, bottom: 10,
-          fontFamily: "inherit", fontWeight: 700, fontSize: 15,
-          background: "#E8E4FA", color: T.sub, border: "none",
-          borderRadius: 999, padding: "8px 14px", cursor: "pointer",
-        }}
-      >
-        🧽 擦掉
-      </button>
+    <div style={{ width: "100%", maxWidth: 340, margin: "0 auto" }}>
+      <div style={{ fontWeight: 700, fontSize: 15, color: T.purple, marginBottom: 8 }}>
+        {allDone
+          ? "✅ 每一筆都描對了!"
+          : `✏️ 第 ${strokeIdx + 1} / ${total} 筆 · 從 ${strokeIdx + 1} 號圓點開始`}
+      </div>
+      <div style={{ position: "relative", width: "100%" }}>
+        <canvas
+          ref={guideRef}
+          width={TRACE_SIZE}
+          height={TRACE_SIZE}
+          style={{
+            width: "100%", display: "block", background: "#FFFDF5",
+            borderRadius: 24, border: "3px solid #E8E4FA",
+            boxShadow: "0 6px 0 #E0DBF7",
+          }}
+        />
+        <canvas
+          ref={drawRef}
+          width={TRACE_SIZE}
+          height={TRACE_SIZE}
+          onPointerDown={start}
+          onPointerMove={move}
+          onPointerUp={end}
+          onPointerCancel={end}
+          style={{
+            position: "absolute", inset: 0, width: "100%", height: "100%",
+            touchAction: "none", cursor: "crosshair", borderRadius: 24,
+          }}
+        />
+        <button
+          onClick={playDemo}
+          style={{
+            position: "absolute", left: 10, bottom: 10,
+            fontFamily: "inherit", fontWeight: 700, fontSize: 15,
+            background: T.purple, color: "#fff", border: "none",
+            borderRadius: 999, padding: "8px 14px", cursor: "pointer",
+            boxShadow: `0 3px 0 ${T.purpleDark}`,
+          }}
+        >
+          ✏️ 筆順示範
+        </button>
+        <button
+          onClick={clear}
+          style={{
+            position: "absolute", right: 10, bottom: 10,
+            fontFamily: "inherit", fontWeight: 700, fontSize: 15,
+            background: "#E8E4FA", color: T.sub, border: "none",
+            borderRadius: 999, padding: "8px 14px", cursor: "pointer",
+          }}
+        >
+          🧽 擦掉
+        </button>
+      </div>
+      {hint && (
+        <div style={{ marginTop: 10, fontSize: 15, color: T.pink, fontWeight: 700 }}>
+          {hint}
+        </div>
+      )}
     </div>
   );
 }
@@ -2034,7 +2184,7 @@ function WriteMode({ speak, addStars }) {
   const [caseMode, setCaseMode] = useState("upper"); // upper | lower
   const [letter, setLetter] = useState("A");
   const [celebrate, setCelebrate] = useState(false);
-  const [cheer, setCheer] = useState(""); // 描到一半的鼓勵語
+  const [cheer, setCheer] = useState(""); // 描對一筆的鼓勵語
   const [doneSet, setDoneSet] = useState(loadTraceDone);
 
   const displayChar = caseMode === "upper" ? letter : letter.toLowerCase();
@@ -2072,10 +2222,11 @@ function WriteMode({ speak, addStars }) {
     });
   };
 
-  const onProgress = (ratio) => {
-    setCheer(
-      ratio >= 0.3 ? "快完成了,繼續描!💪" : "很棒的開始,把字母描滿吧!🖍️"
-    );
+  // 描對一筆時給正向回饋(不換行的小鼓勵)
+  const onStrokeDone = (doneCount, totalStrokes) => {
+    setCheer(`第 ${doneCount} 筆描對了!換第 ${doneCount + 1} 筆 👍`);
+    speak("Good!", { rate: 1 });
+    setTimeout(() => setCheer(""), 1400);
   };
 
   const nextLetter = () => {
@@ -2087,7 +2238,7 @@ function WriteMode({ speak, addStars }) {
   return (
     <div style={{ textAlign: "center" }}>
       <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>
-        跟著 1、2、3 號碼和箭頭的方向描,描滿就成功!已完成{" "}
+        從 1 號圓點開始,照箭頭方向一筆一筆描;每筆都描對才會換下一筆!已完成{" "}
         <b style={{ color: T.purple }}>{doneSet.size}</b> / {LETTERS.length * 2}
       </p>
 
@@ -2143,7 +2294,7 @@ function WriteMode({ speak, addStars }) {
       <TraceCanvas
         char={displayChar}
         strokeColor={color}
-        onProgress={onProgress}
+        onStrokeDone={onStrokeDone}
         onComplete={markDone}
       />
 
