@@ -360,7 +360,7 @@ const SIGHT_WORDS = [
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
 // 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
-const APP_VERSION = "v1.15";
+const APP_VERSION = "v1.16";
 const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
@@ -3941,11 +3941,11 @@ function TraceCanvas({ char, strokeColor, onStrokeDone, onComplete }) {
     }
   };
 
-  const inkSeg = (px, py, x, y) => {
+  const inkSeg = (px, py, x, y, width = 30) => {
     const c = drawRef.current.getContext("2d");
     c.lineCap = "round";
     c.lineJoin = "round";
-    c.lineWidth = 30;
+    c.lineWidth = width;
     c.strokeStyle = strokeColor;
     c.beginPath();
     c.moveTo(px, py);
@@ -3953,28 +3953,51 @@ function TraceCanvas({ char, strokeColor, onStrokeDone, onComplete }) {
     c.stroke();
   };
 
+  // Apple Pencil / 觸控筆:筆壓變化的線寬(手指維持固定粗細)
+  const widthFor = (ev) =>
+    ev.pointerType === "pen"
+      ? 18 + 22 * Math.min(1, Math.max(0.25, ev.pressure || 0.5))
+      : 30;
+
+  const activeIdRef = useRef(null); // 正在畫的那枝筆/手指
+  const lastPenRef = useRef(0);     // 最近用筆的時間(防手掌誤觸)
+
   const start = (e) => {
     if (!strokes || idxRef.current >= total) return;
+    if (e.pointerType === "pen") lastPenRef.current = Date.now();
+    // 防手掌誤觸:剛用過 Apple Pencil 的 5 秒內,忽略手掌/手指的觸碰
+    else if (e.pointerType === "touch" && Date.now() - lastPenRef.current < 5000) return;
+    // 一次只認一枝筆(忽略第二根手指)
+    if (activeIdRef.current !== null) return;
+    activeIdRef.current = e.pointerId;
     drawingRef.current = true;
-    drawRef.current.setPointerCapture(e.pointerId);
+    try { drawRef.current.setPointerCapture(e.pointerId); } catch { /* 合成事件沒有 capture */ }
     const [x, y] = toCanvasXY(e);
     prevRef.current = [x, y];
-    inkSeg(x, y, x + 0.1, y + 0.1);
+    inkSeg(x, y, x + 0.1, y + 0.1, widthFor(e));
     gate(x, y, x, y);
   };
 
   const move = (e) => {
-    if (!drawingRef.current) return;
-    const [x, y] = toCanvasXY(e);
-    const [px, py] = prevRef.current;
-    inkSeg(px, py, x, y);
-    gate(px, py, x, y);
-    prevRef.current = [x, y];
+    if (!drawingRef.current || e.pointerId !== activeIdRef.current) return;
+    if (e.pointerType === "pen") lastPenRef.current = Date.now();
+    // Pencil 高頻取樣:把合併的中間點全畫出來,筆跡更順
+    const evs =
+      (e.nativeEvent && e.nativeEvent.getCoalescedEvents && e.nativeEvent.getCoalescedEvents()) ||
+      [e];
+    for (const ev of evs.length ? evs : [e]) {
+      const [x, y] = toCanvasXY(ev);
+      const [px, py] = prevRef.current;
+      inkSeg(px, py, x, y, widthFor(ev));
+      gate(px, py, x, y);
+      prevRef.current = [x, y];
+    }
   };
 
-  const end = () => {
-    if (!drawingRef.current) return;
+  const end = (e) => {
+    if (!drawingRef.current || (e && e.pointerId !== activeIdRef.current)) return;
     drawingRef.current = false;
+    activeIdRef.current = null;
     prevRef.current = null;
     // 這一筆還沒開始就放手 → 溫柔提示從起點開始
     if (idxRef.current < total && nextCpRef.current === 0)
