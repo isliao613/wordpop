@@ -360,7 +360,7 @@ const SIGHT_WORDS = [
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
 // 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
-const APP_VERSION = "v1.4";
+const APP_VERSION = "v1.5";
 const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
@@ -1353,6 +1353,376 @@ function MatchMode({ speak, addStars }) {
       >
         ← 回關卡地圖
       </button>
+    </div>
+  );
+}
+
+// ---------- 拼字小廚師(照順序點字母拼出單字)----------
+const SPELL_ALPHABET = "abcdefghijklmnopqrstuvwxyz";
+function makeSpellRound() {
+  const pool = ALL_WORDS.filter((w) => /^[a-z]{3,5}$/.test(w.en));
+  const word = pool[Math.floor(Math.random() * pool.length)];
+  const letters = word.en.split("");
+  const extras = [];
+  while (extras.length < 3) {
+    const ch = SPELL_ALPHABET[Math.floor(Math.random() * 26)];
+    if (!letters.includes(ch) && !extras.includes(ch)) extras.push(ch);
+  }
+  const tiles = shuffle([...letters, ...extras]).map((ch, i) => ({ ch, id: i }));
+  return { word, tiles };
+}
+
+function SpellMode({ speak, addStars }) {
+  const [round, setRound] = useState(makeSpellRound);
+  const [used, setUsed] = useState(() => new Set()); // 用掉的字母磚 id
+  const [filled, setFilled] = useState(0); // 已拼好前幾個字母
+  const [wrongId, setWrongId] = useState(null);
+  const [doneWord, setDoneWord] = useState(false);
+  const [wins, setWins] = useState(0);
+  const { word, tiles } = round;
+  const target = word.en;
+
+  useEffect(() => {
+    const t = setTimeout(() => speak(target), 400);
+    return () => clearTimeout(t);
+  }, [round, target, speak]);
+
+  const next = () => {
+    setRound(makeSpellRound());
+    setUsed(new Set());
+    setFilled(0);
+    setWrongId(null);
+    setDoneWord(false);
+  };
+
+  const tap = (tile) => {
+    if (doneWord || used.has(tile.id)) return;
+    if (tile.ch === target[filled]) {
+      const nf = filled + 1;
+      setUsed((u) => new Set(u).add(tile.id));
+      setFilled(nf);
+      setWrongId(null);
+      if (nf >= target.length) {
+        setDoneWord(true);
+        setWins((w) => w + 1);
+        addStars(2);
+        speak(`${target}! Great job!`, { rate: 0.95 });
+      } else {
+        // 唸剛拼上的字母名(加句點強迫走合成語音)
+        speak(tile.ch.toUpperCase() + ".", { rate: 1 });
+      }
+    } else {
+      setWrongId(tile.id);
+      setTimeout(() => setWrongId(null), 600);
+    }
+  };
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>
+        照順序點字母磚,把單字拼出來!拼好一個 +2 ⭐,已完成 {wins} 個
+      </p>
+      <div style={{ background: T.card, borderRadius: 24, padding: "22px 16px",
+        boxShadow: "0 6px 0 #E0DBF7", marginBottom: 14 }}>
+        <div style={{ fontSize: 56 }}>{word.emoji}</div>
+        <div style={{ fontSize: 15, color: T.sub, marginBottom: 12 }}>{word.zh}</div>
+        {/* 拼字格:淡淡的示範字母,拼對變綠 */}
+        <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 6 }}>
+          {target.split("").map((ch, i) => {
+            const isFilled = i < filled;
+            const isNext = i === filled && !doneWord;
+            return (
+              <div
+                key={i}
+                style={{
+                  width: 48, height: 56, borderRadius: 12,
+                  display: "grid", placeItems: "center",
+                  fontSize: 30, fontWeight: 700,
+                  background: isFilled ? "#E9FBEF" : "#F6F4FE",
+                  border: `3px solid ${isFilled ? T.green : isNext ? T.purple : "#E8E4FA"}`,
+                  color: isFilled ? T.greenDark : "#C9C4E8",
+                  transition: "all .15s",
+                }}
+              >
+                {ch}
+              </div>
+            );
+          })}
+        </div>
+        {doneWord && (
+          <div style={{ marginTop: 10, fontSize: 20, color: T.greenDark, fontWeight: 700 }}>
+            🎉 拼出 {target} 了!+2 ⭐
+          </div>
+        )}
+      </div>
+      {/* 字母磚 */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10,
+        maxWidth: 320, margin: "0 auto 14px" }}>
+        {tiles.map((tile) => {
+          const spent = used.has(tile.id);
+          const isWrong = wrongId === tile.id;
+          return (
+            <button
+              key={tile.id}
+              onClick={() => tap(tile)}
+              style={{
+                padding: "16px 0", borderRadius: 16,
+                fontFamily: "inherit", fontSize: 28, fontWeight: 700,
+                background: spent ? "#F1EEFB" : isWrong ? "#FFEDED" : T.yellow,
+                border: `3px solid ${isWrong ? T.red : spent ? "#E8E4FA" : T.yellowDark}`,
+                color: spent ? "#D2CCED" : T.ink,
+                cursor: spent ? "default" : "pointer",
+                boxShadow: spent ? "none" : "0 4px 0 #E0B400",
+                animation: isWrong ? "wp-shake .3s" : "none",
+                transition: "all .15s",
+              }}
+            >
+              {tile.ch}
+            </button>
+          );
+        })}
+      </div>
+      {doneWord ? (
+        <ChunkyButton color={T.green} dark={T.greenDark} onClick={next}>
+          下一個字 →
+        </ChunkyButton>
+      ) : (
+        <ChunkyButton color={T.yellow} dark={T.yellowDark}
+          onClick={() => speak(target)} style={{ color: T.ink }}>
+          🔊 再聽一次
+        </ChunkyButton>
+      )}
+    </div>
+  );
+}
+
+// ---------- 押韻火車(找出跟目標字押韻的字)----------
+const RHYME_FAMILIES = () => PHONICS_GROUPS.flatMap((g) => PHONICS[g]);
+function makeRhymeQ() {
+  const fams = RHYME_FAMILIES();
+  const fam = fams[Math.floor(Math.random() * fams.length)];
+  const [target, correct] = shuffle(fam.ex);
+  let other = fam;
+  while (other.s === fam.s || fam.s.endsWith(other.s) || other.s.endsWith(fam.s))
+    other = fams[Math.floor(Math.random() * fams.length)];
+  const wrong = other.ex[Math.floor(Math.random() * other.ex.length)];
+  return { s: fam.s, target, correct, options: shuffle([correct, wrong]) };
+}
+
+// 把字尾(字節)上色,幫小朋友看見「一樣的結尾」
+function RhymeWord({ word, s, highlight, size = 28 }) {
+  const idx = word.lastIndexOf(s);
+  if (!highlight || idx < 0)
+    return <span style={{ fontSize: size, fontWeight: 700 }}>{word}</span>;
+  return (
+    <span style={{ fontSize: size, fontWeight: 700 }}>
+      {word.slice(0, idx)}
+      <span style={{ color: T.pink }}>{s}</span>
+      {word.slice(idx + s.length)}
+    </span>
+  );
+}
+
+function RhymeMode({ speak, addStars }) {
+  const TOTAL = 8;
+  const [roundNo, setRoundNo] = useState(1);
+  const [right, setRight] = useState(0);
+  const [q, setQ] = useState(makeRhymeQ);
+  const [picked, setPicked] = useState(null);
+  const [feedback, setFeedback] = useState("");
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => speak(q.target, { rate: 0.85 }), 400);
+    return () => clearTimeout(t);
+  }, [q, speak]);
+
+  const pick = (w) => {
+    if (picked) return;
+    setPicked(w);
+    const ok = w === q.correct;
+    if (ok) {
+      setRight((r) => r + 1);
+      addStars(1);
+      setFeedback(`🎉 ${q.target} 和 ${w} 都是 -${q.s} 結尾,押韻!`);
+      speak(`${q.target}, ${w}!`, { rate: 0.9 });
+    } else {
+      setFeedback(`沒關係!${q.target} 的好朋友是 ${q.correct},聽聽看 👂`);
+      speak(`${q.target}, ${q.correct}`, { rate: 0.75 });
+    }
+    setTimeout(() => {
+      if (roundNo >= TOTAL) setDone(true);
+      else {
+        setRoundNo((r) => r + 1);
+        setQ(makeRhymeQ());
+        setPicked(null);
+        setFeedback("");
+      }
+    }, 2100);
+  };
+
+  if (done)
+    return (
+      <div style={{ textAlign: "center", padding: "24px 0" }}>
+        <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "🚂"}</div>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>押韻列車載到 {right} / {TOTAL} 位乘客!</h2>
+        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeRhymeQ()); setPicked(null); setFeedback(""); setDone(false); }}>
+          再玩一次
+        </ChunkyButton>
+      </div>
+    );
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
+        第 {roundNo} / {TOTAL} 題・哪個字跟它「結尾聲音一樣」?
+      </div>
+      <div style={{ background: T.card, borderRadius: 22, padding: "20px 16px",
+        marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
+        <div style={{ marginBottom: 8 }}>
+          <RhymeWord word={q.target} s={q.s} highlight size={40} />
+        </div>
+        <ChunkyButton color={T.yellow} dark={T.yellowDark}
+          onClick={() => speak(q.target, { rate: 0.85 })} style={{ color: T.ink }}>
+          🔊 再聽一次
+        </ChunkyButton>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        {q.options.map((w) => {
+          let bg = T.card, bd = "#E8E4FA";
+          if (picked) {
+            if (w === q.correct) { bg = "#E9FBEF"; bd = T.green; }
+            else if (w === picked) { bg = "#FFF7DA"; bd = T.yellow; }
+          }
+          return (
+            <button key={w} onClick={() => pick(w)}
+              style={{
+                background: bg, border: `3px solid ${bd}`, borderRadius: 18,
+                padding: "20px 8px", fontFamily: "inherit",
+                color: T.ink, cursor: picked ? "default" : "pointer",
+                boxShadow: "0 5px 0 #E0DBF7", transition: "all .15s",
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+              }}>
+              <RhymeWord word={w} s={q.s} highlight={!!picked && w === q.correct} />
+              <span
+                onClick={(e) => { e.stopPropagation(); speak(w, { rate: 0.85 }); }}
+                style={{ fontSize: 14, color: T.sub, fontWeight: 700 }}
+              >
+                🔈 聽聽看
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      {feedback && (
+        <div style={{ marginTop: 14, fontSize: 15, color: picked === q.correct ? T.greenDark : T.sub, fontWeight: 700 }}>
+          {feedback}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------- 大小寫配對(找出對應的大小寫字母)----------
+function makeCaseQ() {
+  const abc = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const L = abc[Math.floor(Math.random() * 26)];
+  const dir = Math.random() < 0.5 ? "u2l" : "l2u"; // 看大寫找小寫 / 看小寫找大寫
+  const others = new Set([L]);
+  while (others.size < 3) others.add(abc[Math.floor(Math.random() * 26)]);
+  return { L, dir, options: shuffle([...others]) };
+}
+
+function CaseMatchMode({ speak, addStars }) {
+  const TOTAL = 8;
+  const [roundNo, setRoundNo] = useState(1);
+  const [right, setRight] = useState(0);
+  const [q, setQ] = useState(makeCaseQ);
+  const [picked, setPicked] = useState(null);
+  const [done, setDone] = useState(false);
+
+  const shown = q.dir === "u2l" ? q.L : q.L.toLowerCase();
+  const optCase = (ch) => (q.dir === "u2l" ? ch.toLowerCase() : ch);
+
+  useEffect(() => {
+    const t = setTimeout(() => speak(q.L + ".", { rate: 0.85 }), 400);
+    return () => clearTimeout(t);
+  }, [q, speak]);
+
+  const pick = (ch) => {
+    if (picked) return;
+    setPicked(ch);
+    const ok = ch === q.L;
+    if (ok) {
+      setRight((r) => r + 1);
+      addStars(1);
+      speak(q.L + "! Great job!", { rate: 0.95 });
+    } else {
+      speak(q.L + ".", { rate: 0.75 });
+    }
+    setTimeout(() => {
+      if (roundNo >= TOTAL) setDone(true);
+      else {
+        setRoundNo((r) => r + 1);
+        setQ(makeCaseQ());
+        setPicked(null);
+      }
+    }, 1500);
+  };
+
+  if (done)
+    return (
+      <div style={{ textAlign: "center", padding: "24px 0" }}>
+        <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "🔠"}</div>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>配對成功 {right} / {TOTAL} 次!</h2>
+        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeCaseQ()); setPicked(null); setDone(false); }}>
+          再玩一次
+        </ChunkyButton>
+      </div>
+    );
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
+        第 {roundNo} / {TOTAL} 題・大寫小寫是一家人,找出它的家人!
+      </div>
+      <div style={{ background: T.card, borderRadius: 22, padding: "18px 16px",
+        marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
+        <div style={{ fontSize: 72, fontWeight: 700, color: T.purple, lineHeight: 1.1 }}>
+          {shown}
+        </div>
+        <div style={{ color: T.sub, fontSize: 15, fontWeight: 700 }}>
+          {q.dir === "u2l" ? "它的小寫是哪一個?" : "它的大寫是哪一個?"}
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+        {q.options.map((ch) => {
+          const isAns = ch === q.L;
+          let bg = T.card, bd = "#E8E4FA";
+          if (picked) {
+            if (isAns) { bg = "#E9FBEF"; bd = T.green; }
+            else if (ch === picked) { bg = "#FFF7DA"; bd = T.yellow; }
+          }
+          return (
+            <button key={ch} onClick={() => pick(ch)}
+              style={{
+                background: bg, border: `3px solid ${bd}`, borderRadius: 18,
+                padding: "18px 0", fontFamily: "inherit", fontSize: 40,
+                fontWeight: 700, color: T.ink, cursor: picked ? "default" : "pointer",
+                boxShadow: "0 5px 0 #E0DBF7", transition: "all .15s",
+              }}>
+              {optCase(ch)}
+            </button>
+          );
+        })}
+      </div>
+      {picked && picked !== q.L && (
+        <div style={{ marginTop: 14, fontSize: 15, color: T.sub, fontWeight: 700 }}>
+          沒關係!{shown} 的家人是 {optCase(q.L)},看看它們長得像不像 👀
+        </div>
+      )}
     </div>
   );
 }
@@ -2368,6 +2738,14 @@ const MENU_GROUPS = [
     items: [
       { mode: "quiz", color: T.pink, dark: "#D14B7D", label: "🎯 聽力挑戰" },
       { mode: "sound", color: "#9B59D0", dark: "#7A3FAC", label: "🕵️ 首音偵探" },
+      { mode: "rhyme", color: "#2E86DE", dark: "#1F5FA8", label: "🚂 押韻火車" },
+    ],
+  },
+  {
+    label: "🧩 拼字與字母",
+    items: [
+      { mode: "spell", color: "#6AB04C", dark: "#4F8438", label: "🧩 拼字小廚師" },
+      { mode: "casematch", color: "#BE2EDD", dark: "#8F1DAD", label: "🔠 大小寫配對" },
     ],
   },
   {
@@ -2417,7 +2795,8 @@ export default function WordPop() {
       }}
     >
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap');
-@keyframes wp-pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .6; transform: scale(1.05); } }`}</style>
+@keyframes wp-pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .6; transform: scale(1.05); } }
+@keyframes wp-shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }`}</style>
 
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
         {/* Header */}
@@ -2492,10 +2871,17 @@ export default function WordPop() {
                     {group.label}
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                    {group.items.map((g) => (
+                    {group.items.map((g, gi) => (
                       <ChunkyButton
                         key={g.mode} color={g.color} dark={g.dark}
-                        onClick={() => setMode(g.mode)} style={{ fontSize: 17 }}
+                        onClick={() => setMode(g.mode)}
+                        style={{
+                          fontSize: 17,
+                          // 奇數顆時最後一顆撐滿整排
+                          ...(group.items.length % 2 === 1 && gi === group.items.length - 1
+                            ? { gridColumn: "1 / -1" }
+                            : {}),
+                        }}
                       >
                         {g.label}
                       </ChunkyButton>
@@ -2569,6 +2955,9 @@ export default function WordPop() {
         {mode === "sayit" && <SayItMode speak={speak} addStars={addStars} />}
         {mode === "write" && <WriteMode speak={speak} addStars={addStars} />}
         {mode === "match" && <MatchMode speak={speak} addStars={addStars} />}
+        {mode === "spell" && <SpellMode speak={speak} addStars={addStars} />}
+        {mode === "rhyme" && <RhymeMode speak={speak} addStars={addStars} />}
+        {mode === "casematch" && <CaseMatchMode speak={speak} addStars={addStars} />}
       </div>
     </div>
   );
