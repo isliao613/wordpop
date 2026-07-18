@@ -360,7 +360,7 @@ const SIGHT_WORDS = [
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
 // 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
-const APP_VERSION = "v1.8";
+const APP_VERSION = "v1.9";
 const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
@@ -380,9 +380,13 @@ const T = {
 };
 
 // ---------- 發音(真人優先,合成備援)----------
+const SPEAKABLE_RE = /^[a-z]+(?:[ -][a-z]+){0,2}$/i; // 單字或 2~3 字的複合詞
+
 function useSpeech() {
   const voiceRef = useRef(null);
-  const cacheRef = useRef({}); // word -> 音檔 URL 或 null(查過但沒有)
+  const cacheRef = useRef({});   // word -> 音檔 URL 或 null(查過但沒有)
+  const pendingRef = useRef({}); // word -> 查詢中的 Promise(避免重複查)
+  const playersRef = useRef({}); // url -> 預載好的 Audio 元件(重用,免重新下載)
   const audioRef = useRef(null);
 
   useEffect(() => {
@@ -400,64 +404,82 @@ function useSpeech() {
   }, []);
 
   const ttsSpeak = useCallback((text, { rate = 0.85, onEnd } = {}) => {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
+    const ss = window.speechSynthesis;
+    if (!ss) return;
+    if (ss.speaking || ss.pending) ss.cancel();
     const u = new SpeechSynthesisUtterance(text);
     u.lang = "en-US";
     u.rate = rate;
     if (voiceRef.current) u.voice = voiceRef.current;
     if (onEnd) u.onend = onEnd;
-    window.speechSynthesis.speak(u);
+    ss.speak(u);
   }, []);
 
-  // 查 Free Dictionary API 取得 Wiktionary 真人錄音
-  const findHumanAudio = useCallback(async (word) => {
+  // 查 Free Dictionary API 取得 Wiktionary 真人錄音(1.5 秒逾時,查到就預載音檔)
+  const findHumanAudio = useCallback((word) => {
     const key = word.toLowerCase().trim();
-    if (key in cacheRef.current) return cacheRef.current[key];
-    let url = null;
-    try {
-      const res = await fetch(
-        "https://api.dictionaryapi.dev/api/v2/entries/en/" +
-          encodeURIComponent(key),
-        { signal: AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined }
-      );
-      if (res.ok) {
-        const data = await res.json();
-        outer: for (const entry of Array.isArray(data) ? data : []) {
-          for (const p of entry.phonetics || []) {
-            if (p.audio) {
-              // 優先美式發音
-              if (p.audio.includes("-us.")) { url = p.audio; break outer; }
-              if (!url) url = p.audio;
+    if (key in cacheRef.current) return Promise.resolve(cacheRef.current[key]);
+    if (key in pendingRef.current) return pendingRef.current[key];
+    const p = (async () => {
+      let url = null;
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 1500);
+      try {
+        const res = await fetch(
+          "https://api.dictionaryapi.dev/api/v2/entries/en/" +
+            encodeURIComponent(key),
+          { signal: ctrl.signal }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          outer: for (const entry of Array.isArray(data) ? data : []) {
+            for (const p2 of entry.phonetics || []) {
+              if (p2.audio) {
+                // 優先美式發音
+                if (p2.audio.includes("-us.")) { url = p2.audio; break outer; }
+                if (!url) url = p2.audio;
+              }
             }
           }
         }
+      } catch {
+        url = null;
+      } finally {
+        clearTimeout(timer);
       }
-    } catch {
-      url = null;
-    }
-    cacheRef.current[key] = url;
-    return url;
+      cacheRef.current[key] = url;
+      delete pendingRef.current[key];
+      // 先把音檔載起來,之後點了立刻能播
+      if (url && !playersRef.current[url]) {
+        const a = new Audio(url);
+        a.preload = "auto";
+        playersRef.current[url] = a;
+      }
+      return url;
+    })();
+    pendingRef.current[key] = p;
+    return p;
   }, []);
 
-  return useCallback(
+  const speak = useCallback(
     async (text, { rate = 0.85, onEnd } = {}) => {
       // 停掉正在播的
-      window.speechSynthesis?.cancel();
+      const ss = window.speechSynthesis;
+      if (ss && (ss.speaking || ss.pending)) ss.cancel();
       if (audioRef.current) {
         audioRef.current.onended = null;
         audioRef.current.pause();
       }
-      // 單字和常見複合詞(ice cream、hot dog)都先查真人音檔;句子才用合成
-      const isSingleWord = /^[a-z]+(?:[ -][a-z]+){0,2}$/i.test(text.trim());
-      if (isSingleWord) {
+      if (SPEAKABLE_RE.test(text.trim())) {
         const url = await findHumanAudio(text);
         if (url) {
           try {
-            const a = new Audio(url);
+            const a = playersRef.current[url] || new Audio(url);
+            playersRef.current[url] = a;
             audioRef.current = a;
+            a.currentTime = 0;
             a.playbackRate = rate < 0.8 ? 0.85 : 1;
-            if (onEnd) a.onended = onEnd;
+            a.onended = onEnd || null;
             await a.play();
             return "human";
           } catch {
@@ -470,6 +492,19 @@ function useSpeech() {
     },
     [findHumanAudio, ttsSpeak]
   );
+
+  // speak.prefetch / speak.prefetchMany:題目出現時先在背景查好音檔
+  return useMemo(() => {
+    const fn = (text, opts) => speak(text, opts);
+    fn.prefetch = (w) => {
+      if (typeof w === "string" && SPEAKABLE_RE.test(w.trim())) findHumanAudio(w);
+    };
+    fn.prefetchMany = (words) => {
+      // 錯開發送,避免一次打太多請求
+      (words || []).forEach((w, i) => setTimeout(() => fn.prefetch(w), i * 120));
+    };
+    return fn;
+  }, [speak, findHumanAudio]);
 }
 
 // ---------- 3D 按鈕 ----------
@@ -556,6 +591,10 @@ function WordCard({ word, speak }) {
 
 function LearnMode({ speak }) {
   const [cat, setCat] = useState(CATEGORIES[0]);
+  // 換分類就先把整類的音檔查好,點卡片立刻出聲
+  useEffect(() => {
+    speak.prefetchMany?.(WORD_BANK[cat].map((w) => w.en));
+  }, [cat, speak]);
   return (
     <div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
@@ -670,6 +709,9 @@ function PhonicsCard({ item, speak }) {
 function PhonicsMode({ speak }) {
   const [group, setGroup] = useState(PHONICS_GROUPS[0]);
   const total = PHONICS_GROUPS.reduce((n, g) => n + PHONICS[g].length, 0);
+  useEffect(() => {
+    speak.prefetchMany?.(PHONICS[group].flatMap((i) => [i.s, ...i.ex]));
+  }, [group, speak]);
   return (
     <div>
       <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>
@@ -742,9 +784,10 @@ function QuizMode({ speak, addStars, onExit }) {
 
   const playQ = useCallback(() => speak(q.answer.en), [q, speak]);
   useEffect(() => {
+    speak.prefetch?.(q.answer.en); // 先查音檔,400ms 後播就不用等
     const t = setTimeout(playQ, 400);
     return () => clearTimeout(t);
-  }, [q, playQ]);
+  }, [q, playQ, speak]);
 
   const pick = (w) => {
     if (picked) return;
@@ -924,6 +967,7 @@ function SightMode({ speak, addStars }) {
     setLv(i);
     setHeard(new Set());
     setView("learn");
+    speak.prefetchMany?.(SIGHT_LEVELS[i]);
   };
 
   const startQuiz = () => {
@@ -1183,6 +1227,7 @@ function MatchMode({ speak, addStars }) {
 
   const openLevel = (i) => {
     setLv(i);
+    speak.prefetchMany?.(SIGHT_LEVELS[i]);
     const deck = shuffle([...SIGHT_LEVELS[i], ...SIGHT_LEVELS[i]]).map(
       (w, k) => ({ id: k, word: w })
     );
@@ -1383,6 +1428,7 @@ function SpellMode({ speak, addStars }) {
   const target = word.en;
 
   useEffect(() => {
+    speak.prefetch?.(target);
     const t = setTimeout(() => speak(target), 400);
     return () => clearTimeout(t);
   }, [round, target, speak]);
@@ -1534,6 +1580,7 @@ function RhymeMode({ speak, addStars }) {
   const [done, setDone] = useState(false);
 
   useEffect(() => {
+    speak.prefetchMany?.([q.target, ...q.options]);
     const t = setTimeout(() => speak(q.target, { rate: 0.85 }), 400);
     return () => clearTimeout(t);
   }, [q, speak]);
@@ -2077,9 +2124,10 @@ function ColorGameMode({ speak, addStars }) {
     [q, speak]
   );
   useEffect(() => {
+    speak.prefetch?.(q.color.en);
     const t = setTimeout(say, 400);
     return () => clearTimeout(t);
-  }, [q, say]);
+  }, [q, say, speak]);
 
   const pick = (c) => {
     if (picked) return;
@@ -2279,10 +2327,11 @@ function BubbleMode({ speak, addStars }) {
   );
   useEffect(() => {
     if (!done) {
+      speak.prefetchMany?.(round.words.map((w) => w.en));
       const t = setTimeout(say, 500);
       return () => clearTimeout(t);
     }
-  }, [round, say, done]);
+  }, [round, say, done, speak]);
 
   const tap = (w) => {
     if (popping) return;
@@ -2459,6 +2508,9 @@ function StoryMode({ speak, addStars }) {
   const [celebrate, setCelebrate] = useState(false);
   const story = STORIES[si];
   const allHeard = heard.size >= story.lines.length;
+  useEffect(() => {
+    speak.prefetchMany?.([story.q.ans, ...story.q.options.map((o) => o.en)]);
+  }, [story, speak]);
 
   const goStory = (i) => {
     setSi(i); setHeard(new Set()); setPicked(null); setCelebrate(false);
@@ -2587,6 +2639,7 @@ function FirstSoundMode({ speak, addStars }) {
   const [done, setDone] = useState(false);
 
   useEffect(() => {
+    speak.prefetch?.(q.ans.en);
     const t = setTimeout(() => speak(q.ans.en), 400);
     return () => clearTimeout(t);
   }, [q, speak]);
@@ -2665,6 +2718,7 @@ function SayItMode({ speak, addStars }) {
     poolRef.current[Math.floor(Math.random() * poolRef.current.length)];
   const [word, setWord] = useState(pickWord);
   const [status, setStatus] = useState("idle"); // idle|listening|correct|tryagain
+  useEffect(() => { speak.prefetch?.(word.en); }, [word, speak]);
   const [heard, setHeard] = useState("");
   const [wins, setWins] = useState(0);
   const SR =
@@ -3400,6 +3454,9 @@ function WriteMode({ speak, addStars }) {
   const doneKey = `${letter}-${caseMode}`;
   const example = exampleWordFor(letter);
   const color = TRACE_COLORS[LETTERS.indexOf(letter) % TRACE_COLORS.length];
+  useEffect(() => {
+    if (example) speak.prefetch?.(example.en);
+  }, [example, speak]);
 
   // 加句點強迫走合成語音唸「字母名」,避免查到單字 a / I 的發音
   const sayLetter = useCallback(
@@ -3677,7 +3734,9 @@ export default function WordPop() {
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap');
 @keyframes wp-pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .6; transform: scale(1.05); } }
 @keyframes wp-shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
-@keyframes wp-float { from { transform: translateY(0); } to { transform: translateY(-470px); } }`}</style>
+@keyframes wp-float { from { transform: translateY(0); } to { transform: translateY(-470px); } }
+html { touch-action: manipulation; }
+button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }`}</style>
 
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
         {/* Header */}
