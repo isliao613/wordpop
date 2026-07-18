@@ -358,6 +358,9 @@ const SIGHT_WORDS = [
   "he", "at", "am", "do", "did", "get", "good", "have", "this", "want",
 ];
 
+// 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
+const APP_VERSION = "v1.2";
+
 // ---------- 設計 tokens ----------
 const T = {
   bg: "#F3F0FF",
@@ -2198,6 +2201,38 @@ function WriteMode({ speak, addStars }) {
 }
 
 // ---------- 主程式 ----------
+// 首頁選單:同類遊戲放同一組
+const MENU_GROUPS = [
+  {
+    label: "🧠 認識單字",
+    items: [
+      { mode: "learn", color: T.purple, dark: T.purpleDark, label: "📚 學習單字" },
+      { mode: "phonics", color: T.green, dark: T.greenDark, label: "🔤 發音練習" },
+    ],
+  },
+  {
+    label: "👂 聽聲音找字",
+    items: [
+      { mode: "quiz", color: T.pink, dark: "#D14B7D", label: "🎯 聽力挑戰" },
+      { mode: "sound", color: "#9B59D0", dark: "#7A3FAC", label: "🕵️ 首音偵探" },
+    ],
+  },
+  {
+    label: "🔤 常見字 Sight Words(同一套字)",
+    items: [
+      { mode: "sight", color: "#3FA7E0", dark: "#2B7BAB", label: "👀 認字快手" },
+      { mode: "match", color: "#EE5A6F", dark: "#C43D52", label: "🎴 單字翻翻樂" },
+    ],
+  },
+  {
+    label: "🗣️ 開口與動手",
+    items: [
+      { mode: "sayit", color: "#F0932B", dark: "#C4731A", label: "🎤 跟讀小勇士" },
+      { mode: "write", color: "#00B8A9", dark: "#00897E", label: "✍️ 手寫練習" },
+    ],
+  },
+];
+
 export default function WordPop() {
   const speak = useSpeech();
   const [mode, setMode] = useState("home");
@@ -2277,47 +2312,35 @@ export default function WordPop() {
             <p style={{ color: T.sub, fontSize: 16, margin: "0 0 28px" }}>
               先在學習模式聽熟,再到挑戰模式測驗聽力
             </p>
-            <div
-              style={{
-                display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12,
-                maxWidth: 420, margin: "0 auto",
-              }}
-            >
-              <ChunkyButton color={T.purple} dark={T.purpleDark}
-                onClick={() => setMode("learn")} style={{ fontSize: 17 }}>
-                📚 學習單字
-              </ChunkyButton>
-              <ChunkyButton color={T.green} dark={T.greenDark}
-                onClick={() => setMode("phonics")} style={{ fontSize: 17 }}>
-                🔤 發音練習
-              </ChunkyButton>
-              <ChunkyButton color={T.pink} dark="#D14B7D"
-                onClick={() => setMode("quiz")} style={{ fontSize: 17 }}>
-                🎯 聽力挑戰
-              </ChunkyButton>
-              <ChunkyButton color="#3FA7E0" dark="#2B7BAB"
-                onClick={() => setMode("sight")} style={{ fontSize: 17 }}>
-                👀 認字快手
-              </ChunkyButton>
-              <ChunkyButton color="#9B59D0" dark="#7A3FAC"
-                onClick={() => setMode("sound")} style={{ fontSize: 17 }}>
-                🕵️ 首音偵探
-              </ChunkyButton>
-              <ChunkyButton color="#F0932B" dark="#C4731A"
-                onClick={() => setMode("sayit")} style={{ fontSize: 17 }}>
-                🎤 跟讀小勇士
-              </ChunkyButton>
-              <ChunkyButton color="#00B8A9" dark="#00897E"
-                onClick={() => setMode("write")} style={{ fontSize: 17 }}>
-                ✍️ 手寫練習
-              </ChunkyButton>
-              <ChunkyButton color="#EE5A6F" dark="#C43D52"
-                onClick={() => setMode("match")} style={{ fontSize: 17 }}>
-                🎴 單字翻翻樂
-              </ChunkyButton>
+            <div style={{ maxWidth: 420, margin: "0 auto" }}>
+              {MENU_GROUPS.map((group) => (
+                <div key={group.label} style={{ marginBottom: 18 }}>
+                  <div
+                    style={{
+                      textAlign: "left", color: T.sub, fontWeight: 700,
+                      fontSize: 14, margin: "0 0 8px 4px",
+                    }}
+                  >
+                    {group.label}
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    {group.items.map((g) => (
+                      <ChunkyButton
+                        key={g.mode} color={g.color} dark={g.dark}
+                        onClick={() => setMode(g.mode)} style={{ fontSize: 17 }}
+                      >
+                        {g.label}
+                      </ChunkyButton>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
-            <p style={{ color: "#B7B2D8", fontSize: 13, marginTop: 30 }}>
+            <p style={{ color: "#B7B2D8", fontSize: 13, marginTop: 18 }}>
               🎙️ 單字使用真人錄音(Wiktionary),查無音檔時自動改用合成語音
+            </p>
+            <p style={{ color: "#C9C4E8", fontSize: 12, marginTop: 8 }}>
+              WordPop {APP_VERSION}
             </p>
           </div>
         )}
