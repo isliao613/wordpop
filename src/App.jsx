@@ -360,7 +360,7 @@ const SIGHT_WORDS = [
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
 // 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
-const APP_VERSION = "v1.13";
+const APP_VERSION = "v1.14";
 const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
@@ -416,6 +416,8 @@ function useSpeech() {
   const ctxRef = useRef(null);     // AudioContext(懶建立)
   const srcRef = useRef(null);     // 正在播的 BufferSource
   const blessedRef = useRef(null); // 手勢裡祝福過的共用 Audio 元件(iOS 備援用)
+  const streamDestRef = useRef(null); // iOS:Web Audio -> 媒體串流出口(不受靜音鍵影響)
+  const streamElRef = useRef(null);   // iOS:持續播放上面串流的 <audio> 元件
   const audioRef = useRef(null);
 
   useEffect(() => {
@@ -484,6 +486,23 @@ function useSpeech() {
           const a = new Audio(makeSilentWavURI());
           a.play().then(() => a.pause()).catch(() => {});
           blessedRef.current = a;
+        } catch { /* ignore */ }
+      }
+      // iOS:建立「Web Audio → 媒體串流 → <audio>」的出口並讓它持續播,
+      // 音量正規化保留、不受靜音鍵影響、播放零載入延遲
+      if (IS_IOS) {
+        try {
+          const ctx2 = ctxRef.current;
+          if (ctx2 && !streamDestRef.current) {
+            const dest = ctx2.createMediaStreamDestination();
+            streamDestRef.current = dest;
+            const el = new Audio();
+            el.srcObject = dest.stream;
+            streamElRef.current = el;
+          }
+          // 被系統中斷暫停時,趁手勢再拉起來
+          const el = streamElRef.current;
+          if (el && el.paused) el.play().catch(() => {});
         } catch { /* ignore */ }
       }
       // 部分瀏覽器 cancel 後合成引擎會卡在 paused
@@ -565,18 +584,8 @@ function useSpeech() {
       }
       cacheRef.current[key] = url;
       delete pendingRef.current[key];
-      // 先把音檔載好,之後點了立刻能播
-      if (url) {
-        if (IS_IOS) {
-          // iOS 用 Audio 元件播,預載暖 HTTP 快取即可(預載不需要手勢)
-          try {
-            const warm = new Audio(url);
-            warm.preload = "auto";
-          } catch { /* ignore */ }
-        } else {
-          loadBuffer(url);
-        }
-      }
+      // 先把音檔載好、解碼、算好音量,之後點了立刻能播
+      if (url) loadBuffer(url);
       return url;
     })();
     pendingRef.current[key] = p;
@@ -603,8 +612,8 @@ function useSpeech() {
           const url = await findHumanAudio(text);
           if (!url || attempt.cancelled) return false;
           // 首選:Web Audio 播放(音量已正規化,和合成音一致)
-          // iOS 例外:Web Audio 會被實體靜音鍵消音,直接走 Audio 元件
-          const entry = IS_IOS ? null : await loadBuffer(url);
+          // iOS 走「串流出口」:同樣正規化,但從媒體通道出聲(不受靜音鍵影響)
+          const entry = await loadBuffer(url);
           const ctx = getCtx();
           if (entry && ctx && !attempt.cancelled) {
             try {
@@ -615,13 +624,27 @@ function useSpeech() {
                   new Promise((r) => setTimeout(r, 250)),
                 ]);
               }
-              if (ctx.state === "running" && !attempt.cancelled) {
+              // iOS 需要串流元件在播放中,否則改走備援
+              let out = ctx.destination;
+              let iosOk = true;
+              if (IS_IOS) {
+                const el = streamElRef.current;
+                const dest = streamDestRef.current;
+                if (el && dest) {
+                  if (el.paused) {
+                    try { await el.play(); } catch { /* 播不起來就走備援 */ }
+                  }
+                  if (!el.paused) out = dest;
+                  else iosOk = false;
+                } else iosOk = false;
+              }
+              if (ctx.state === "running" && iosOk && !attempt.cancelled) {
                 const src = ctx.createBufferSource();
                 src.buffer = entry.buf;
                 src.playbackRate.value = rate < 0.8 ? 0.85 : 1;
                 const g = ctx.createGain();
                 g.gain.value = entry.gain;
-                src.connect(g).connect(ctx.destination);
+                src.connect(g).connect(out);
                 if (onEnd) src.onended = onEnd;
                 srcRef.current = src;
                 src.start();
