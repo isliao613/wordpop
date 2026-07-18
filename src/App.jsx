@@ -360,7 +360,7 @@ const SIGHT_WORDS = [
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
 // 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
-const APP_VERSION = "v1.5";
+const APP_VERSION = "v1.6";
 const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
@@ -1727,6 +1727,840 @@ function CaseMatchMode({ speak, addStars }) {
   );
 }
 
+// ---------- 共用:a / an ----------
+const artA = (w) => (/^[aeiou]/.test(w) ? "an" : "a");
+
+// ---------- 聽指令做動作(Touch the cat!)----------
+const LISTEN_CATS = [
+  "動物 Animals", "水果 Fruits", "食物 Food", "身體 Body", "衣服 Clothes",
+  "交通 Transport", "學校 School", "居家 Home", "自然 Nature", "玩具 Toys",
+];
+const listenPool = () =>
+  LISTEN_CATS.flatMap((c) => WORD_BANK[c]).filter((w) => !w.en.includes("color"));
+
+function makeListenQ() {
+  const options = shuffle(listenPool()).slice(0, 4);
+  return { options, target: options[Math.floor(Math.random() * 4)] };
+}
+
+function ListenDoMode({ speak, addStars }) {
+  const TOTAL = 8;
+  const [roundNo, setRoundNo] = useState(1);
+  const [right, setRight] = useState(0);
+  const [q, setQ] = useState(makeListenQ);
+  const [picked, setPicked] = useState(null);
+  const [done, setDone] = useState(false);
+
+  const say = useCallback(
+    () => speak(`Touch the ${q.target.en}!`, { rate: 0.85 }),
+    [q, speak]
+  );
+  useEffect(() => {
+    const t = setTimeout(say, 400);
+    return () => clearTimeout(t);
+  }, [q, say]);
+
+  const pick = (w) => {
+    if (picked) return;
+    setPicked(w.en);
+    const ok = w.en === q.target.en;
+    if (ok) { setRight((r) => r + 1); addStars(1); speak("Great job!", { rate: 1 }); }
+    else speak(`This is the ${q.target.en}!`, { rate: 0.8 });
+    setTimeout(() => {
+      if (roundNo >= TOTAL) setDone(true);
+      else { setRoundNo((r) => r + 1); setQ(makeListenQ()); setPicked(null); }
+    }, 1500);
+  };
+
+  if (done)
+    return (
+      <div style={{ textAlign: "center", padding: "24px 0" }}>
+        <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "🎧"}</div>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>聽懂了 {right} / {TOTAL} 個指令!</h2>
+        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeListenQ()); setPicked(null); setDone(false); }}>
+          再玩一次
+        </ChunkyButton>
+      </div>
+    );
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
+        第 {roundNo} / {TOTAL} 題・仔細聽指令,點出正確的圖!
+      </div>
+      <div style={{ background: T.card, borderRadius: 22, padding: "18px 16px",
+        marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
+        <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={say} style={{ color: T.ink }}>
+          🔊 再聽一次
+        </ChunkyButton>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        {q.options.map((w) => {
+          const isAns = w.en === q.target.en;
+          let bg = T.card, bd = "#E8E4FA";
+          if (picked) {
+            if (isAns) { bg = "#E9FBEF"; bd = T.green; }
+            else if (w.en === picked) { bg = "#FFF7DA"; bd = T.yellow; }
+          }
+          return (
+            <button key={w.en} onClick={() => pick(w)}
+              style={{
+                background: bg, border: `3px solid ${bd}`, borderRadius: 20,
+                padding: "20px 8px", fontFamily: "inherit",
+                cursor: picked ? "default" : "pointer",
+                boxShadow: "0 5px 0 #E0DBF7", transition: "all .15s",
+              }}>
+              <div style={{ fontSize: 52 }}>{w.emoji}</div>
+              {picked && isAns && (
+                <div style={{ fontSize: 16, fontWeight: 700, color: T.greenDark, marginTop: 4 }}>
+                  {w.en}
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------- 數數小市場(three apples!)----------
+const COUNT_NAMES = [
+  "apple", "banana", "lemon", "egg", "cookie", "cake", "star", "flower",
+  "tree", "ball", "robot", "kite", "balloon", "drum", "car", "bus", "boat",
+  "duck", "dog", "cat", "bear", "pig", "cow", "frog", "bird", "book", "hat",
+];
+const NUM_WORDS = ["one", "two", "three", "four", "five", "six"];
+function makeCountQ() {
+  const pool = ALL_WORDS.filter((w) => COUNT_NAMES.includes(w.en));
+  const item = pool[Math.floor(Math.random() * pool.length)];
+  const n = 1 + Math.floor(Math.random() * 6);
+  const counts = new Set([n]);
+  while (counts.size < 3) counts.add(1 + Math.floor(Math.random() * 6));
+  return { item, n, options: shuffle([...counts]) };
+}
+
+function CountMode({ speak, addStars }) {
+  const TOTAL = 8;
+  const [roundNo, setRoundNo] = useState(1);
+  const [right, setRight] = useState(0);
+  const [q, setQ] = useState(makeCountQ);
+  const [picked, setPicked] = useState(null);
+  const [done, setDone] = useState(false);
+
+  const phrase = `${NUM_WORDS[q.n - 1]} ${q.item.en}${q.n > 1 ? "s" : ""}`;
+  const say = useCallback(
+    () => speak(phrase + "!", { rate: 0.8 }),
+    [phrase, speak]
+  );
+  useEffect(() => {
+    const t = setTimeout(say, 400);
+    return () => clearTimeout(t);
+  }, [q, say]);
+
+  const pick = (k) => {
+    if (picked !== null) return;
+    setPicked(k);
+    const ok = k === q.n;
+    if (ok) { setRight((r) => r + 1); addStars(1); speak(`Yes! ${phrase}!`, { rate: 0.9 }); }
+    else speak(phrase, { rate: 0.7 });
+    setTimeout(() => {
+      if (roundNo >= TOTAL) setDone(true);
+      else { setRoundNo((r) => r + 1); setQ(makeCountQ()); setPicked(null); }
+    }, 1700);
+  };
+
+  if (done)
+    return (
+      <div style={{ textAlign: "center", padding: "24px 0" }}>
+        <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "🔢"}</div>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>數對了 {right} / {TOTAL} 次!</h2>
+        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeCountQ()); setPicked(null); setDone(false); }}>
+          再玩一次
+        </ChunkyButton>
+      </div>
+    );
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
+        第 {roundNo} / {TOTAL} 題・聽數量,點出正確的那一堆!
+      </div>
+      <div style={{ background: T.card, borderRadius: 22, padding: "16px",
+        marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
+        {picked !== null && (
+          <div style={{ fontSize: 26, fontWeight: 700, color: T.purple, marginBottom: 8 }}>
+            {q.n} · {phrase}
+          </div>
+        )}
+        <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={say} style={{ color: T.ink }}>
+          🔊 再聽一次
+        </ChunkyButton>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+        {q.options.map((k) => {
+          const isAns = k === q.n;
+          let bg = T.card, bd = "#E8E4FA";
+          if (picked !== null) {
+            if (isAns) { bg = "#E9FBEF"; bd = T.green; }
+            else if (k === picked) { bg = "#FFF7DA"; bd = T.yellow; }
+          }
+          return (
+            <button key={k} onClick={() => pick(k)}
+              style={{
+                background: bg, border: `3px solid ${bd}`, borderRadius: 18,
+                padding: "14px 6px", fontFamily: "inherit", minHeight: 96,
+                cursor: picked !== null ? "default" : "pointer",
+                boxShadow: "0 5px 0 #E0DBF7", transition: "all .15s",
+              }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 3, justifyContent: "center" }}>
+                {Array.from({ length: k }).map((_, i) => (
+                  <span key={i} style={{ fontSize: 24 }}>{q.item.emoji}</span>
+                ))}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------- 是不是?(Is it a cat?)----------
+function makeYesNoQ() {
+  const pool = listenPool();
+  const item = pool[Math.floor(Math.random() * pool.length)];
+  const isYes = Math.random() < 0.5;
+  let asked = item;
+  if (!isYes) {
+    do { asked = pool[Math.floor(Math.random() * pool.length)]; } while (asked.en === item.en);
+  }
+  return { item, asked, isYes };
+}
+
+function YesNoMode({ speak, addStars }) {
+  const TOTAL = 8;
+  const [roundNo, setRoundNo] = useState(1);
+  const [right, setRight] = useState(0);
+  const [q, setQ] = useState(makeYesNoQ);
+  const [picked, setPicked] = useState(null); // "yes" | "no"
+  const [done, setDone] = useState(false);
+
+  const say = useCallback(
+    () => speak(`Is it ${artA(q.asked.en)} ${q.asked.en}?`, { rate: 0.85 }),
+    [q, speak]
+  );
+  useEffect(() => {
+    const t = setTimeout(say, 400);
+    return () => clearTimeout(t);
+  }, [q, say]);
+
+  const pick = (ans) => {
+    if (picked) return;
+    setPicked(ans);
+    const ok = (ans === "yes") === q.isYes;
+    if (ok) {
+      setRight((r) => r + 1); addStars(1);
+      speak(q.isYes ? `Yes! ${artA(q.item.en)} ${q.item.en}!` : `No! It's ${artA(q.item.en)} ${q.item.en}!`, { rate: 0.9 });
+    } else {
+      speak(`It's ${artA(q.item.en)} ${q.item.en}.`, { rate: 0.75 });
+    }
+    setTimeout(() => {
+      if (roundNo >= TOTAL) setDone(true);
+      else { setRoundNo((r) => r + 1); setQ(makeYesNoQ()); setPicked(null); }
+    }, 1700);
+  };
+
+  if (done)
+    return (
+      <div style={{ textAlign: "center", padding: "24px 0" }}>
+        <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "❓"}</div>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>答對 {right} / {TOTAL} 題!</h2>
+        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeYesNoQ()); setPicked(null); setDone(false); }}>
+          再玩一次
+        </ChunkyButton>
+      </div>
+    );
+
+  const correctAns = q.isYes ? "yes" : "no";
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
+        第 {roundNo} / {TOTAL} 題・聽問題,它「是不是」呢?
+      </div>
+      <div style={{ background: T.card, borderRadius: 22, padding: "20px 16px",
+        marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
+        <div style={{ fontSize: 72 }}>{q.item.emoji}</div>
+        {picked && (
+          <div style={{ fontSize: 18, fontWeight: 700, color: T.ink, margin: "4px 0 8px" }}>
+            {q.item.en}(問的是 {q.asked.en})
+          </div>
+        )}
+        <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={say} style={{ color: T.ink }}>
+          🔊 再聽一次
+        </ChunkyButton>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        {[["yes", "✅ Yes!"], ["no", "❌ No!"]].map(([v, label]) => {
+          let bg = v === "yes" ? T.green : T.red;
+          let dark = v === "yes" ? T.greenDark : "#C94F4E";
+          const dim = picked && v !== correctAns;
+          return (
+            <ChunkyButton key={v} color={bg} dark={dark}
+              onClick={() => pick(v)}
+              style={{ fontSize: 24, opacity: dim ? 0.45 : 1 }}>
+              {label}
+            </ChunkyButton>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------- 聽顏色著色(Color the star blue!)----------
+const COLOR_OPTS = [
+  { en: "red", zh: "紅色", css: "#E74C3C" },
+  { en: "blue", zh: "藍色", css: "#3498DB" },
+  { en: "yellow", zh: "黃色", css: "#F1C40F" },
+  { en: "green", zh: "綠色", css: "#2ECC71" },
+  { en: "purple", zh: "紫色", css: "#9B59B6" },
+  { en: "pink", zh: "粉紅色", css: "#FD79A8" },
+  { en: "orange", zh: "橘色", css: "#E67E22" },
+  { en: "brown", zh: "棕色", css: "#8D6E63" },
+];
+const COLOR_SHAPES = [
+  { en: "circle", zh: "圓形" },
+  { en: "square", zh: "正方形" },
+  { en: "star", zh: "星星" },
+  { en: "triangle", zh: "三角形" },
+];
+function makeColorQ() {
+  const shape = COLOR_SHAPES[Math.floor(Math.random() * COLOR_SHAPES.length)];
+  const color = COLOR_OPTS[Math.floor(Math.random() * COLOR_OPTS.length)];
+  const opts = new Set([color]);
+  while (opts.size < 4)
+    opts.add(COLOR_OPTS[Math.floor(Math.random() * COLOR_OPTS.length)]);
+  return { shape, color, options: shuffle([...opts]) };
+}
+
+function ShapeView({ shape, fill }) {
+  const base = {
+    width: 130, height: 130, margin: "0 auto",
+    background: fill || "#DDD8F0", transition: "background .3s",
+  };
+  if (shape === "circle") return <div style={{ ...base, borderRadius: "50%" }} />;
+  if (shape === "square") return <div style={{ ...base, borderRadius: 18 }} />;
+  if (shape === "triangle")
+    return <div style={{ ...base, clipPath: "polygon(50% 0%, 0% 100%, 100% 100%)" }} />;
+  return (
+    <div style={{ ...base,
+      clipPath: "polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)" }} />
+  );
+}
+
+function ColorGameMode({ speak, addStars }) {
+  const TOTAL = 8;
+  const [roundNo, setRoundNo] = useState(1);
+  const [right, setRight] = useState(0);
+  const [q, setQ] = useState(makeColorQ);
+  const [picked, setPicked] = useState(null);
+  const [done, setDone] = useState(false);
+
+  const say = useCallback(
+    () => speak(`Color the ${q.shape.en} ${q.color.en}!`, { rate: 0.85 }),
+    [q, speak]
+  );
+  useEffect(() => {
+    const t = setTimeout(say, 400);
+    return () => clearTimeout(t);
+  }, [q, say]);
+
+  const pick = (c) => {
+    if (picked) return;
+    setPicked(c.en);
+    const ok = c.en === q.color.en;
+    if (ok) { setRight((r) => r + 1); addStars(1); speak(`${q.color.en}! Great job!`, { rate: 0.95 }); }
+    else speak(`This is ${q.color.en}.`, { rate: 0.75 });
+    setTimeout(() => {
+      if (roundNo >= TOTAL) setDone(true);
+      else { setRoundNo((r) => r + 1); setQ(makeColorQ()); setPicked(null); }
+    }, 1700);
+  };
+
+  if (done)
+    return (
+      <div style={{ textAlign: "center", padding: "24px 0" }}>
+        <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "🎨"}</div>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>塗對 {right} / {TOTAL} 個顏色!</h2>
+        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeColorQ()); setPicked(null); setDone(false); }}>
+          再玩一次
+        </ChunkyButton>
+      </div>
+    );
+
+  const filled = picked ? q.color.css : null;
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
+        第 {roundNo} / {TOTAL} 題・聽聽要塗什麼顏色!({q.shape.zh})
+      </div>
+      <div style={{ background: T.card, borderRadius: 22, padding: "20px 16px",
+        marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
+        <ShapeView shape={q.shape.en} fill={filled} />
+        <div style={{ marginTop: 12 }}>
+          <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={say} style={{ color: T.ink }}>
+            🔊 再聽一次
+          </ChunkyButton>
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10 }}>
+        {q.options.map((c) => {
+          const isAns = c.en === q.color.en;
+          return (
+            <button key={c.en} onClick={() => pick(c)}
+              style={{
+                fontFamily: "inherit", fontWeight: 700, fontSize: 13,
+                background: T.card, borderRadius: 16, padding: "10px 4px",
+                border: `3px solid ${picked && isAns ? T.green : "#E8E4FA"}`,
+                cursor: picked ? "default" : "pointer",
+                boxShadow: "0 4px 0 #E0DBF7", color: T.ink,
+                opacity: picked && !isAns ? 0.5 : 1, transition: "all .15s",
+              }}>
+              <div style={{
+                width: 44, height: 44, borderRadius: "50%", background: c.css,
+                margin: "0 auto 6px", border: "3px solid #fff",
+                boxShadow: "0 0 0 2px #E8E4FA",
+              }} />
+              {c.en}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------- 分類小幫手(Where does the cat go?)----------
+const SORT_CATS = [
+  { cat: "動物 Animals", en: "Animals", zh: "動物", emoji: "🐾" },
+  { cat: "水果 Fruits", en: "Fruits", zh: "水果", emoji: "🍓" },
+  { cat: "食物 Food", en: "Food", zh: "食物", emoji: "🍽️" },
+  { cat: "交通 Transport", en: "Transport", zh: "交通工具", emoji: "🚗" },
+  { cat: "衣服 Clothes", en: "Clothes", zh: "衣服", emoji: "👕" },
+  { cat: "玩具 Toys", en: "Toys", zh: "玩具", emoji: "🧸" },
+];
+function makeSortRound() {
+  const [a, b] = shuffle(SORT_CATS).slice(0, 2);
+  const items = shuffle([
+    ...shuffle(WORD_BANK[a.cat]).slice(0, 3).map((w) => ({ ...w, catKey: a.cat })),
+    ...shuffle(WORD_BANK[b.cat]).slice(0, 3).map((w) => ({ ...w, catKey: b.cat })),
+  ]);
+  return { baskets: [a, b], items };
+}
+
+function SortMode({ speak, addStars }) {
+  const [round, setRound] = useState(makeSortRound);
+  const [idx, setIdx] = useState(0);
+  const [placed, setPlaced] = useState({}); // catKey -> [items]
+  const [flash, setFlash] = useState(null); // 剛答的籃子 catKey
+  const [lock, setLock] = useState(false);
+  const [right, setRight] = useState(0);
+  const item = round.items[idx];
+  const done = idx >= round.items.length;
+
+  useEffect(() => {
+    if (item) {
+      const t = setTimeout(
+        () => speak(`Where does the ${item.en} go?`, { rate: 0.85 }),
+        400
+      );
+      return () => clearTimeout(t);
+    }
+  }, [item, speak]);
+
+  const restart = () => {
+    setRound(makeSortRound()); setIdx(0); setPlaced({});
+    setFlash(null); setLock(false); setRight(0);
+  };
+
+  const drop = (basket) => {
+    if (lock || !item) return;
+    const ok = basket.cat === item.catKey;
+    setLock(true);
+    if (ok) {
+      setRight((r) => r + 1);
+      addStars(1);
+      speak(`Yes! The ${item.en} is ${artA(basket.en.toLowerCase())}... ${basket.en}!`, { rate: 0.95 });
+      setFlash(basket.cat);
+      setPlaced((p) => ({ ...p, [basket.cat]: [...(p[basket.cat] || []), item] }));
+      setTimeout(() => { setFlash(null); setIdx((i) => i + 1); setLock(false); }, 1200);
+    } else {
+      speak(`Hmm, the ${item.en} is not ${basket.en}. Try again!`, { rate: 0.85 });
+      setTimeout(() => setLock(false), 1200);
+    }
+  };
+
+  if (done)
+    return (
+      <div style={{ textAlign: "center", padding: "24px 0" }}>
+        <div style={{ fontSize: 56 }}>🧺</div>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>全部整理好了!+{right} ⭐</h2>
+        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }} onClick={restart}>
+          再整理一籃
+        </ChunkyButton>
+      </div>
+    );
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
+        第 {idx + 1} / {round.items.length} 個・它是哪一類?點對的籃子!
+      </div>
+      <div style={{ background: T.card, borderRadius: 22, padding: "16px",
+        marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
+        <div style={{ fontSize: 64 }}>{item.emoji}</div>
+        <div style={{ fontSize: 22, fontWeight: 700, color: T.ink }}>{item.en}</div>
+        <div style={{ fontSize: 14, color: T.sub }}>{item.zh}</div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        {round.baskets.map((b) => (
+          <button key={b.cat} onClick={() => drop(b)}
+            style={{
+              background: flash === b.cat ? "#E9FBEF" : "#FFF7DA",
+              border: `3px solid ${flash === b.cat ? T.green : T.yellow}`,
+              borderRadius: 20, padding: "14px 8px", fontFamily: "inherit",
+              cursor: "pointer", boxShadow: "0 5px 0 #E0B400",
+              transition: "all .15s", minHeight: 120,
+            }}>
+            <div style={{ fontSize: 34 }}>🧺</div>
+            <div style={{ fontSize: 17, fontWeight: 700, color: T.ink }}>
+              {b.emoji} {b.en}
+            </div>
+            <div style={{ fontSize: 13, color: T.sub, fontWeight: 700 }}>{b.zh}</div>
+            <div style={{ fontSize: 20, minHeight: 26 }}>
+              {(placed[b.cat] || []).map((it, i) => (
+                <span key={i}>{it.emoji}</span>
+              ))}
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------- 單字泡泡(點破唸到的泡泡)----------
+function makeBubbleRound() {
+  const pool = ALL_WORDS.filter((w) => /^[a-z]{2,6}$/.test(w.en));
+  const words = shuffle(pool).slice(0, 4);
+  return { words, target: words[Math.floor(Math.random() * 4)], key: Math.random() };
+}
+const BUBBLE_COLORS = ["#D6EBFF", "#FFE3EE", "#E3FBE9", "#FFF3D6"];
+
+function BubbleMode({ speak, addStars }) {
+  const TOTAL = 8;
+  const [round, setRound] = useState(makeBubbleRound);
+  const [pops, setPops] = useState(0);
+  const [popping, setPopping] = useState(null); // 被點破的字
+  const [cheer, setCheer] = useState("");
+  const [done, setDone] = useState(false);
+
+  const say = useCallback(
+    () => speak(round.target.en, { rate: 0.85 }),
+    [round, speak]
+  );
+  useEffect(() => {
+    if (!done) {
+      const t = setTimeout(say, 500);
+      return () => clearTimeout(t);
+    }
+  }, [round, say, done]);
+
+  const tap = (w) => {
+    if (popping) return;
+    if (w.en === round.target.en) {
+      setPopping(w.en);
+      setCheer("");
+      addStars(1);
+      speak("Pop! Great job!", { rate: 1 });
+      const np = pops + 1;
+      setTimeout(() => {
+        setPopping(null);
+        setPops(np);
+        if (np >= TOTAL) setDone(true);
+        else setRound(makeBubbleRound());
+      }, 700);
+    } else {
+      setCheer(`再聽聽看,要找的是哪個泡泡?🫧`);
+      say();
+    }
+  };
+
+  if (done)
+    return (
+      <div style={{ textAlign: "center", padding: "24px 0" }}>
+        <div style={{ fontSize: 56 }}>🫧✨</div>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>戳破了 {TOTAL} 個泡泡!</h2>
+        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
+          onClick={() => { setPops(0); setDone(false); setRound(makeBubbleRound()); }}>
+          再玩一次
+        </ChunkyButton>
+      </div>
+    );
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 10 }}>
+        聽聲音,戳破正確的泡泡!{pops} / {TOTAL} 🫧
+      </div>
+      <div
+        style={{
+          position: "relative", height: 330, overflow: "hidden",
+          background: "linear-gradient(#EAF6FF, #F6FBFF)",
+          borderRadius: 24, border: "3px solid #E8E4FA",
+          boxShadow: "0 6px 0 #E0DBF7", marginBottom: 12,
+        }}
+      >
+        {round.words.map((w, i) => (
+          <button
+            key={`${round.key}-${w.en}`}
+            onClick={() => tap(w)}
+            style={{
+              position: "absolute", left: `${4 + i * 24}%`, bottom: -110,
+              width: 88, height: 88, borderRadius: "50%",
+              background: popping === w.en ? "transparent" : BUBBLE_COLORS[i],
+              border: popping === w.en ? "none" : "3px solid #FFFFFFCC",
+              boxShadow: popping === w.en ? "none" : "inset -6px -8px 0 #FFFFFF88, 0 3px 8px #B9D4EE66",
+              fontFamily: "inherit", fontWeight: 700, cursor: "pointer",
+              display: "flex", flexDirection: "column",
+              alignItems: "center", justifyContent: "center",
+              animation: `wp-float ${11 + i * 3.5}s linear infinite`,
+              animationDelay: `${-i * 4.2}s`,
+              animationPlayState: popping ? "paused" : "running",
+            }}
+          >
+            {popping === w.en ? (
+              <span style={{ fontSize: 40 }}>⭐</span>
+            ) : (
+              <>
+                <span style={{ fontSize: 26 }}>{w.emoji}</span>
+                <span style={{ fontSize: 14, color: T.ink }}>{w.en}</span>
+              </>
+            )}
+          </button>
+        ))}
+      </div>
+      <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={say} style={{ color: T.ink }}>
+        🔊 再聽一次
+      </ChunkyButton>
+      {cheer && (
+        <div style={{ marginTop: 10, fontSize: 15, color: T.sub, fontWeight: 700 }}>{cheer}</div>
+      )}
+    </div>
+  );
+}
+
+// ---------- 迷你圖文故事 ----------
+const STORIES = [
+  {
+    title: "小貓吃魚", emoji: "🐱",
+    lines: [
+      { en: "The cat is hungry.", zh: "小貓肚子餓了", emoji: "🐱" },
+      { en: "The cat eats a fish.", zh: "小貓吃了一條魚", emoji: "🐟" },
+      { en: "The cat is happy!", zh: "小貓好開心!", emoji: "😀" },
+    ],
+    q: { en: "What does the cat eat?", zh: "小貓吃了什麼?", ans: "fish",
+      options: [{ en: "fish", emoji: "🐟" }, { en: "apple", emoji: "🍎" }, { en: "ball", emoji: "⚽" }] },
+  },
+  {
+    title: "小狗玩球", emoji: "🐶",
+    lines: [
+      { en: "The dog sees a ball.", zh: "小狗看到一顆球", emoji: "🐶" },
+      { en: "The dog runs!", zh: "小狗跑起來!", emoji: "🏃" },
+      { en: "The dog plays with the ball.", zh: "小狗玩球", emoji: "⚽" },
+    ],
+    q: { en: "What does the dog play with?", zh: "小狗玩什麼?", ans: "ball",
+      options: [{ en: "ball", emoji: "⚽" }, { en: "fish", emoji: "🐟" }, { en: "cake", emoji: "🎂" }] },
+  },
+  {
+    title: "下雨天", emoji: "🌧️",
+    lines: [
+      { en: "It is rainy.", zh: "下雨了", emoji: "🌧️" },
+      { en: "Mom opens the umbrella.", zh: "媽媽打開雨傘", emoji: "☂️" },
+      { en: "We walk to school.", zh: "我們走路去學校", emoji: "🏫" },
+    ],
+    q: { en: "What does Mom open?", zh: "媽媽打開了什麼?", ans: "umbrella",
+      options: [{ en: "umbrella", emoji: "☂️" }, { en: "door", emoji: "🚪" }, { en: "book", emoji: "📖" }] },
+  },
+  {
+    title: "我的生日", emoji: "🎂",
+    lines: [
+      { en: "Today is my birthday.", zh: "今天是我的生日", emoji: "🎉" },
+      { en: "I eat cake with my family.", zh: "我和家人一起吃蛋糕", emoji: "🎂" },
+      { en: "I am so happy!", zh: "我好開心!", emoji: "🤩" },
+    ],
+    q: { en: "What do I eat?", zh: "我吃了什麼?", ans: "cake",
+      options: [{ en: "cake", emoji: "🎂" }, { en: "egg", emoji: "🥚" }, { en: "grapes", emoji: "🍇" }] },
+  },
+  {
+    title: "樹上的小鳥", emoji: "🐦",
+    lines: [
+      { en: "A bird is in the tree.", zh: "有隻小鳥在樹上", emoji: "🌳" },
+      { en: "The bird sings.", zh: "小鳥在唱歌", emoji: "🎤" },
+      { en: "I listen to the bird.", zh: "我聽小鳥唱歌", emoji: "🎧" },
+    ],
+    q: { en: "Where is the bird?", zh: "小鳥在哪裡?", ans: "tree",
+      options: [{ en: "tree", emoji: "🌳" }, { en: "car", emoji: "🚗" }, { en: "bed", emoji: "🛏️" }] },
+  },
+  {
+    title: "小熊晚安", emoji: "🐻",
+    lines: [
+      { en: "The bear is tired.", zh: "小熊好累", emoji: "🐻" },
+      { en: "The bear goes to bed.", zh: "小熊去睡覺", emoji: "🛏️" },
+      { en: "Good night, bear!", zh: "小熊晚安!", emoji: "🌙" },
+    ],
+    q: { en: "Where does the bear go?", zh: "小熊去哪裡?", ans: "bed",
+      options: [{ en: "bed", emoji: "🛏️" }, { en: "school", emoji: "🏫" }, { en: "sea", emoji: "🌊" }] },
+  },
+  {
+    title: "去海邊", emoji: "🏖️",
+    lines: [
+      { en: "We ride the bus.", zh: "我們搭公車", emoji: "🚌" },
+      { en: "The bus goes fast!", zh: "公車跑得好快!", emoji: "💨" },
+      { en: "We go to the beach.", zh: "我們到海邊了", emoji: "🏖️" },
+    ],
+    q: { en: "Where do we go?", zh: "我們去哪裡?", ans: "beach",
+      options: [{ en: "beach", emoji: "🏖️" }, { en: "school", emoji: "🏫" }, { en: "mountain", emoji: "⛰️" }] },
+  },
+  {
+    title: "小猴子吃香蕉", emoji: "🐵",
+    lines: [
+      { en: "The monkey is hungry.", zh: "小猴子肚子餓", emoji: "🐵" },
+      { en: "The monkey eats a banana.", zh: "小猴子吃香蕉", emoji: "🍌" },
+      { en: "Yummy, yummy!", zh: "好好吃呀!", emoji: "😋" },
+    ],
+    q: { en: "What does the monkey eat?", zh: "小猴子吃了什麼?", ans: "banana",
+      options: [{ en: "banana", emoji: "🍌" }, { en: "pizza", emoji: "🍕" }, { en: "leaf", emoji: "🍃" }] },
+  },
+];
+
+function StoryMode({ speak, addStars }) {
+  const [si, setSi] = useState(0);
+  const [heard, setHeard] = useState(() => new Set());
+  const [picked, setPicked] = useState(null);
+  const [celebrate, setCelebrate] = useState(false);
+  const story = STORIES[si];
+  const allHeard = heard.size >= story.lines.length;
+
+  const goStory = (i) => {
+    setSi(i); setHeard(new Set()); setPicked(null); setCelebrate(false);
+  };
+
+  const pick = (opt) => {
+    if (picked) return;
+    setPicked(opt.en);
+    const ok = opt.en === story.q.ans;
+    if (ok) {
+      addStars(2);
+      setCelebrate(true);
+      speak(`${story.q.ans}! Great job!`, { rate: 0.95 });
+    } else {
+      speak(story.q.ans, { rate: 0.75 });
+      setTimeout(() => setPicked(null), 1500); // 再試一次,直到答對
+    }
+  };
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 10px" }}>
+        第 {si + 1} / {STORIES.length} 個小故事・每句都點一下聽,聽完回答問題!
+      </p>
+      <h2 style={{ color: T.ink, fontSize: 22, margin: "0 0 12px" }}>
+        {story.emoji} {story.title}
+      </h2>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+        {story.lines.map((ln, i) => {
+          const ok = heard.has(i);
+          return (
+            <button key={i}
+              onClick={() => { speak(ln.en, { rate: 0.8 }); setHeard((s) => new Set(s).add(i)); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 12, textAlign: "left",
+                background: ok ? "#E9FBEF" : T.card,
+                border: `3px solid ${ok ? T.green : "#E8E4FA"}`,
+                borderRadius: 18, padding: "12px 14px", fontFamily: "inherit",
+                cursor: "pointer", boxShadow: "0 4px 0 #E0DBF7", transition: "all .15s",
+              }}>
+              <span style={{ fontSize: 36 }}>{ln.emoji}</span>
+              <span>
+                <div style={{ fontSize: 17, fontWeight: 700, color: T.ink }}>{ln.en}</div>
+                <div style={{ fontSize: 13, color: T.sub }}>{ln.zh}</div>
+              </span>
+              <span style={{ marginLeft: "auto", fontSize: 14, color: ok ? T.greenDark : "#C9C4E8" }}>
+                {ok ? "✓" : "🔈"}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {allHeard && (
+        <div style={{ background: T.card, borderRadius: 22, padding: "16px",
+          boxShadow: "0 5px 0 #E0DBF7", marginBottom: 12 }}>
+          <button
+            onClick={() => speak(story.q.en, { rate: 0.8 })}
+            style={{ background: "none", border: "none", fontFamily: "inherit", cursor: "pointer" }}
+          >
+            <div style={{ fontSize: 18, fontWeight: 700, color: T.purple }}>
+              ❓ {story.q.en} 🔈
+            </div>
+            <div style={{ fontSize: 14, color: T.sub }}>{story.q.zh}</div>
+          </button>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 12 }}>
+            {story.q.options.map((opt) => {
+              const isAns = opt.en === story.q.ans;
+              let bg = T.card, bd = "#E8E4FA";
+              if (picked) {
+                if (isAns) { bg = "#E9FBEF"; bd = T.green; }
+                else if (opt.en === picked) { bg = "#FFF7DA"; bd = T.yellow; }
+              }
+              return (
+                <button key={opt.en} onClick={() => pick(opt)}
+                  style={{
+                    background: bg, border: `3px solid ${bd}`, borderRadius: 16,
+                    padding: "12px 4px", fontFamily: "inherit", fontWeight: 700,
+                    fontSize: 14, color: T.ink, cursor: "pointer",
+                    boxShadow: "0 4px 0 #E0DBF7", transition: "all .15s",
+                  }}>
+                  <div style={{ fontSize: 34 }}>{opt.emoji}</div>
+                  {opt.en}
+                </button>
+              );
+            })}
+          </div>
+          {celebrate && (
+            <div style={{ marginTop: 12, fontSize: 18, color: T.greenDark, fontWeight: 700 }}>
+              🎉 答對了!+2 ⭐
+            </div>
+          )}
+        </div>
+      )}
+
+      {celebrate && (
+        <ChunkyButton color={T.green} dark={T.greenDark}
+          onClick={() => goStory((si + 1) % STORIES.length)}>
+          下一個故事 →
+        </ChunkyButton>
+      )}
+    </div>
+  );
+}
+
 // ---------- 首音偵探(音素覺察)----------
 function makeSoundQ() {
   const pool = ALL_WORDS.filter((w) => /^[a-z]+$/i.test(w.en));
@@ -2739,6 +3573,16 @@ const MENU_GROUPS = [
       { mode: "quiz", color: T.pink, dark: "#D14B7D", label: "🎯 聽力挑戰" },
       { mode: "sound", color: "#9B59D0", dark: "#7A3FAC", label: "🕵️ 首音偵探" },
       { mode: "rhyme", color: "#2E86DE", dark: "#1F5FA8", label: "🚂 押韻火車" },
+      { mode: "bubble", color: "#45AAF2", dark: "#2D87C7", label: "🫧 單字泡泡" },
+    ],
+  },
+  {
+    label: "💬 聽懂句子",
+    items: [
+      { mode: "listendo", color: "#E17055", dark: "#B3543F", label: "🎧 聽指令點圖" },
+      { mode: "yesno", color: "#778BEB", dark: "#5568C4", label: "❓ 是不是?" },
+      { mode: "count", color: "#574B90", dark: "#3E3568", label: "🔢 數數小市場" },
+      { mode: "colorgame", color: "#E66767", dark: "#C04747", label: "🎨 聽顏色著色" },
     ],
   },
   {
@@ -2746,6 +3590,13 @@ const MENU_GROUPS = [
     items: [
       { mode: "spell", color: "#6AB04C", dark: "#4F8438", label: "🧩 拼字小廚師" },
       { mode: "casematch", color: "#BE2EDD", dark: "#8F1DAD", label: "🔠 大小寫配對" },
+    ],
+  },
+  {
+    label: "📖 故事與分類",
+    items: [
+      { mode: "story", color: "#786FA6", dark: "#5A5280", label: "📖 迷你小故事" },
+      { mode: "sort", color: "#CF6A87", dark: "#A84C68", label: "🧺 分類小幫手" },
     ],
   },
   {
@@ -2796,7 +3647,8 @@ export default function WordPop() {
     >
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap');
 @keyframes wp-pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .6; transform: scale(1.05); } }
-@keyframes wp-shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }`}</style>
+@keyframes wp-shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+@keyframes wp-float { from { transform: translateY(0); } to { transform: translateY(-470px); } }`}</style>
 
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
         {/* Header */}
@@ -2958,6 +3810,13 @@ export default function WordPop() {
         {mode === "spell" && <SpellMode speak={speak} addStars={addStars} />}
         {mode === "rhyme" && <RhymeMode speak={speak} addStars={addStars} />}
         {mode === "casematch" && <CaseMatchMode speak={speak} addStars={addStars} />}
+        {mode === "listendo" && <ListenDoMode speak={speak} addStars={addStars} />}
+        {mode === "yesno" && <YesNoMode speak={speak} addStars={addStars} />}
+        {mode === "count" && <CountMode speak={speak} addStars={addStars} />}
+        {mode === "colorgame" && <ColorGameMode speak={speak} addStars={addStars} />}
+        {mode === "bubble" && <BubbleMode speak={speak} addStars={addStars} />}
+        {mode === "story" && <StoryMode speak={speak} addStars={addStars} />}
+        {mode === "sort" && <SortMode speak={speak} addStars={addStars} />}
       </div>
     </div>
   );
