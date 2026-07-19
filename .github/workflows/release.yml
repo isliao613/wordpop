@@ -1,0 +1,33 @@
+name: Create Release
+
+# 推送 v* 版本標籤時,從 CHANGELOG.md 抓出該版說明,自動建立 GitHub Release
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract changelog section for this tag
+        id: notes
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          # 抓 "## <tag>" 到下一個 "## " 之間的內容
+          awk -v tag="$TAG" '
+            $0 ~ "^## " tag "( |$|—|—)" {grab=1; next}
+            grab && /^## / {exit}
+            grab {print}
+          ' CHANGELOG.md > notes.md
+          if [ ! -s notes.md ]; then echo "見 CHANGELOG.md" > notes.md; fi
+          echo "Release notes for $TAG:"; cat notes.md
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: WordPop ${{ github.ref_name }}
+          body_path: notes.md
