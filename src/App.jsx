@@ -360,7 +360,7 @@ const SIGHT_WORDS = [
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
 // 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
-const APP_VERSION = "v1.19";
+const APP_VERSION = "v1.20";
 const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
@@ -390,6 +390,37 @@ const IS_IOS =
   (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
     (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
 
+// 把「修剪 + 音量正規化 + 淡入淡出」直接烘進 16-bit WAV(blob URL)
+// iOS 用祝福元件播這個乾淨檔案:無即時音訊管線 → 無毛刺,且不受靜音鍵影響
+function encodeNormalizedWav(buf, gain, start, dur) {
+  const sr = buf.sampleRate;
+  const s0 = Math.max(0, Math.floor(start * sr));
+  const n = Math.max(1, Math.min(buf.length - s0, Math.floor(dur * sr)));
+  const chs = [];
+  for (let c = 0; c < buf.numberOfChannels; c++) chs.push(buf.getChannelData(c));
+  const out = new Int16Array(n);
+  const fi = Math.floor(0.015 * sr);
+  const fo = Math.floor(0.045 * sr);
+  for (let i = 0; i < n; i++) {
+    let v = 0;
+    for (const ch of chs) v += ch[s0 + i] || 0;
+    v = (v / chs.length) * gain;
+    if (i < fi) v *= i / fi;
+    if (i > n - fo) v *= Math.max(0, (n - i) / fo);
+    out[i] = Math.round(Math.max(-1, Math.min(1, v)) * 32767);
+  }
+  const bytes = new Uint8Array(44 + n * 2);
+  const dv = new DataView(bytes.buffer);
+  const w = (o, s) => { for (let i = 0; i < s.length; i++) bytes[o + i] = s.charCodeAt(i); };
+  w(0, "RIFF"); dv.setUint32(4, 36 + n * 2, true); w(8, "WAVE");
+  w(12, "fmt "); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true);
+  dv.setUint16(22, 1, true); dv.setUint32(24, sr, true); dv.setUint32(28, sr * 2, true);
+  dv.setUint16(32, 2, true); dv.setUint16(34, 16, true);
+  w(36, "data"); dv.setUint32(40, n * 2, true);
+  new Uint8Array(bytes.buffer, 44).set(new Uint8Array(out.buffer));
+  return URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
+}
+
 // 產生一小段靜音 WAV(data URI),用來在手勢當下「祝福」Audio 元件
 // (iOS 規定:元件要在手勢裡播過一次,之後才能由程式播放)
 function makeSilentWavURI() {
@@ -413,11 +444,9 @@ function useSpeech() {
   const pendingRef = useRef({});   // word -> 查詢中的 Promise(避免重複查)
   const buffersRef = useRef({});   // url -> { buf, gain } 解碼後音訊 + 正規化增益
   const bufPendingRef = useRef({}); // url -> 下載解碼中的 Promise
-  const ctxRef = useRef(null);     // AudioContext(懶建立)
+  const ctxRef = useRef(null);     // AudioContext(懶建立,解碼與非 iOS 播放用)
   const srcRef = useRef(null);     // 正在播的 BufferSource
-  const blessedRef = useRef(null); // 手勢裡祝福過的共用 Audio 元件(iOS 備援用)
-  const streamDestRef = useRef(null); // iOS:Web Audio -> 媒體串流出口(不受靜音鍵影響)
-  const streamElRef = useRef(null);   // iOS:持續播放上面串流的 <audio> 元件
+  const blessedRef = useRef(null); // 手勢裡祝福過的共用 Audio 元件(iOS 播放用)
   const audioRef = useRef(null);
 
   useEffect(() => {
@@ -488,23 +517,6 @@ function useSpeech() {
           blessedRef.current = a;
         } catch { /* ignore */ }
       }
-      // iOS:建立「Web Audio → 媒體串流 → <audio>」的出口並讓它持續播,
-      // 音量正規化保留、不受靜音鍵影響、播放零載入延遲
-      if (IS_IOS) {
-        try {
-          const ctx2 = ctxRef.current;
-          if (ctx2 && !streamDestRef.current) {
-            const dest = ctx2.createMediaStreamDestination();
-            streamDestRef.current = dest;
-            const el = new Audio();
-            el.srcObject = dest.stream;
-            streamElRef.current = el;
-          }
-          // 被系統中斷暫停時,趁手勢再拉起來
-          const el = streamElRef.current;
-          if (el && el.paused) el.play().catch(() => {});
-        } catch { /* ignore */ }
-      }
       // 部分瀏覽器 cancel 後合成引擎會卡在 paused
       try { window.speechSynthesis?.resume?.(); } catch { /* ignore */ }
     };
@@ -547,6 +559,10 @@ function useSpeech() {
         // 目標響度 ~ -18dBFS;增益限制在 0.5~3 倍避免放大底噪
         const gain = Math.min(3, Math.max(0.5, 0.125 / Math.max(0.005, rms)));
         const entry = { buf, gain, start, dur };
+        // iOS:預先烘焙成乾淨的正規化 WAV
+        if (IS_IOS) {
+          try { entry.blobUrl = encodeNormalizedWav(buf, gain, start, dur); } catch { /* 烘不出來就播原檔 */ }
+        }
         buffersRef.current[url] = entry;
         return entry;
       } catch {
@@ -633,9 +649,25 @@ function useSpeech() {
         const tryHuman = async () => {
           const url = await findHumanAudio(text);
           if (!url || attempt.cancelled) return false;
-          // 首選:Web Audio 播放(音量已正規化,和合成音一致)
-          // iOS 走「串流出口」:同樣正規化,但從媒體通道出聲(不受靜音鍵影響)
           const entry = await loadBuffer(url);
+          if (attempt.cancelled) return false;
+          // iOS:用祝福元件播「烘焙好的正規化 WAV」——無即時管線、無毛刺、不受靜音鍵影響
+          if (IS_IOS) {
+            try {
+              const a = blessedRef.current || new Audio();
+              blessedRef.current = a;
+              audioRef.current = a;
+              a.src = (entry && entry.blobUrl) || url;
+              a.volume = 1;
+              a.playbackRate = rate < 0.8 ? 0.85 : 1;
+              a.onended = onEnd || null;
+              await a.play();
+              return !attempt.cancelled;
+            } catch {
+              return false;
+            }
+          }
+          // 桌機/Android:Web Audio 播放(音量已正規化,和合成音一致)
           const ctx = getCtx();
           if (entry && ctx && !attempt.cancelled) {
             try {
@@ -646,27 +678,13 @@ function useSpeech() {
                   new Promise((r) => setTimeout(r, 250)),
                 ]);
               }
-              // iOS 需要串流元件在播放中,否則改走備援
-              let out = ctx.destination;
-              let iosOk = true;
-              if (IS_IOS) {
-                const el = streamElRef.current;
-                const dest = streamDestRef.current;
-                if (el && dest) {
-                  if (el.paused) {
-                    try { await el.play(); } catch { /* 播不起來就走備援 */ }
-                  }
-                  if (!el.paused) out = dest;
-                  else iosOk = false;
-                } else iosOk = false;
-              }
-              if (ctx.state === "running" && iosOk && !attempt.cancelled) {
+              if (ctx.state === "running" && !attempt.cancelled) {
                 const src = ctx.createBufferSource();
                 src.buffer = entry.buf;
                 const pr = rate < 0.8 ? 0.85 : 1;
                 src.playbackRate.value = pr;
                 const g = ctx.createGain();
-                src.connect(g).connect(out);
+                src.connect(g).connect(ctx.destination);
                 // 淡入淡出包絡:頭尾平滑歸零,不會有突兀的電子音
                 const t0 = ctx.currentTime;
                 const durS = (entry.dur ?? entry.buf.duration) / pr;
