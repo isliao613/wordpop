@@ -360,7 +360,7 @@ const SIGHT_WORDS = [
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
 // 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
-const APP_VERSION = "v1.21";
+const APP_VERSION = "v1.22";
 const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
@@ -3277,6 +3277,959 @@ function StoryMode({ speak, addStars }) {
   );
 }
 
+// ========== 以下為第二批新增的 10 個遊戲 ==========
+const NUM10 = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+
+// ---------- ABC 接接看(字母順序)----------
+function AlphabetOrderMode({ speak, addStars }) {
+  const TOTAL = 8;
+  const abc = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const makeQ = () => {
+    const i = Math.floor(Math.random() * 24); // 顯示 i,i+1,i+2 -> 問 i+3? 用三連問下一個
+    const start = Math.min(i, 23);
+    const ans = abc[start + 2] ? abc[start + 2] : abc[start];
+    // 顯示前兩個,問第三個
+    const shown = [abc[start], abc[start + 1]];
+    const target = abc[start + 2];
+    const opts = new Set([target]);
+    while (opts.size < 3) opts.add(abc[Math.floor(Math.random() * 26)]);
+    return { shown, target, options: shuffle([...opts]) };
+  };
+  const [roundNo, setRoundNo] = useState(1);
+  const [right, setRight] = useState(0);
+  const [q, setQ] = useState(makeQ);
+  const [picked, setPicked] = useState(null);
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => speak(`${q.shown[0]}. ${q.shown[1]}. what next?`, { rate: 0.8 }), 400);
+    return () => clearTimeout(t);
+  }, [q, speak]);
+
+  const pick = (L) => {
+    if (picked) return;
+    setPicked(L);
+    const ok = L === q.target;
+    if (ok) { setRight((r) => r + 1); addStars(1); speak(`${q.target}! Great job!`, { rate: 0.95 }); }
+    else speak(`${q.shown[1]}. ${q.target}.`, { rate: 0.8 });
+    setTimeout(() => {
+      if (roundNo >= TOTAL) setDone(true);
+      else { setRoundNo((r) => r + 1); setQ(makeQ()); setPicked(null); }
+    }, 1400);
+  };
+
+  if (done)
+    return (
+      <div style={{ textAlign: "center", padding: "24px 0" }}>
+        <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "🔤"}</div>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>接對 {right} / {TOTAL} 個字母!</h2>
+        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>
+          再玩一次
+        </ChunkyButton>
+      </div>
+    );
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
+        第 {roundNo} / {TOTAL} 題・接下來是哪個字母?
+      </div>
+      <div style={{ background: T.card, borderRadius: 22, padding: "22px 16px",
+        marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
+        <div style={{ fontSize: 46, fontWeight: 700, color: T.purple, letterSpacing: 8 }}>
+          {q.shown[0]} {q.shown[1]} <span style={{ color: "#C9C4E8" }}>?</span>
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+        {q.options.map((L) => {
+          const isAns = L === q.target;
+          let bg = T.card, bd = "#E8E4FA";
+          if (picked) {
+            if (isAns) { bg = "#E9FBEF"; bd = T.green; }
+            else if (L === picked) { bg = "#FFF7DA"; bd = T.yellow; }
+          }
+          return (
+            <button key={L} onClick={() => pick(L)}
+              style={{
+                background: bg, border: `3px solid ${bd}`, borderRadius: 18,
+                padding: "18px 0", fontFamily: "inherit", fontSize: 36,
+                fontWeight: 700, color: T.ink, cursor: picked ? "default" : "pointer",
+                boxShadow: "0 5px 0 #E0DBF7", transition: "all .15s",
+              }}>
+              {L}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------- 數字接龍 ----------
+function NumberOrderMode({ speak, addStars }) {
+  const TOTAL = 8;
+  const makeQ = () => {
+    const s = 1 + Math.floor(Math.random() * 7); // 1..7
+    const target = s + 3;
+    const opts = new Set([target]);
+    while (opts.size < 3) opts.add(1 + Math.floor(Math.random() * 10));
+    return { shown: [s, s + 1, s + 2], target, options: shuffle([...opts]) };
+  };
+  const [roundNo, setRoundNo] = useState(1);
+  const [right, setRight] = useState(0);
+  const [q, setQ] = useState(makeQ);
+  const [picked, setPicked] = useState(null);
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => speak(`${NUM10[q.shown[0]]}, ${NUM10[q.shown[1]]}, ${NUM10[q.shown[2]]}, what next?`, { rate: 0.85 }), 400);
+    return () => clearTimeout(t);
+  }, [q, speak]);
+
+  const pick = (n) => {
+    if (picked !== null) return;
+    setPicked(n);
+    const ok = n === q.target;
+    if (ok) { setRight((r) => r + 1); addStars(1); speak(`${NUM10[q.target]}! Great job!`, { rate: 0.95 }); }
+    else speak(`${NUM10[q.shown[2]]}, ${NUM10[q.target]}.`, { rate: 0.8 });
+    setTimeout(() => {
+      if (roundNo >= TOTAL) setDone(true);
+      else { setRoundNo((r) => r + 1); setQ(makeQ()); setPicked(null); }
+    }, 1400);
+  };
+
+  if (done)
+    return (
+      <div style={{ textAlign: "center", padding: "24px 0" }}>
+        <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "🔢"}</div>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>接對 {right} / {TOTAL} 個數字!</h2>
+        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>
+          再玩一次
+        </ChunkyButton>
+      </div>
+    );
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
+        第 {roundNo} / {TOTAL} 題・接下來是哪個數字?
+      </div>
+      <div style={{ background: T.card, borderRadius: 22, padding: "22px 16px",
+        marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
+        <div style={{ fontSize: 46, fontWeight: 700, color: T.purple, letterSpacing: 6 }}>
+          {q.shown.join(" ")} <span style={{ color: "#C9C4E8" }}>?</span>
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+        {q.options.map((n) => {
+          const isAns = n === q.target;
+          let bg = T.card, bd = "#E8E4FA";
+          if (picked !== null) {
+            if (isAns) { bg = "#E9FBEF"; bd = T.green; }
+            else if (n === picked) { bg = "#FFF7DA"; bd = T.yellow; }
+          }
+          return (
+            <button key={n} onClick={() => pick(n)}
+              style={{
+                background: bg, border: `3px solid ${bd}`, borderRadius: 18,
+                padding: "18px 0", fontFamily: "inherit", fontSize: 36,
+                fontWeight: 700, color: T.ink, cursor: picked !== null ? "default" : "pointer",
+                boxShadow: "0 5px 0 #E0DBF7", transition: "all .15s",
+              }}>
+              {n}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------- 加加看(5 以內加法)----------
+function AddMode({ speak, addStars }) {
+  const TOTAL = 8;
+  const EM = ["🍎", "🍓", "⭐", "🎈", "🐟", "🍪"];
+  const makeQ = () => {
+    const a = 1 + Math.floor(Math.random() * 3);
+    const b = 1 + Math.floor(Math.random() * (5 - a));
+    const sum = a + b;
+    const opts = new Set([sum]);
+    while (opts.size < 3) opts.add(2 + Math.floor(Math.random() * 5));
+    return { a, b, sum, emoji: EM[Math.floor(Math.random() * EM.length)], options: shuffle([...opts]) };
+  };
+  const [roundNo, setRoundNo] = useState(1);
+  const [right, setRight] = useState(0);
+  const [q, setQ] = useState(makeQ);
+  const [picked, setPicked] = useState(null);
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => speak(`${NUM10[q.a]} and ${NUM10[q.b]}. how many?`, { rate: 0.85 }), 400);
+    return () => clearTimeout(t);
+  }, [q, speak]);
+
+  const pick = (n) => {
+    if (picked !== null) return;
+    setPicked(n);
+    const ok = n === q.sum;
+    if (ok) { setRight((r) => r + 1); addStars(1); speak(`${NUM10[q.a]} and ${NUM10[q.b]} makes ${NUM10[q.sum]}!`, { rate: 0.9 }); }
+    else speak(`${NUM10[q.a]} and ${NUM10[q.b]} makes ${NUM10[q.sum]}.`, { rate: 0.8 });
+    setTimeout(() => {
+      if (roundNo >= TOTAL) setDone(true);
+      else { setRoundNo((r) => r + 1); setQ(makeQ()); setPicked(null); }
+    }, 1900);
+  };
+
+  if (done)
+    return (
+      <div style={{ textAlign: "center", padding: "24px 0" }}>
+        <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "➕"}</div>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>算對 {right} / {TOTAL} 題!</h2>
+        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>
+          再玩一次
+        </ChunkyButton>
+      </div>
+    );
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
+        第 {roundNo} / {TOTAL} 題・數數看,一共有幾個?
+      </div>
+      <div style={{ background: T.card, borderRadius: 22, padding: "20px 12px",
+        marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 32 }}>{q.emoji.repeat(q.a)}</span>
+          <span style={{ fontSize: 30, fontWeight: 700, color: T.purple }}>+</span>
+          <span style={{ fontSize: 32 }}>{q.emoji.repeat(q.b)}</span>
+          <span style={{ fontSize: 30, fontWeight: 700, color: T.purple }}>=</span>
+          <span style={{ fontSize: 30, fontWeight: 700, color: "#C9C4E8" }}>?</span>
+        </div>
+        {picked !== null && (
+          <div style={{ marginTop: 10, fontSize: 22, fontWeight: 700, color: T.greenDark }}>
+            {q.a} + {q.b} = {q.sum}
+          </div>
+        )}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+        {q.options.map((n) => {
+          const isAns = n === q.sum;
+          let bg = T.card, bd = "#E8E4FA";
+          if (picked !== null) {
+            if (isAns) { bg = "#E9FBEF"; bd = T.green; }
+            else if (n === picked) { bg = "#FFF7DA"; bd = T.yellow; }
+          }
+          return (
+            <button key={n} onClick={() => pick(n)}
+              style={{
+                background: bg, border: `3px solid ${bd}`, borderRadius: 18,
+                padding: "18px 0", fontFamily: "inherit", fontSize: 34,
+                fontWeight: 700, color: T.ink, cursor: picked !== null ? "default" : "pointer",
+                boxShadow: "0 5px 0 #E0DBF7", transition: "all .15s",
+              }}>
+              {n}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------- 音節拍拍(數音節)----------
+const SYLLABLE_WORDS = [
+  { en: "cat", emoji: "🐱", n: 1 }, { en: "dog", emoji: "🐶", n: 1 },
+  { en: "fish", emoji: "🐟", n: 1 }, { en: "star", emoji: "⭐", n: 1 },
+  { en: "apple", emoji: "🍎", n: 2 }, { en: "tiger", emoji: "🐯", n: 2 },
+  { en: "rabbit", emoji: "🐰", n: 2 }, { en: "monkey", emoji: "🐵", n: 2 },
+  { en: "pencil", emoji: "✏️", n: 2 }, { en: "flower", emoji: "🌸", n: 2 },
+  { en: "banana", emoji: "🍌", n: 3 }, { en: "elephant", emoji: "🐘", n: 3 },
+  { en: "butterfly", emoji: "🦋", n: 3 }, { en: "umbrella", emoji: "☂️", n: 3 },
+  { en: "tomato", emoji: "🍅", n: 3 }, { en: "dinosaur", emoji: "🦕", n: 3 },
+];
+function SyllableMode({ speak, addStars }) {
+  const TOTAL = 8;
+  const makeQ = () => {
+    const w = SYLLABLE_WORDS[Math.floor(Math.random() * SYLLABLE_WORDS.length)];
+    return { w, options: [1, 2, 3] };
+  };
+  const [roundNo, setRoundNo] = useState(1);
+  const [right, setRight] = useState(0);
+  const [q, setQ] = useState(makeQ);
+  const [picked, setPicked] = useState(null);
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    speak.prefetch?.(q.w.en);
+    const t = setTimeout(() => speak(q.w.en, { rate: 0.8 }), 400);
+    return () => clearTimeout(t);
+  }, [q, speak]);
+
+  const pick = (n) => {
+    if (picked !== null) return;
+    setPicked(n);
+    const ok = n === q.w.n;
+    if (ok) { setRight((r) => r + 1); addStars(1); speak("Great job!", { rate: 1 }); }
+    else speak(q.w.en, { rate: 0.6 });
+    setTimeout(() => {
+      if (roundNo >= TOTAL) setDone(true);
+      else { setRoundNo((r) => r + 1); setQ(makeQ()); setPicked(null); }
+    }, 1500);
+  };
+
+  if (done)
+    return (
+      <div style={{ textAlign: "center", padding: "24px 0" }}>
+        <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "👏"}</div>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>拍對 {right} / {TOTAL} 個字!</h2>
+        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>
+          再玩一次
+        </ChunkyButton>
+      </div>
+    );
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
+        第 {roundNo} / {TOTAL} 題・唸唸看,這個字要拍幾下?👏
+      </div>
+      <div style={{ background: T.card, borderRadius: 22, padding: "18px 16px",
+        marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
+        <div style={{ fontSize: 60 }}>{q.w.emoji}</div>
+        <div style={{ fontSize: 24, fontWeight: 700, color: T.ink }}>{q.w.en}</div>
+        {picked !== null && (
+          <div style={{ fontSize: 26, marginTop: 6 }}>{"👏".repeat(q.w.n)}</div>
+        )}
+        <div style={{ marginTop: 8 }}>
+          <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={() => speak(q.w.en, { rate: 0.7 })}
+            style={{ color: T.ink }}>
+            🔊 慢慢唸
+          </ChunkyButton>
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+        {q.options.map((n) => {
+          const isAns = n === q.w.n;
+          let bg = T.card, bd = "#E8E4FA";
+          if (picked !== null) {
+            if (isAns) { bg = "#E9FBEF"; bd = T.green; }
+            else if (n === picked) { bg = "#FFF7DA"; bd = T.yellow; }
+          }
+          return (
+            <button key={n} onClick={() => pick(n)}
+              style={{
+                background: bg, border: `3px solid ${bd}`, borderRadius: 18,
+                padding: "16px 0", fontFamily: "inherit", cursor: picked !== null ? "default" : "pointer",
+                boxShadow: "0 5px 0 #E0DBF7", transition: "all .15s",
+              }}>
+              <div style={{ fontSize: 26 }}>{"👏".repeat(n)}</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: T.purple }}>{n}</div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------- CVC 短母音字庫(中間的音 + 拼讀共用)----------
+const CVC_WORDS = [
+  { en: "cat", emoji: "🐱" }, { en: "dog", emoji: "🐶" }, { en: "pig", emoji: "🐷" },
+  { en: "sun", emoji: "☀️" }, { en: "bus", emoji: "🚌" }, { en: "hat", emoji: "🧢" },
+  { en: "bed", emoji: "🛏️" }, { en: "fox", emoji: "🦊" }, { en: "cup", emoji: "🥤" },
+  { en: "bag", emoji: "🎒" }, { en: "box", emoji: "📦" }, { en: "pen", emoji: "🖊️" },
+  { en: "hen", emoji: "🐔" }, { en: "bat", emoji: "🦇" }, { en: "net", emoji: "🥅" },
+  { en: "web", emoji: "🕸️" },
+];
+const VOWELS = ["a", "e", "i", "o", "u"];
+
+// ---------- 中間的音(CVC 母音)----------
+function MiddleSoundMode({ speak, addStars }) {
+  const TOTAL = 8;
+  const makeQ = () => {
+    const w = CVC_WORDS[Math.floor(Math.random() * CVC_WORDS.length)];
+    const v = w.en[1];
+    const opts = new Set([v]);
+    while (opts.size < 3) opts.add(VOWELS[Math.floor(Math.random() * VOWELS.length)]);
+    return { w, v, options: shuffle([...opts]) };
+  };
+  const [roundNo, setRoundNo] = useState(1);
+  const [right, setRight] = useState(0);
+  const [q, setQ] = useState(makeQ);
+  const [picked, setPicked] = useState(null);
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    speak.prefetch?.(q.w.en);
+    const t = setTimeout(() => speak(q.w.en, { rate: 0.75 }), 400);
+    return () => clearTimeout(t);
+  }, [q, speak]);
+
+  const pick = (v) => {
+    if (picked) return;
+    setPicked(v);
+    const ok = v === q.v;
+    if (ok) { setRight((r) => r + 1); addStars(1); speak(q.w.en, { rate: 0.9, onEnd: () => speak("Great job!", { rate: 1 }) }); }
+    else speak(q.w.en, { rate: 0.6 });
+    setTimeout(() => {
+      if (roundNo >= TOTAL) setDone(true);
+      else { setRoundNo((r) => r + 1); setQ(makeQ()); setPicked(null); }
+    }, 1500);
+  };
+
+  if (done)
+    return (
+      <div style={{ textAlign: "center", padding: "24px 0" }}>
+        <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "🅰️"}</div>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>找對 {right} / {TOTAL} 個中間音!</h2>
+        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>
+          再玩一次
+        </ChunkyButton>
+      </div>
+    );
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
+        第 {roundNo} / {TOTAL} 題・中間少了一個音,是哪個母音?
+      </div>
+      <div style={{ background: T.card, borderRadius: 22, padding: "18px 16px",
+        marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
+        <div style={{ fontSize: 60 }}>{q.w.emoji}</div>
+        <div style={{ fontSize: 40, fontWeight: 700, color: T.ink, letterSpacing: 4, margin: "4px 0 10px" }}>
+          {q.w.en[0]}<span style={{ color: picked ? T.greenDark : "#C9C4E8" }}>{picked ? q.v : "_"}</span>{q.w.en[2]}
+        </div>
+        <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={() => speak(q.w.en, { rate: 0.7 })}
+          style={{ color: T.ink }}>
+          🔊 再聽一次
+        </ChunkyButton>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+        {q.options.map((v) => {
+          const isAns = v === q.v;
+          let bg = T.card, bd = "#E8E4FA";
+          if (picked) {
+            if (isAns) { bg = "#E9FBEF"; bd = T.green; }
+            else if (v === picked) { bg = "#FFF7DA"; bd = T.yellow; }
+          }
+          return (
+            <button key={v} onClick={() => pick(v)}
+              style={{
+                background: bg, border: `3px solid ${bd}`, borderRadius: 18,
+                padding: "18px 0", fontFamily: "inherit", fontSize: 36,
+                fontWeight: 700, color: T.purple, cursor: picked ? "default" : "pointer",
+                boxShadow: "0 5px 0 #E0DBF7", transition: "all .15s",
+              }}>
+              {v}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------- 拼讀小火車(CVC 拼音 → 選圖)----------
+function BlendMode({ speak, addStars }) {
+  const TOTAL = 8;
+  const makeQ = () => {
+    const w = CVC_WORDS[Math.floor(Math.random() * CVC_WORDS.length)];
+    const others = shuffle(CVC_WORDS.filter((x) => x.en !== w.en)).slice(0, 2);
+    return { w, options: shuffle([w, ...others]) };
+  };
+  const [roundNo, setRoundNo] = useState(1);
+  const [right, setRight] = useState(0);
+  const [q, setQ] = useState(makeQ);
+  const [lit, setLit] = useState(-1); // 字母逐一亮起
+  const [picked, setPicked] = useState(null);
+  const [done, setDone] = useState(false);
+
+  // 逐字母亮起後唸整個字
+  const playBlend = useCallback(() => {
+    const letters = q.w.en.split("");
+    letters.forEach((ch, i) => {
+      setTimeout(() => { setLit(i); speak(ch + ".", { rate: 0.9 }); }, i * 650);
+    });
+    setTimeout(() => { setLit(letters.length); speak(q.w.en, { rate: 0.85 }); }, letters.length * 650 + 200);
+  }, [q, speak]);
+
+  useEffect(() => {
+    speak.prefetch?.(q.w.en);
+    setLit(-1);
+    const t = setTimeout(playBlend, 400);
+    return () => clearTimeout(t);
+  }, [q, playBlend, speak]);
+
+  const pick = (w) => {
+    if (picked) return;
+    setPicked(w.en);
+    const ok = w.en === q.w.en;
+    if (ok) { setRight((r) => r + 1); addStars(1); speak(q.w.en, { rate: 0.9, onEnd: () => speak("Great job!", { rate: 1 }) }); }
+    else speak(q.w.en, { rate: 0.8 });
+    setTimeout(() => {
+      if (roundNo >= TOTAL) setDone(true);
+      else { setRoundNo((r) => r + 1); setQ(makeQ()); setPicked(null); }
+    }, 1600);
+  };
+
+  if (done)
+    return (
+      <div style={{ textAlign: "center", padding: "24px 0" }}>
+        <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "📖"}</div>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>拼讀 {right} / {TOTAL} 個字!</h2>
+        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>
+          再玩一次
+        </ChunkyButton>
+      </div>
+    );
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
+        第 {roundNo} / {TOTAL} 題・把音拼起來,是哪張圖?🚂
+      </div>
+      <div style={{ background: T.card, borderRadius: 22, padding: "20px 16px",
+        marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
+        <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 12 }}>
+          {q.w.en.split("").map((ch, i) => (
+            <span key={i} style={{
+              fontSize: 34, fontWeight: 700, width: 46, height: 54,
+              display: "grid", placeItems: "center", borderRadius: 12,
+              background: lit >= i ? T.purple : "#F3F0FF",
+              color: lit >= i ? "#fff" : "#C9C4E8", transition: "all .2s",
+            }}>{ch}</span>
+          ))}
+        </div>
+        <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={playBlend} style={{ color: T.ink }}>
+          🔊 再拼一次
+        </ChunkyButton>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+        {q.options.map((w) => {
+          const isAns = w.en === q.w.en;
+          let bg = T.card, bd = "#E8E4FA";
+          if (picked) {
+            if (isAns) { bg = "#E9FBEF"; bd = T.green; }
+            else if (w.en === picked) { bg = "#FFF7DA"; bd = T.yellow; }
+          }
+          return (
+            <button key={w.en} onClick={() => pick(w)}
+              style={{
+                background: bg, border: `3px solid ${bd}`, borderRadius: 18,
+                padding: "18px 4px", fontFamily: "inherit", cursor: picked ? "default" : "pointer",
+                boxShadow: "0 5px 0 #E0DBF7", transition: "all .15s",
+              }}>
+              <div style={{ fontSize: 46 }}>{w.emoji}</div>
+              {picked && isAns && <div style={{ fontSize: 15, fontWeight: 700, color: T.greenDark }}>{w.en}</div>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------- 大寫還是小寫? ----------
+function UpperLowerMode({ speak, addStars }) {
+  const TOTAL = 8;
+  const abc = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const makeQ = () => {
+    const L = abc[Math.floor(Math.random() * 26)];
+    const upper = Math.random() < 0.5;
+    return { L, upper };
+  };
+  const [roundNo, setRoundNo] = useState(1);
+  const [right, setRight] = useState(0);
+  const [q, setQ] = useState(makeQ);
+  const [picked, setPicked] = useState(null);
+  const [done, setDone] = useState(false);
+  const shown = q.upper ? q.L : q.L.toLowerCase();
+
+  useEffect(() => {
+    const t = setTimeout(() => speak(q.L + ".", { rate: 0.85 }), 400);
+    return () => clearTimeout(t);
+  }, [q, speak]);
+
+  const pick = (ans) => {
+    if (picked) return;
+    setPicked(ans);
+    const ok = (ans === "upper") === q.upper;
+    if (ok) { setRight((r) => r + 1); addStars(1); speak(q.L + "! Great job!", { rate: 0.95 }); }
+    else speak(q.L + ".", { rate: 0.8 });
+    setTimeout(() => {
+      if (roundNo >= TOTAL) setDone(true);
+      else { setRoundNo((r) => r + 1); setQ(makeQ()); setPicked(null); }
+    }, 1300);
+  };
+
+  if (done)
+    return (
+      <div style={{ textAlign: "center", padding: "24px 0" }}>
+        <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "🔠"}</div>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>答對 {right} / {TOTAL} 題!</h2>
+        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>
+          再玩一次
+        </ChunkyButton>
+      </div>
+    );
+
+  const correct = q.upper ? "upper" : "lower";
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
+        第 {roundNo} / {TOTAL} 題・這是大寫還是小寫?
+      </div>
+      <div style={{ background: T.card, borderRadius: 22, padding: "18px 16px",
+        marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
+        <div style={{ fontSize: 90, fontWeight: 700, color: T.purple, lineHeight: 1.1 }}>{shown}</div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        {[["upper", "🔠 大寫 ABC"], ["lower", "🔡 小寫 abc"]].map(([v, label]) => {
+          const dim = picked && v !== correct;
+          return (
+            <ChunkyButton key={v} color={v === "upper" ? T.purple : T.pink}
+              dark={v === "upper" ? T.purpleDark : "#D14B7D"}
+              onClick={() => pick(v)} style={{ fontSize: 19, opacity: dim ? 0.45 : 1 }}>
+              {label}
+            </ChunkyButton>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------- 在哪裡?(方位介詞)----------
+const PREPS = [
+  { en: "on", zh: "在上面" }, { en: "in", zh: "在裡面" },
+  { en: "under", zh: "在下面" }, { en: "next to", zh: "在旁邊" },
+];
+function PrepScene({ prep, big }) {
+  const size = big ? 120 : 96;
+  const ball = big ? 40 : 30;
+  const pos = {
+    on: { left: "50%", top: 0, transform: "translate(-50%,-30%)" },
+    in: { left: "50%", top: "50%", transform: "translate(-50%,-50%)" },
+    under: { left: "50%", bottom: 0, transform: "translate(-50%,40%)" },
+    "next to": { right: 0, top: "50%", transform: "translate(60%,-50%)" },
+  }[prep];
+  return (
+    <div style={{ position: "relative", width: size, height: size, margin: "0 auto" }}>
+      <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", fontSize: size * 0.7 }}>📦</div>
+      <div style={{ position: "absolute", fontSize: ball, ...pos }}>🔴</div>
+    </div>
+  );
+}
+function PrepositionMode({ speak, addStars }) {
+  const TOTAL = 8;
+  const makeQ = () => {
+    const target = PREPS[Math.floor(Math.random() * PREPS.length)];
+    const others = shuffle(PREPS.filter((p) => p.en !== target.en)).slice(0, 2);
+    return { target, options: shuffle([target, ...others]) };
+  };
+  const [roundNo, setRoundNo] = useState(1);
+  const [right, setRight] = useState(0);
+  const [q, setQ] = useState(makeQ);
+  const [picked, setPicked] = useState(null);
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => speak(`The ball is ${q.target.en} the box.`, { rate: 0.85 }), 400);
+    return () => clearTimeout(t);
+  }, [q, speak]);
+
+  const pick = (p) => {
+    if (picked) return;
+    setPicked(p.en);
+    const ok = p.en === q.target.en;
+    if (ok) { setRight((r) => r + 1); addStars(1); speak("Great job!", { rate: 1 }); }
+    else speak(`The ball is ${q.target.en} the box.`, { rate: 0.8 });
+    setTimeout(() => {
+      if (roundNo >= TOTAL) setDone(true);
+      else { setRoundNo((r) => r + 1); setQ(makeQ()); setPicked(null); }
+    }, 1600);
+  };
+
+  if (done)
+    return (
+      <div style={{ textAlign: "center", padding: "24px 0" }}>
+        <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "🧭"}</div>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>找對 {right} / {TOTAL} 個位置!</h2>
+        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>
+          再玩一次
+        </ChunkyButton>
+      </div>
+    );
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
+        第 {roundNo} / {TOTAL} 題・聽聽看,球在盒子的哪裡?
+      </div>
+      <div style={{ background: T.card, borderRadius: 22, padding: "16px",
+        marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
+        <ChunkyButton color={T.yellow} dark={T.yellowDark}
+          onClick={() => speak(`The ball is ${q.target.en} the box.`, { rate: 0.85 })} style={{ color: T.ink }}>
+          🔊 再聽一次
+        </ChunkyButton>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+        {q.options.map((p) => {
+          const isAns = p.en === q.target.en;
+          let bg = T.card, bd = "#E8E4FA";
+          if (picked) {
+            if (isAns) { bg = "#E9FBEF"; bd = T.green; }
+            else if (p.en === picked) { bg = "#FFF7DA"; bd = T.yellow; }
+          }
+          return (
+            <button key={p.en} onClick={() => pick(p)}
+              style={{
+                background: bg, border: `3px solid ${bd}`, borderRadius: 18,
+                padding: "14px 4px 10px", fontFamily: "inherit", cursor: picked ? "default" : "pointer",
+                boxShadow: "0 5px 0 #E0DBF7", transition: "all .15s",
+              }}>
+              <PrepScene prep={p.en} />
+              {picked && isAns && (
+                <div style={{ fontSize: 14, fontWeight: 700, color: T.greenDark, marginTop: 4 }}>
+                  {p.en} · {p.zh}
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------- 記憶排排看(順序記憶)----------
+function SequenceMemoryMode({ speak, addStars }) {
+  const TOTAL = 6;
+  const poolRef = useRef(shuffle(ALL_WORDS.filter((w) => /^[a-z]+$/i.test(w.en))).slice(0, 4));
+  const seqLen = (r) => (r <= 2 ? 2 : r <= 4 ? 3 : 4);
+  const makeSeq = (r) => {
+    const pool = poolRef.current;
+    const s = [];
+    for (let i = 0; i < seqLen(r); i++) s.push(pool[Math.floor(Math.random() * pool.length)]);
+    return s;
+  };
+  const [roundNo, setRoundNo] = useState(1);
+  const [right, setRight] = useState(0);
+  const [seq, setSeq] = useState(() => makeSeq(1));
+  const [phase, setPhase] = useState("show"); // show | input | good
+  const [litIdx, setLitIdx] = useState(-1);
+  const [step, setStep] = useState(0);
+  const [done, setDone] = useState(false);
+  const timers = useRef([]);
+
+  const clearTimers = () => { timers.current.forEach(clearTimeout); timers.current = []; };
+
+  // 播放序列
+  useEffect(() => {
+    if (phase !== "show") return;
+    clearTimers();
+    setLitIdx(-1);
+    seq.forEach((w, i) => {
+      timers.current.push(setTimeout(() => { setLitIdx(i); speak(w.en); }, 500 + i * 900));
+    });
+    timers.current.push(setTimeout(() => { setLitIdx(-1); setStep(0); setPhase("input"); }, 500 + seq.length * 900 + 300));
+    return clearTimers;
+  }, [phase, seq, speak]);
+
+  const startRound = (r) => {
+    setSeq(makeSeq(r)); setStep(0); setLitIdx(-1); setPhase("show");
+  };
+
+  const tap = (w) => {
+    if (phase !== "input") return;
+    if (w.en === seq[step].en) {
+      speak(w.en);
+      const ns = step + 1;
+      if (ns >= seq.length) {
+        addStars(1);
+        setRight((r) => r + 1);
+        setPhase("good");
+        speak("Great job!", { rate: 1 });
+        timers.current.push(setTimeout(() => {
+          if (roundNo >= TOTAL) setDone(true);
+          else { const nr = roundNo + 1; setRoundNo(nr); startRound(nr); }
+        }, 1300));
+      } else setStep(ns);
+    } else {
+      // 記錯了,再看一次同一組,不算失敗
+      speak(seq[step].en, { rate: 0.8 });
+      timers.current.push(setTimeout(() => setPhase("show"), 700));
+    }
+  };
+
+  if (done)
+    return (
+      <div style={{ textAlign: "center", padding: "24px 0" }}>
+        <div style={{ fontSize: 56 }}>{right >= 5 ? "🏆" : "🧠"}</div>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>記對 {right} / {TOTAL} 組順序!</h2>
+        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
+          onClick={() => { setRoundNo(1); setRight(0); startRound(1); setDone(false); }}>
+          再玩一次
+        </ChunkyButton>
+      </div>
+    );
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
+        第 {roundNo} / {TOTAL} 組・{phase === "input" ? "照剛剛的順序點出來!" : "記住亮起來的順序 👀"}
+      </div>
+      {/* 播放中:顯示序列亮燈 */}
+      {phase !== "input" && (
+        <div style={{ background: T.card, borderRadius: 22, padding: "24px 12px",
+          marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7", minHeight: 120,
+          display: "flex", gap: 10, justifyContent: "center", alignItems: "center", flexWrap: "wrap" }}>
+          {seq.map((w, i) => (
+            <span key={i} style={{
+              fontSize: 52, transition: "all .2s",
+              transform: litIdx === i ? "scale(1.3)" : "scale(1)",
+              opacity: litIdx === i ? 1 : 0.25,
+            }}>{w.emoji}</span>
+          ))}
+        </div>
+      )}
+      {/* 作答:固定位置的按鈕 */}
+      {phase === "input" && (
+        <>
+          <div style={{ fontSize: 22, marginBottom: 10 }}>
+            {seq.map((_, i) => (
+              <span key={i}>{i < step ? "⭐" : "⬜"}</span>
+            ))}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            {poolRef.current.map((w) => (
+              <button key={w.en} onClick={() => tap(w)}
+                style={{
+                  background: T.card, border: "3px solid #E8E4FA", borderRadius: 18,
+                  padding: "18px 4px", fontFamily: "inherit", cursor: "pointer",
+                  boxShadow: "0 5px 0 #E0DBF7",
+                }}>
+                <div style={{ fontSize: 44 }}>{w.emoji}</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>{w.en}</div>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ---------- 排大小(依大小排序)----------
+const SIZE_ITEMS = [
+  { en: "ant", zh: "螞蟻", emoji: "🐜", size: 1 },
+  { en: "mouse", zh: "老鼠", emoji: "🐭", size: 2 },
+  { en: "fish", zh: "魚", emoji: "🐟", size: 3 },
+  { en: "cat", zh: "貓", emoji: "🐱", size: 4 },
+  { en: "dog", zh: "狗", emoji: "🐶", size: 5 },
+  { en: "pig", zh: "豬", emoji: "🐷", size: 6 },
+  { en: "horse", zh: "馬", emoji: "🐴", size: 7 },
+  { en: "cow", zh: "牛", emoji: "🐮", size: 8 },
+  { en: "elephant", zh: "大象", emoji: "🐘", size: 9 },
+  { en: "whale", zh: "鯨魚", emoji: "🐳", size: 10 },
+];
+function SizeOrderMode({ speak, addStars }) {
+  const TOTAL = 6;
+  const makeQ = () => {
+    const three = shuffle(SIZE_ITEMS).slice(0, 3).sort((a, b) => a.size - b.size);
+    return { order: three, display: shuffle([...three]) };
+  };
+  const [roundNo, setRoundNo] = useState(1);
+  const [right, setRight] = useState(0);
+  const [q, setQ] = useState(makeQ);
+  const [progress, setProgress] = useState(0); // 已正確點出前幾個
+  const [wrong, setWrong] = useState(null);
+  const [done, setDone] = useState(false);
+  const [cleared, setCleared] = useState(false);
+
+  const nextRound = () => {
+    if (roundNo >= TOTAL) { setDone(true); return; }
+    setRoundNo((r) => r + 1); setQ(makeQ()); setProgress(0); setCleared(false);
+  };
+
+  const tap = (item) => {
+    if (cleared) return;
+    if (item.size === q.order[progress].size) {
+      speak(item.en);
+      const np = progress + 1;
+      setProgress(np);
+      setWrong(null);
+      if (np >= q.order.length) {
+        setRight((r) => r + 1); addStars(1); setCleared(true);
+        speak("Great job!", { rate: 1 });
+        setTimeout(nextRound, 1300);
+      }
+    } else {
+      setWrong(item.en);
+      speak(item.en);
+      setTimeout(() => setWrong(null), 500);
+    }
+  };
+
+  if (done)
+    return (
+      <div style={{ textAlign: "center", padding: "24px 0" }}>
+        <div style={{ fontSize: 56 }}>{right >= 5 ? "🏆" : "📏"}</div>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>排對 {right} / {TOTAL} 組!</h2>
+        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setProgress(0); setCleared(false); setDone(false); }}>
+          再玩一次
+        </ChunkyButton>
+      </div>
+    );
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 6 }}>
+        第 {roundNo} / {TOTAL} 組・從「最小」開始,由小到大點!
+      </div>
+      <div style={{ fontSize: 20, marginBottom: 12, color: T.purple, fontWeight: 700 }}>
+        🐜 小 →→→ 大 🐘
+      </div>
+      {/* 已排好的 */}
+      <div style={{ minHeight: 70, display: "flex", gap: 10, justifyContent: "center", alignItems: "center", marginBottom: 8 }}>
+        {q.order.slice(0, progress).map((it, i) => (
+          <span key={it.en} style={{ fontSize: 30 + i * 12 }}>{it.emoji}</span>
+        ))}
+        {progress < q.order.length && <span style={{ fontSize: 26, color: "#C9C4E8" }}>👉 點第 {progress + 1} 小的</span>}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+        {q.display.map((it) => {
+          const placed = q.order.slice(0, progress).some((x) => x.en === it.en);
+          const isWrong = wrong === it.en;
+          return (
+            <button key={it.en} onClick={() => tap(it)} disabled={placed}
+              style={{
+                background: placed ? "#E9FBEF" : isWrong ? "#FFEDED" : T.card,
+                border: `3px solid ${placed ? T.green : isWrong ? T.red : "#E8E4FA"}`,
+                borderRadius: 18, padding: "16px 4px", fontFamily: "inherit",
+                cursor: placed ? "default" : "pointer", boxShadow: "0 5px 0 #E0DBF7",
+                opacity: placed ? 0.6 : 1, animation: isWrong ? "wp-shake .3s" : "none",
+                transition: "all .15s",
+              }}>
+              <div style={{ fontSize: 44 }}>{it.emoji}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>{it.en}</div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ---------- 首音偵探(音素覺察)----------
 function makeSoundQ() {
   const pool = ALL_WORDS.filter((w) => /^[a-z]+$/i.test(w.en));
@@ -4374,6 +5327,19 @@ const MENU_GROUPS = [
         tip: "請她用手指一個一個點著數,數完再選答案" },
       { mode: "colorgame", color: "#E66767", dark: "#C04747", label: "🎨 聽顏色著色",
         tip: "延伸:找找家裡有什麼東西也是這個顏色" },
+      { mode: "preposition", color: "#487EB0", dark: "#345A80", label: "🧭 在哪裡?",
+        tip: "在家拿盒子和球實際擺,邊擺邊說 on/in/under" },
+    ],
+  },
+  {
+    label: "📖 拼讀 Phonics",
+    items: [
+      { mode: "syllable", color: "#00A8A8", dark: "#007878", label: "👏 音節拍拍",
+        tip: "跟她一起拍手數音節:ba-na-na 拍三下!" },
+      { mode: "middle", color: "#7D5FFF", dark: "#5A43C4", label: "🅰️ 中間的音",
+        tip: "短母音最難,答錯陪她慢慢把三個音分開唸" },
+      { mode: "blend", color: "#0FB9B1", dark: "#0A8880", label: "📖 拼讀小火車",
+        tip: "看字母亮起、一個一個音拼起來——這是自己讀字的第一步" },
     ],
   },
   {
@@ -4385,6 +5351,19 @@ const MENU_GROUPS = [
         tip: "答對後問她:大寫和小寫哪裡長得像?" },
       { mode: "hunt", color: "#F5A623", dark: "#C6841A", label: "🔎 字母獵人",
         tip: "純用聽的找字母;答錯會再唸一次,讓她自己修正" },
+      { mode: "alphabet", color: "#EB4D4B", dark: "#B83A39", label: "🔤 ABC 接接看",
+        tip: "接不出來就一起從 A 唱字母歌到那裡" },
+      { mode: "upperlower", color: "#22A6B3", dark: "#187D87", label: "🔠 大寫還是小寫?",
+        tip: "最容易上手,適合先玩建立信心" },
+    ],
+  },
+  {
+    label: "🔢 數字與算數",
+    items: [
+      { mode: "numorder", color: "#3867D6", dark: "#284D9E", label: "🔢 數字接龍",
+        tip: "接不出來就一起從 1 數到那個數字" },
+      { mode: "add", color: "#F39C12", dark: "#C67C0A", label: "➕ 加加看",
+        tip: "請她把兩堆東西合起來,用手指一個一個數總數" },
     ],
   },
   {
@@ -4394,6 +5373,10 @@ const MENU_GROUPS = [
         tip: "按「我記好了」前,陪她把每樣東西唸一次英文" },
       { mode: "opposite", color: "#B33771", dark: "#8A2957", label: "↔️ 相反詞配對",
         tip: "生活中延伸:洗澡時問 hot 的相反是什麼?" },
+      { mode: "sequence", color: "#8854D0", dark: "#653EA0", label: "🧠 記憶排排看",
+        tip: "看它們依序亮起,再照一樣的順序點回去" },
+      { mode: "size", color: "#26A65B", dark: "#1B7A43", label: "📏 排大小",
+        tip: "由小到大點;答錯陪她比比看誰的身體比較大" },
     ],
   },
   {
@@ -4683,6 +5666,16 @@ canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
         {mode === "hunt" && <LetterHuntMode speak={speak} addStars={addStars} />}
         {mode === "missing" && <MissingMode speak={speak} addStars={addStars} />}
         {mode === "opposite" && <OppositeMode speak={speak} addStars={addStars} />}
+        {mode === "alphabet" && <AlphabetOrderMode speak={speak} addStars={addStars} />}
+        {mode === "numorder" && <NumberOrderMode speak={speak} addStars={addStars} />}
+        {mode === "add" && <AddMode speak={speak} addStars={addStars} />}
+        {mode === "syllable" && <SyllableMode speak={speak} addStars={addStars} />}
+        {mode === "middle" && <MiddleSoundMode speak={speak} addStars={addStars} />}
+        {mode === "blend" && <BlendMode speak={speak} addStars={addStars} />}
+        {mode === "upperlower" && <UpperLowerMode speak={speak} addStars={addStars} />}
+        {mode === "preposition" && <PrepositionMode speak={speak} addStars={addStars} />}
+        {mode === "sequence" && <SequenceMemoryMode speak={speak} addStars={addStars} />}
+        {mode === "size" && <SizeOrderMode speak={speak} addStars={addStars} />}
       </div>
     </div>
   );
