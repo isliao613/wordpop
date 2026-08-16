@@ -360,7 +360,7 @@ const SIGHT_WORDS = [
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
 // 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
-const APP_VERSION = "v1.22";
+const APP_VERSION = "v1.23";
 const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
@@ -5433,13 +5433,13 @@ export default function WordPop() {
   return (
     <div
       style={{
-        minHeight: "100vh", background: T.bg,
+        minHeight: "100dvh", background: T.bg,
         fontFamily:
           "'Fredoka', 'Baloo 2', 'PingFang TC', 'Noto Sans TC', ui-rounded, system-ui, sans-serif",
-        padding: "20px 16px 40px",
+        padding: "calc(20px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left))",
       }}
     >
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap');
+      <style>{`
 @keyframes wp-pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .6; transform: scale(1.05); } }
 @keyframes wp-shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
 @keyframes wp-float { from { transform: translateY(0); } to { transform: translateY(-470px); } }
