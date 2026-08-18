@@ -360,7 +360,7 @@ const SIGHT_WORDS = [
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
 // 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
-const APP_VERSION = "v1.23";
+const APP_VERSION = "v1.24";
 const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
@@ -438,9 +438,22 @@ function makeSilentWavURI() {
   return "data:audio/wav;base64," + btoa(s);
 }
 
+const AUDIO_CACHE_KEY = "wordpop-audio-cache";
+function loadAudioCache() {
+  try {
+    const o = JSON.parse(localStorage.getItem(AUDIO_CACHE_KEY) || "{}");
+    return o && typeof o === "object" && !Array.isArray(o) ? o : {};
+  } catch {
+    return {};
+  }
+}
+
 function useSpeech() {
   const voiceRef = useRef(null);
-  const cacheRef = useRef({});     // word -> 音檔 URL 或 null(查過但沒有)
+  // word -> 音檔 URL 或 null(查過但沒有);從 localStorage 載入,跨造訪重用免重打 API
+  const cacheRef = useRef(null);
+  if (cacheRef.current === null) cacheRef.current = loadAudioCache();
+  const saveTimerRef = useRef(0);
   const pendingRef = useRef({});   // word -> 查詢中的 Promise(避免重複查)
   const buffersRef = useRef({});   // url -> { buf, gain } 解碼後音訊 + 正規化增益
   const bufPendingRef = useRef({}); // url -> 下載解碼中的 Promise
@@ -466,8 +479,17 @@ function useSpeech() {
     };
     pick();
     window.speechSynthesis?.addEventListener("voiceschanged", pick);
-    return () =>
+    // 頁面切走/關閉前把音檔快取補存一次
+    const flush = () => {
+      if (document.visibilityState === "hidden") {
+        try { localStorage.setItem(AUDIO_CACHE_KEY, JSON.stringify(cacheRef.current)); } catch { /* ignore */ }
+      }
+    };
+    document.addEventListener("visibilitychange", flush);
+    return () => {
       window.speechSynthesis?.removeEventListener("voiceschanged", pick);
+      document.removeEventListener("visibilitychange", flush);
+    };
   }, []);
 
   const ttsSpeak = useCallback((text, { rate = 0.85, onEnd } = {}) => {
@@ -610,6 +632,14 @@ function useSpeech() {
       }
       cacheRef.current[key] = url;
       delete pendingRef.current[key];
+      // 把查詢結果(含「沒有音檔」)存起來,隔天再玩免重打 API。
+      // 首次變更後固定延遲存檔一次(不隨連續查詢一直往後推,否則永遠存不到)
+      if (!saveTimerRef.current) {
+        saveTimerRef.current = setTimeout(() => {
+          saveTimerRef.current = 0;
+          try { localStorage.setItem(AUDIO_CACHE_KEY, JSON.stringify(cacheRef.current)); } catch { /* 無痕模式忽略 */ }
+        }, 1500);
+      }
       // 先把音檔載好、解碼、算好音量,之後點了立刻能播
       if (url) loadBuffer(url);
       return url;
@@ -5416,6 +5446,13 @@ export default function WordPop() {
   const [confirmClear, setConfirmClear] = useState(false);
   const [cleared, setCleared] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+
+  // 首頁預熱常用字的音檔,第一個遊戲一點就即時出聲
+  useEffect(() => {
+    const warm = ["the", "a", "cat", "dog", "apple", "ball", "red", "one"];
+    const t = setTimeout(() => speak.prefetchMany?.(warm), 800);
+    return () => clearTimeout(t);
+  }, [speak]);
 
   // 清空所有學習紀錄(星星 + 三個遊戲的關卡/完成進度)
   const clearRecords = () => {
