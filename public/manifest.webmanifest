@@ -3,15 +3,15 @@
   "short_name": "WordPop",
   "description": "給大班孩子的英語啟蒙遊戲,32 個小遊戲涵蓋聽說讀寫算與理解。",
   "lang": "zh-Hant",
-  "start_url": "/wordpop/",
-  "scope": "/wordpop/",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#F3F0FF",
   "theme_color": "#6C5CE7",
   "icons": [
-    { "src": "/wordpop/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/wordpop/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/wordpop/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

@@ -2,6 +2,10 @@
 
 所有值得記錄的變更都列在這裡。日期為當地時間。
 
+## v1.25
+- 優化:全螢幕設定對齊 note-quest 的做法——改用相對路徑(不綁死 repo 名)、新增 maskable 圖示、禁止誤觸縮放(user-scalable=no)、emoji SVG favicon
+- 新增:向量圖示原檔 public/icon.svg 與可重跑的產圖腳本 tools/make-icons.mjs(`npm run icons`)
+
 ## v1.24
 - 優化:真人音檔的字典查詢結果存進 localStorage(含「沒有音檔」的負結果),重複造訪/隔天再玩免重打 API、發音更即時
 - 優化:首頁預熱常用字音檔,第一個遊戲一點就出聲
