@@ -2,6 +2,11 @@
 
 所有值得記錄的變更都列在這裡。日期為當地時間。
 
+## v1.26
+- 新增「ㄅㄆㄇ 注音」分組共 3 個遊戲(32 → 35):ㄅㄆㄇ 接接看、注音獵人、注音配對
+- 新增中文(zh-TW)語音支援:注音遊戲改用裝置上的中文語音,不再走英文字典查詢
+- 收錄 37 個注音符號與例詞(含 emoji)
+
 ## v1.25
 - 優化:全螢幕設定對齊 note-quest 的做法——改用相對路徑(不綁死 repo 名)、新增 maskable 圖示、禁止誤觸縮放(user-scalable=no)、emoji SVG favicon
 - 新增:向量圖示原檔 public/icon.svg 與可重跑的產圖腳本 tools/make-icons.mjs(`npm run icons`)
