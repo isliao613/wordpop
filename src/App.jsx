@@ -361,7 +361,7 @@ const SIGHT_WORDS = [
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
 // 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
-const APP_VERSION = "v1.30";
+const APP_VERSION = "v1.31";
 const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
@@ -5271,7 +5271,8 @@ const ZH_FAMILIES = ZH_FINALS
   .filter((g) => g.items.length >= 2);
 
 // ---------- 共用測驗骨架(8 題、答錯只鼓勵、答對加星)----------
-function ZhQuiz({
+// 注音與數字兩個科目的選擇題遊戲都用這個外殼;語言由 say 決定
+function PickQuiz({
   speak, addStars, TOTAL = 8, hint, makeQ, say,
   options, keyOf, isRight, renderPrompt, renderOption,
   onRight, onWrong, cols = 3, delay = 1800,
@@ -5363,7 +5364,7 @@ function ZhQuiz({
 const pickOthers = (arr, n, notKey, keyFn) =>
   shuffle(arr.filter((x) => keyFn(x) !== notKey)).slice(0, n);
 
-// ========== ㄅㄆㄇ:14 個以 ZhQuiz 骨架實作的遊戲 ==========
+// ========== ㄅㄆㄇ:14 個以 PickQuiz 骨架實作的遊戲 ==========
 const BOPO_SOUND = Object.fromEntries(BOPOMOFO.map((b) => [b.s, b.sound]));
 const ZH_CONSONANTS = BOPOMOFO.slice(0, 21);   // 聲母 21
 const ZH_VOWELS = BOPOMOFO.slice(24);          // 韻母 13
@@ -5403,7 +5404,7 @@ function ZhFamilyMode({ speak, addStars }) {
     return { f: g.f, ans, opts: shuffle([ans, ...others]) };
   };
   return (
-    <ZhQuiz speak={speak} addStars={addStars} doneIcon="👨‍👩‍👧" hint="哪一個字的韻母是它?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="👨‍👩‍👧" hint="哪一個字的韻母是它?"
       makeQ={makeQ}
       say={(q) => zh(speak, `找出韻母是 ${BOPO_SOUND[q.f]} 的字`, { rate: 0.8 })}
       options={(q) => q.opts} keyOf={(o) => o.w}
@@ -5429,7 +5430,7 @@ function ZhListenQuizMode({ speak, addStars }) {
     return { ans, opts: shuffle([ans, ...others]) };
   };
   return (
-    <ZhQuiz speak={speak} addStars={addStars} doneIcon="👂" hint="聽聽看,是哪一個?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="👂" hint="聽聽看,是哪一個?"
       makeQ={makeQ}
       say={(q) => zh(speak, q.ans.w, { rate: 0.8 })}
       options={(q) => q.opts} keyOf={(o) => o.w}
@@ -5458,7 +5459,7 @@ function ZhEndSoundMode({ speak, addStars }) {
     return { ans, f, opts: shuffle([f, ...others]) };
   };
   return (
-    <ZhQuiz speak={speak} addStars={addStars} doneIcon="🔎" hint="這個字的韻母(最後的音)是哪個?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🔎" hint="這個字的韻母(最後的音)是哪個?"
       makeQ={makeQ}
       say={(q) => zh(speak, q.ans.w, { rate: 0.7 })}
       options={(q) => q.opts} keyOf={(o) => o}
@@ -5493,7 +5494,7 @@ function ZhRhymeMode({ speak, addStars }) {
     return { cue, ans, f: g.f, opts: shuffle([ans, ...others]) };
   };
   return (
-    <ZhQuiz speak={speak} addStars={addStars} doneIcon="🚂" hint="哪一個和它押韻?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🚂" hint="哪一個和它押韻?"
       makeQ={makeQ}
       say={(q) => zh(speak, `${q.cue.w},哪一個和 ${q.cue.w} 押韻?`, { rate: 0.8 })}
       options={(q) => q.opts} keyOf={(o) => o.w}
@@ -5523,7 +5524,7 @@ function ZhListenDoMode({ speak, addStars }) {
     return { ans, verb: pickOne(ZH_ORDERS), opts: shuffle([ans, ...others]) };
   };
   return (
-    <ZhQuiz speak={speak} addStars={addStars} doneIcon="👉" hint="聽指令,點出正確的圖"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="👉" hint="聽指令,點出正確的圖"
       makeQ={makeQ}
       say={(q) => zh(speak, `${q.verb} ${q.ans.w}`, { rate: 0.8 })}
       options={(q) => q.opts} keyOf={(o) => o.w}
@@ -5557,7 +5558,7 @@ function ZhYesNoMode({ speak, addStars }) {
     return { item, claim, same };
   };
   return (
-    <ZhQuiz speak={speak} addStars={addStars} cols={2} doneIcon="✅" hint="聽問題,回答是或不是"
+    <PickQuiz speak={speak} addStars={addStars} cols={2} doneIcon="✅" hint="聽問題,回答是或不是"
       makeQ={makeQ}
       say={(q) => zh(speak, `這是 ${q.claim.w} 嗎?`, { rate: 0.8 })}
       options={() => ["yes", "no"]} keyOf={(o) => o}
@@ -5596,7 +5597,7 @@ function ZhCountMode({ speak, addStars }) {
     return { item, n, opts: shuffle([...set]) };
   };
   return (
-    <ZhQuiz speak={speak} addStars={addStars} doneIcon="🧺" hint="數數看,有幾個?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🧺" hint="數數看,有幾個?"
       makeQ={makeQ}
       say={(q) => zh(speak, `這裡有幾個 ${q.item.w}?`, { rate: 0.8 })}
       options={(q) => q.opts} keyOf={(o) => String(o)}
@@ -5627,7 +5628,7 @@ function ZhColorMode({ speak, addStars }) {
     return { ans, opts: shuffle([ans, ...others]) };
   };
   return (
-    <ZhQuiz speak={speak} addStars={addStars} doneIcon="🎨" hint="聽顏色,點出對的那個"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🎨" hint="聽顏色,點出對的那個"
       makeQ={makeQ}
       say={(q) => zh(speak, `哪一個是 ${q.ans.w}?`, { rate: 0.8 })}
       options={(q) => q.opts} keyOf={(o) => o.w}
@@ -5661,7 +5662,7 @@ function ZhPrepMode({ speak, addStars }) {
     return { ans, opts: shuffle([ans, ...others]) };
   };
   return (
-    <ZhQuiz speak={speak} addStars={addStars} doneIcon="🧭" hint="聽聽看,球在盒子的哪裡?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🧭" hint="聽聽看,球在盒子的哪裡?"
       makeQ={makeQ}
       say={(q) => zh(speak, `球在盒子的${q.ans.w}`, { rate: 0.8 })}
       options={(q) => q.opts} keyOf={(o) => o.w}
@@ -5690,7 +5691,7 @@ function ZhPrepMode({ speak, addStars }) {
 function ZhSyllableMode({ speak, addStars }) {
   const makeQ = () => ({ item: pickOne(ZH_WORDS) });
   return (
-    <ZhQuiz speak={speak} addStars={addStars} doneIcon="👏" hint="拍拍看,這個詞有幾個字?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="👏" hint="拍拍看,這個詞有幾個字?"
       makeQ={makeQ}
       say={(q) => zh(speak, q.item.w, { rate: 0.6 })}
       options={() => [1, 2, 3]} keyOf={(o) => String(o)}
@@ -5720,7 +5721,7 @@ function ZhSyllableMode({ speak, addStars }) {
 function ZhMedialMode({ speak, addStars }) {
   const makeQ = () => ({ item: pickOne(ZH_MEDIAL) });
   return (
-    <ZhQuiz speak={speak} addStars={addStars} doneIcon="🅰️" hint="中間少了哪個音?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🅰️" hint="中間少了哪個音?"
       makeQ={makeQ}
       say={(q) => zh(speak, q.item.w, { rate: 0.6 })}
       options={() => ["ㄧ", "ㄨ", "ㄩ"]} keyOf={(o) => o}
@@ -5756,7 +5757,7 @@ function ZhFindMode({ speak, addStars }) {
     return { ans, opts: shuffle([ans, ...others]) };
   };
   return (
-    <ZhQuiz speak={speak} addStars={addStars} doneIcon="🔍" hint="聽注音的聲音,找出符號"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🔍" hint="聽注音的聲音,找出符號"
       makeQ={makeQ}
       say={(q) => zh(speak, q.ans.sound, { rate: 0.6 })}
       options={(q) => q.opts} keyOf={(o) => o.s}
@@ -5788,7 +5789,7 @@ function ZhTypeMode({ speak, addStars }) {
     return { item: pickOne(isC ? ZH_CONSONANTS : ZH_VOWELS), isC };
   };
   return (
-    <ZhQuiz speak={speak} addStars={addStars} cols={2} doneIcon="🧠" hint="這個注音放前面還是後面?"
+    <PickQuiz speak={speak} addStars={addStars} cols={2} doneIcon="🧠" hint="這個注音放前面還是後面?"
       makeQ={makeQ}
       say={(q) => zh(speak, q.item.sound, { rate: 0.6 })}
       options={() => ["c", "v"]} keyOf={(o) => o}
@@ -5828,7 +5829,7 @@ function ZhOppositeMode({ speak, addStars }) {
     return { cue, ans, opts: shuffle([ans, ...others]) };
   };
   return (
-    <ZhQuiz speak={speak} addStars={addStars} doneIcon="↔️" hint="哪一個是它的相反?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="↔️" hint="哪一個是它的相反?"
       makeQ={makeQ}
       say={(q) => zh(speak, `${q.cue.w} 的相反是什麼?`, { rate: 0.8 })}
       options={(q) => q.opts} keyOf={(o) => o.w}
@@ -6614,6 +6615,1445 @@ function ZhSightMode({ speak, addStars }) {
       {encourage && (
         <div style={{ marginTop: 14, fontSize: 15, color: T.sub, fontWeight: 700 }}>{encourage}</div>
       )}
+    </div>
+  );
+}
+
+// ========== 數字/數學:共用資料與零件 ==========
+
+const NUM_ZH = ["零", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十",
+  "十一", "十二", "十三", "十四", "十五", "十六", "十七", "十八", "十九", "二十"];
+const numZh = (n) => NUM_ZH[n] ?? String(n);
+const NUM_EMOJI = ["🍎", "🍓", "⭐", "🎈", "🐟", "🍪", "🌸", "🚗", "🐛", "🎾", "🍌", "🧸"];
+const randInt = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+// 產生含正解的 n 個不重複數字選項
+function numOptions(ans, n, lo, hi) {
+  const set = new Set([ans]);
+  let guard = 0;
+  while (set.size < n && guard++ < 200) set.add(randInt(lo, hi));
+  return shuffle([...set]);
+}
+
+// 十格框:大班數感的核心教具(滿五、湊十一眼看得出來)
+function TenFrame({ n, dot = 20, color = T.purple }) {
+  return (
+    <div style={{
+      display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 4,
+      width: "fit-content", margin: "0 auto", background: "#F6F4FE",
+      border: "2px solid #E0DBF7", borderRadius: 12, padding: 6,
+    }}>
+      {Array.from({ length: 10 }, (_, i) => (
+        <div key={i} style={{
+          width: dot, height: dot, borderRadius: "50%",
+          background: i < n ? color : "transparent",
+          border: `2px solid ${i < n ? color : "#E0DBF7"}`,
+        }} />
+      ))}
+    </div>
+  );
+}
+
+// 形狀(用 SVG 畫,才能同一個形狀換顏色與大小)
+const SHAPES = [
+  { k: "circle", w: "圓形", en: "circle" },
+  { k: "square", w: "正方形", en: "square" },
+  { k: "triangle", w: "三角形", en: "triangle" },
+  { k: "rect", w: "長方形", en: "rectangle" },
+  { k: "star", w: "星形", en: "star" },
+  { k: "heart", w: "愛心", en: "heart" },
+  { k: "oval", w: "橢圓形", en: "oval" },
+  { k: "diamond", w: "菱形", en: "diamond" },
+];
+const SHAPE_COLORS = ["#E74C3C", "#3498DB", "#F1C40F", "#2ECC71", "#9B59B6", "#E67E22", "#FD79A8", "#12CBC4"];
+function ShapeIcon({ kind, color = T.purple, size = 54 }) {
+  const f = { fill: color };
+  let el = null;
+  if (kind === "circle") el = <circle cx="50" cy="50" r="42" {...f} />;
+  else if (kind === "oval") el = <ellipse cx="50" cy="50" rx="46" ry="29" {...f} />;
+  else if (kind === "square") el = <rect x="11" y="11" width="78" height="78" rx="7" {...f} />;
+  else if (kind === "rect") el = <rect x="3" y="27" width="94" height="46" rx="7" {...f} />;
+  else if (kind === "triangle") el = <polygon points="50,8 94,90 6,90" {...f} />;
+  else if (kind === "diamond") el = <polygon points="50,5 93,50 50,95 7,50" {...f} />;
+  else if (kind === "star") el = <polygon points="50,4 61,37 96,37 68,58 79,92 50,71 21,92 32,58 4,37 39,37" {...f} />;
+  else if (kind === "heart") el = <path d="M50 91 C9 62 5 33 24 21 C38 12 50 24 50 32 C50 24 62 12 76 21 C95 33 91 62 50 91 Z" {...f} />;
+  return (
+    <svg viewBox="0 0 100 100" width={size} height={size} style={{ display: "block", margin: "0 auto" }}>
+      {el}
+    </svg>
+  );
+}
+
+// 時鐘(整點與半點)
+function ClockFace({ h, m = 0, size = 150 }) {
+  const rad = (a) => ((a - 90) * Math.PI) / 180;
+  const ha = rad(((h % 12) + m / 60) * 30);
+  const ma = rad(m * 6);
+  return (
+    <svg viewBox="0 0 100 100" width={size} height={size} style={{ display: "block", margin: "0 auto" }}>
+      <circle cx="50" cy="50" r="46" fill="#fff" stroke={T.purple} strokeWidth="4" />
+      {Array.from({ length: 12 }, (_, i) => {
+        const a = rad(i * 30);
+        return (
+          <text key={i} x={50 + 36 * Math.cos(a)} y={50 + 36 * Math.sin(a) + 4}
+            textAnchor="middle" fontSize="11" fontWeight="700" fill={T.ink}
+            fontFamily="Fredoka, sans-serif">{i === 0 ? 12 : i}</text>
+        );
+      })}
+      <line x1="50" y1="50" x2={50 + 21 * Math.cos(ha)} y2={50 + 21 * Math.sin(ha)}
+        stroke={T.ink} strokeWidth="5.5" strokeLinecap="round" />
+      <line x1="50" y1="50" x2={50 + 31 * Math.cos(ma)} y2={50 + 31 * Math.sin(ma)}
+        stroke="#E74C3C" strokeWidth="3.5" strokeLinecap="round" />
+      <circle cx="50" cy="50" r="3.5" fill={T.ink} />
+    </svg>
+  );
+}
+const clockZh = (h, m) => (m === 0 ? `${numZh(h)}點` : `${numZh(h)}點半`);
+
+// 錢幣(新台幣 1 / 5 / 10 元)
+function CoinIcon({ v, size = 42 }) {
+  const gold = v === 1 || v === 50;
+  return (
+    <span style={{
+      display: "inline-grid", placeItems: "center", width: size, height: size,
+      borderRadius: "50%", background: gold ? "#D4A94E" : "#B9BEC6",
+      color: "#fff", fontWeight: 800, fontSize: size * 0.42,
+      border: "2px solid rgba(0,0,0,.14)", boxShadow: "inset 0 -3px 0 rgba(0,0,0,.16)",
+      margin: 3,
+    }}>{v}</span>
+  );
+}
+
+// 比輕重用:差距夠大才出題,避免小朋友爭辯
+const NUM_WEIGHT = [
+  { w: "羽毛", e: "🪶", kg: 0.01 }, { w: "氣球", e: "🎈", kg: 0.02 },
+  { w: "蘋果", e: "🍎", kg: 0.2 }, { w: "書", e: "📖", kg: 0.6 },
+  { w: "西瓜", e: "🍉", kg: 6 }, { w: "貓", e: "🐱", kg: 4 },
+  { w: "狗", e: "🐶", kg: 15 }, { w: "腳踏車", e: "🚲", kg: 12 },
+  { w: "馬", e: "🐴", kg: 400 }, { w: "車子", e: "🚗", kg: 1200 },
+  { w: "大象", e: "🐘", kg: 4000 },
+];
+// 排隊用的角色(序數)
+const NUM_LINE = ["🐶", "🐱", "🐰", "🐻", "🐼", "🐸", "🐷", "🦊"];
+const NUM_LINE_ZH = { "🐶": "小狗", "🐱": "小貓", "🐰": "兔子", "🐻": "小熊", "🐼": "貓熊", "🐸": "青蛙", "🐷": "小豬", "🦊": "狐狸" };
+const ORDINAL_ZH = ["", "第一", "第二", "第三", "第四", "第五", "第六"];
+
+// 0–9 的書寫筆順(0–100 座標,頂 15、基線 80),供「數字手寫」用
+const DIGIT_STROKES = {
+  "0": [[[50, 15], [38, 18], [30, 30], [28, 47], [30, 64], [38, 77], [50, 80],
+    [62, 77], [70, 64], [72, 47], [70, 30], [62, 18], [50, 15]]],
+  "1": [[[36, 26], [50, 15], [50, 80]]],
+  "2": [[[32, 27], [38, 18], [50, 15], [62, 18], [68, 28], [66, 39], [56, 49],
+    [42, 62], [30, 80], [72, 80]]],
+  "3": [[[33, 22], [42, 16], [54, 15], [65, 20], [68, 30], [62, 40], [50, 44],
+    [62, 47], [70, 56], [70, 68], [62, 77], [50, 80], [38, 78], [31, 71]]],
+  "4": [[[58, 15], [28, 58], [74, 58]], [[58, 15], [58, 80]]],
+  "5": [[[36, 15], [34, 42], [46, 39], [58, 41], [67, 50], [68, 63], [62, 74],
+    [50, 80], [38, 79], [31, 73]], [[36, 15], [70, 15]]],
+  "6": [[[64, 19], [52, 15], [41, 20], [34, 32], [30, 48], [30, 63], [35, 74],
+    [46, 80], [58, 79], [67, 71], [68, 60], [61, 51], [49, 49], [38, 54], [32, 63]]],
+  "7": [[[30, 15], [72, 15], [46, 80]]],
+  "8": [[[50, 15], [38, 18], [33, 27], [38, 38], [50, 47], [62, 56], [68, 66],
+    [63, 76], [50, 80], [37, 76], [32, 66], [38, 56], [50, 47], [62, 38],
+    [67, 27], [62, 18], [50, 15]]],
+  "9": [[[66, 30], [60, 19], [48, 15], [36, 19], [31, 30], [35, 42], [47, 47],
+    [59, 43], [66, 30], [67, 48], [65, 64], [58, 76], [46, 80]]],
+};
+const DIGITS = Object.keys(DIGIT_STROKES);
+
+// ========== 數字:21 個用 PickQuiz 外殼的遊戲 ==========
+
+// 選項共用畫法:大數字
+const optBigNum = (o) => (
+  <div style={{ fontSize: 38, fontWeight: 800, color: T.ink }}>{o}</div>
+);
+
+// ---------- 1. 數字聽力挑戰(聽英文數字找阿拉伯數字)----------
+function NumListenMode({ speak, addStars }) {
+  const makeQ = () => {
+    const ans = randInt(0, 10);
+    return { ans, opts: numOptions(ans, 3, 0, 10) };
+  };
+  return (
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="👂" hint="聽聽看是哪個數字"
+      makeQ={makeQ}
+      say={(q) => speak(NUM10[q.ans], { rate: 0.85 })}
+      options={(q) => q.opts} keyOf={(o) => String(o)}
+      isRight={(o, q) => o === q.ans}
+      renderPrompt={(q, picked) => (
+        <>
+          <div style={{ fontSize: 52 }}>👂</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: picked ? T.greenDark : "#CFC9EE" }}>
+            {picked ? `${q.ans} · ${NUM10[q.ans]} · ${numZh(q.ans)}` : "???"}
+          </div>
+        </>
+      )}
+      renderOption={optBigNum}
+      onRight={(q) => speak(`${NUM10[q.ans]}! Great job!`, { rate: 0.95 })}
+      onWrong={(q) => speak(NUM10[q.ans], { rate: 0.75 })}
+    />
+  );
+}
+
+// ---------- 2. 數數看(數東西選數字)----------
+function NumCountMode({ speak, addStars }) {
+  const makeQ = () => {
+    const n = randInt(1, 10);
+    return { n, e: pickOne(NUM_EMOJI), opts: numOptions(n, 3, 1, 10) };
+  };
+  return (
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🍎" hint="數數看,一共有幾個?"
+      makeQ={makeQ}
+      say={(q) => zh(speak, "數數看,一共有幾個?", { rate: 0.85 })}
+      options={(q) => q.opts} keyOf={(o) => String(o)}
+      isRight={(o, q) => o === q.n}
+      renderPrompt={(q, picked) => (
+        <>
+          <div style={{ fontSize: 30, lineHeight: 1.4, maxWidth: 260, margin: "0 auto" }}>
+            {q.e.repeat(q.n)}
+          </div>
+          {picked && (
+            <div style={{ fontSize: 17, fontWeight: 700, color: T.greenDark, marginTop: 4 }}>
+              {q.n} 個・{numZh(q.n)}
+            </div>
+          )}
+        </>
+      )}
+      renderOption={optBigNum}
+      onRight={(q) => zh(speak, `對!${numZh(q.n)}個`, { rate: 0.9 })}
+      onWrong={(q) => zh(speak, `一起數,有 ${numZh(q.n)} 個`, { rate: 0.8 })}
+    />
+  );
+}
+
+// ---------- 3. 數字配對(數字 ↔ 十格框)----------
+function NumDotsMode({ speak, addStars }) {
+  const makeQ = () => {
+    const n = randInt(1, 10);
+    return { n, opts: numOptions(n, 3, 1, 10) };
+  };
+  return (
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🎯" hint="哪一個十格框是這個數字?"
+      makeQ={makeQ}
+      say={(q) => zh(speak, `${numZh(q.n)},哪一個是 ${numZh(q.n)} 個點?`, { rate: 0.85 })}
+      options={(q) => q.opts} keyOf={(o) => String(o)}
+      isRight={(o, q) => o === q.n}
+      renderPrompt={(q) => (
+        <div style={{ fontSize: 62, fontWeight: 800, color: T.purple }}>{q.n}</div>
+      )}
+      renderOption={(o) => <TenFrame n={o} dot={13} />}
+      onRight={(q) => zh(speak, `對!${numZh(q.n)}個點`, { rate: 0.9 })}
+      onWrong={(q) => zh(speak, `${numZh(q.n)} 是 ${numZh(q.n)} 個點`, { rate: 0.8 })}
+    />
+  );
+}
+
+// ---------- 4. 誰比較多? ----------
+function NumMoreMode({ speak, addStars }) {
+  const makeQ = () => {
+    const a = randInt(1, 9);
+    let b = randInt(1, 10);
+    while (b === a) b = randInt(1, 10);
+    const more = Math.random() < 0.5;
+    return { a, b, more, e: pickOne(NUM_EMOJI) };
+  };
+  return (
+    <PickQuiz speak={speak} addStars={addStars} cols={2} doneIcon="⚖️" hint="哪一邊比較多/比較少?"
+      makeQ={makeQ}
+      say={(q) => zh(speak, q.more ? "哪一邊比較多?" : "哪一邊比較少?", { rate: 0.85 })}
+      options={(q) => ["a", "b"]} keyOf={(o) => o}
+      isRight={(o, q) => {
+        const big = q.a > q.b ? "a" : "b";
+        return o === (q.more ? big : big === "a" ? "b" : "a");
+      }}
+      renderPrompt={(q, picked) => (
+        <>
+          <div style={{ fontSize: 22, fontWeight: 800, color: T.ink }}>
+            {q.more ? "哪一邊比較多?" : "哪一邊比較少?"}
+          </div>
+          {picked && (
+            <div style={{ fontSize: 16, color: T.greenDark, fontWeight: 700 }}>
+              {q.a} 和 {q.b}
+            </div>
+          )}
+        </>
+      )}
+      renderOption={(o, q, picked) => (
+        <>
+          <div style={{ fontSize: 22, lineHeight: 1.35, minHeight: 62 }}>
+            {q.e.repeat(o === "a" ? q.a : q.b)}
+          </div>
+          {picked && (
+            <div style={{ fontSize: 20, fontWeight: 800, color: T.purple }}>
+              {o === "a" ? q.a : q.b}
+            </div>
+          )}
+        </>
+      )}
+      onRight={() => zh(speak, "答對了!", { rate: 0.95 })}
+      onWrong={(q) => zh(speak, `${numZh(Math.max(q.a, q.b))} 比 ${numZh(Math.min(q.a, q.b))} 多`, { rate: 0.8 })}
+    />
+  );
+}
+
+// ---------- 5. 數字比大小 ----------
+function NumCompareMode({ speak, addStars }) {
+  const makeQ = () => {
+    const a = randInt(0, 20);
+    let b = randInt(0, 20);
+    while (b === a) b = randInt(0, 20);
+    return { a, b, big: Math.random() < 0.5 };
+  };
+  return (
+    <PickQuiz speak={speak} addStars={addStars} cols={2} doneIcon="🔢" hint="哪個數字比較大/比較小?"
+      makeQ={makeQ}
+      say={(q) => zh(speak, `${numZh(q.a)} 和 ${numZh(q.b)},哪一個比較${q.big ? "大" : "小"}?`, { rate: 0.85 })}
+      options={(q) => [q.a, q.b]} keyOf={(o) => String(o)}
+      isRight={(o, q) => o === (q.big ? Math.max(q.a, q.b) : Math.min(q.a, q.b))}
+      renderPrompt={(q) => (
+        <div style={{ fontSize: 22, fontWeight: 800, color: T.ink }}>
+          哪一個比較{q.big ? "大" : "小"}?
+        </div>
+      )}
+      renderOption={(o) => (
+        <div style={{ fontSize: 46, fontWeight: 800, color: T.purple }}>{o}</div>
+      )}
+      onRight={() => zh(speak, "答對了!", { rate: 0.95 })}
+      onWrong={(q) => zh(speak, `${numZh(Math.max(q.a, q.b))} 比 ${numZh(Math.min(q.a, q.b))} 大`, { rate: 0.8 })}
+    />
+  );
+}
+
+// ---------- 6. 比長短 ----------
+const BAR_COLORS = ["#E74C3C", "#3498DB", "#2ECC71"];
+function NumLongMode({ speak, addStars }) {
+  const makeQ = () => {
+    const lens = shuffle([40, 65, 95]);
+    return { lens, longest: Math.random() < 0.5 };
+  };
+  return (
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="📏" hint="哪一條比較長/比較短?"
+      makeQ={makeQ}
+      say={(q) => zh(speak, q.longest ? "哪一條最長?" : "哪一條最短?", { rate: 0.85 })}
+      options={(q) => [0, 1, 2]} keyOf={(o) => String(o)}
+      isRight={(o, q) => {
+        const target = q.longest ? Math.max(...q.lens) : Math.min(...q.lens);
+        return q.lens[o] === target;
+      }}
+      renderPrompt={(q) => (
+        <div style={{ fontSize: 22, fontWeight: 800, color: T.ink }}>
+          哪一條最{q.longest ? "長" : "短"}?
+        </div>
+      )}
+      renderOption={(o, q) => (
+        <div style={{ display: "grid", placeItems: "center", height: 108 }}>
+          <div style={{
+            width: 16, height: `${q.lens[o]}%`, borderRadius: 8,
+            background: BAR_COLORS[o], boxShadow: "inset 0 -3px 0 rgba(0,0,0,.15)",
+          }} />
+        </div>
+      )}
+      onRight={() => zh(speak, "答對了!", { rate: 0.95 })}
+      onWrong={(q) => zh(speak, q.longest ? "最長的是這一條" : "最短的是這一條", { rate: 0.8 })}
+    />
+  );
+}
+
+// ---------- 7. 比輕重 ----------
+function NumHeavyMode({ speak, addStars }) {
+  const makeQ = () => {
+    let a = pickOne(NUM_WEIGHT), b = pickOne(NUM_WEIGHT);
+    let guard = 0;
+    while (guard++ < 50 && (a.w === b.w || Math.max(a.kg, b.kg) / Math.min(a.kg, b.kg) < 5))
+      b = pickOne(NUM_WEIGHT);
+    return { a, b, heavy: Math.random() < 0.5 };
+  };
+  return (
+    <PickQuiz speak={speak} addStars={addStars} cols={2} doneIcon="⚖️" hint="哪一個比較重/比較輕?"
+      makeQ={makeQ}
+      say={(q) => zh(speak, `哪一個比較${q.heavy ? "重" : "輕"}?`, { rate: 0.85 })}
+      options={(q) => [q.a, q.b]} keyOf={(o) => o.w}
+      isRight={(o, q) => {
+        const heavier = q.a.kg > q.b.kg ? q.a : q.b;
+        const target = q.heavy ? heavier : (heavier === q.a ? q.b : q.a);
+        return o.w === target.w;
+      }}
+      renderPrompt={(q) => (
+        <div style={{ fontSize: 22, fontWeight: 800, color: T.ink }}>
+          ⚖️ 哪一個比較{q.heavy ? "重" : "輕"}?
+        </div>
+      )}
+      renderOption={(o) => (
+        <>
+          <div style={{ fontSize: 46 }}>{o.e}</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: T.ink }}>{o.w}</div>
+        </>
+      )}
+      onRight={() => zh(speak, "答對了!", { rate: 0.95 })}
+      onWrong={(q) => {
+        const h = q.a.kg > q.b.kg ? q.a : q.b, l = q.a.kg > q.b.kg ? q.b : q.a;
+        zh(speak, `${h.w} 比 ${l.w} 重`, { rate: 0.8 });
+      }}
+    />
+  );
+}
+
+// ---------- 8. 減減看(10 以內減法)----------
+function NumSubMode({ speak, addStars }) {
+  const makeQ = () => {
+    const a = randInt(3, 9);
+    const b = randInt(1, a - 1);
+    return { a, b, ans: a - b, e: pickOne(NUM_EMOJI), opts: numOptions(a - b, 3, 0, 9) };
+  };
+  return (
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="➖" hint="拿走以後,還剩幾個?"
+      makeQ={makeQ}
+      say={(q) => zh(speak, `${numZh(q.a)} 個拿走 ${numZh(q.b)} 個,還剩幾個?`, { rate: 0.8 })}
+      options={(q) => q.opts} keyOf={(o) => String(o)}
+      isRight={(o, q) => o === q.ans}
+      renderPrompt={(q, picked) => (
+        <>
+          <div style={{ fontSize: 30, lineHeight: 1.4 }}>
+            {Array.from({ length: q.a }, (_, i) => (
+              <span key={i} style={{
+                opacity: i >= q.a - q.b ? 0.28 : 1,
+                textDecoration: i >= q.a - q.b ? "line-through" : "none",
+              }}>{q.e}</span>
+            ))}
+          </div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: T.purple }}>
+            {q.a} − {q.b} = {picked ? <span style={{ color: T.greenDark }}>{q.ans}</span> : "?"}
+          </div>
+        </>
+      )}
+      renderOption={optBigNum}
+      onRight={(q) => zh(speak, `對!還剩 ${numZh(q.ans)} 個`, { rate: 0.9 })}
+      onWrong={(q) => zh(speak, `還剩 ${numZh(q.ans)} 個`, { rate: 0.8 })}
+    />
+  );
+}
+
+// ---------- 9. 湊十高手 ----------
+function NumTenMode({ speak, addStars }) {
+  const makeQ = () => {
+    const n = randInt(1, 9);
+    return { n, ans: 10 - n, opts: numOptions(10 - n, 3, 1, 9) };
+  };
+  return (
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🔟" hint="還要幾個才滿十?"
+      makeQ={makeQ}
+      say={(q) => zh(speak, `已經有 ${numZh(q.n)} 個,還要幾個才滿十?`, { rate: 0.8 })}
+      options={(q) => q.opts} keyOf={(o) => String(o)}
+      isRight={(o, q) => o === q.ans}
+      renderPrompt={(q, picked) => (
+        <>
+          <TenFrame n={q.n} />
+          <div style={{ fontSize: 19, fontWeight: 800, color: T.purple, marginTop: 8 }}>
+            {q.n} + {picked ? <span style={{ color: T.greenDark }}>{q.ans}</span> : "?"} = 10
+          </div>
+        </>
+      )}
+      renderOption={optBigNum}
+      onRight={(q) => zh(speak, `對!${numZh(q.n)} 加 ${numZh(q.ans)} 等於十`, { rate: 0.85 })}
+      onWrong={(q) => zh(speak, `${numZh(q.n)} 加 ${numZh(q.ans)} 才是十`, { rate: 0.8 })}
+    />
+  );
+}
+
+// ---------- 10. 分一分(數字分解)----------
+function NumSplitMode({ speak, addStars }) {
+  const makeQ = () => {
+    const total = randInt(3, 9);
+    const a = randInt(1, total - 1);
+    return { total, a, ans: total - a, e: pickOne(NUM_EMOJI), opts: numOptions(total - a, 3, 1, 9) };
+  };
+  return (
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🍰" hint="分成兩堆,另一堆有幾個?"
+      makeQ={makeQ}
+      say={(q) => zh(speak, `${numZh(q.total)} 可以分成 ${numZh(q.a)} 和幾?`, { rate: 0.8 })}
+      options={(q) => q.opts} keyOf={(o) => String(o)}
+      isRight={(o, q) => o === q.ans}
+      renderPrompt={(q, picked) => (
+        <>
+          <div style={{ fontSize: 28 }}>{q.e.repeat(q.total)}</div>
+          <div style={{ fontSize: 15, color: T.sub, fontWeight: 700, margin: "2px 0 6px" }}>
+            一共 {q.total} 個
+          </div>
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
+            <div style={{ background: "#EFECFB", borderRadius: 14, padding: "8px 14px",
+              fontSize: 26, fontWeight: 800, color: T.purple }}>{q.a}</div>
+            <span style={{ fontSize: 22, color: T.sub }}>和</span>
+            <div style={{ background: picked ? "#E9FBEF" : "#F6F4FE", borderRadius: 14,
+              padding: "8px 14px", fontSize: 26, fontWeight: 800,
+              color: picked ? T.greenDark : "#C9C4E8" }}>{picked ? q.ans : "?"}</div>
+          </div>
+        </>
+      )}
+      renderOption={optBigNum}
+      onRight={(q) => zh(speak, `對!${numZh(q.a)} 和 ${numZh(q.ans)} 合起來是 ${numZh(q.total)}`, { rate: 0.85 })}
+      onWrong={(q) => zh(speak, `是 ${numZh(q.ans)}`, { rate: 0.8 })}
+    />
+  );
+}
+
+// ---------- 11. 一樣多嗎? ----------
+function NumEqualMode({ speak, addStars }) {
+  const makeQ = () => {
+    const a = randInt(2, 9);
+    const same = Math.random() < 0.5;
+    let b = a;
+    if (!same) { b = randInt(2, 9); while (b === a) b = randInt(2, 9); }
+    return { a, b, same, ea: pickOne(NUM_EMOJI), eb: pickOne(NUM_EMOJI) };
+  };
+  return (
+    <PickQuiz speak={speak} addStars={addStars} cols={2} doneIcon="🟰" hint="兩邊一樣多嗎?"
+      makeQ={makeQ}
+      say={() => zh(speak, "兩邊一樣多嗎?", { rate: 0.85 })}
+      options={() => ["yes", "no"]} keyOf={(o) => o}
+      isRight={(o, q) => (o === "yes") === q.same}
+      renderPrompt={(q, picked) => (
+        <>
+          <div style={{ fontSize: 26, lineHeight: 1.4 }}>{q.ea.repeat(q.a)}</div>
+          <div style={{ fontSize: 18, color: T.sub, fontWeight: 700 }}>和</div>
+          <div style={{ fontSize: 26, lineHeight: 1.4 }}>{q.eb.repeat(q.b)}</div>
+          {picked && (
+            <div style={{ fontSize: 16, fontWeight: 700, color: T.greenDark, marginTop: 4 }}>
+              {q.a} 和 {q.b}
+            </div>
+          )}
+        </>
+      )}
+      renderOption={(o) => (
+        <div style={{ fontSize: 20, fontWeight: 800, color: T.ink }}>
+          {o === "yes" ? "⭕ 一樣多" : "❌ 不一樣"}
+        </div>
+      )}
+      onRight={() => zh(speak, "答對了!", { rate: 0.95 })}
+      onWrong={(q) => zh(speak, q.same ? "兩邊一樣多喔" : `${numZh(q.a)} 和 ${numZh(q.b)},不一樣多`, { rate: 0.8 })}
+    />
+  );
+}
+
+// ---------- 12. 少了誰?(數字)----------
+function NumMissingMode({ speak, addStars }) {
+  const makeQ = () => {
+    const s = randInt(1, 15);
+    const seq = [s, s + 1, s + 2, s + 3];
+    const hole = randInt(1, 2);
+    return { seq, hole, ans: seq[hole], opts: numOptions(seq[hole], 3, 1, 20) };
+  };
+  return (
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🕵️" hint="中間少了哪個數字?"
+      makeQ={makeQ}
+      say={(q) => zh(speak, "中間少了哪個數字?", { rate: 0.85 })}
+      options={(q) => q.opts} keyOf={(o) => String(o)}
+      isRight={(o, q) => o === q.ans}
+      renderPrompt={(q, picked) => (
+        <div style={{ display: "flex", gap: 8, justifyContent: "center", alignItems: "center" }}>
+          {q.seq.map((n, i) => (
+            <div key={i} style={{
+              minWidth: 46, padding: "10px 6px", borderRadius: 12,
+              fontSize: 28, fontWeight: 800,
+              background: i === q.hole ? (picked ? "#E9FBEF" : "#F6F4FE") : "#EFECFB",
+              color: i === q.hole ? (picked ? T.greenDark : "#C9C4E8") : T.purple,
+              border: i === q.hole ? `3px dashed ${picked ? T.green : "#C9C4E8"}` : "none",
+            }}>{i === q.hole ? (picked ? q.ans : "?") : n}</div>
+          ))}
+        </div>
+      )}
+      renderOption={optBigNum}
+      onRight={(q) => zh(speak, `對!是 ${numZh(q.ans)}`, { rate: 0.9 })}
+      onWrong={(q) => zh(speak, `少了 ${numZh(q.ans)}`, { rate: 0.8 })}
+    />
+  );
+}
+
+// ---------- 13. 往回數 ----------
+function NumBackMode({ speak, addStars }) {
+  const makeQ = () => {
+    const s = randInt(4, 20);
+    const seq = [s, s - 1, s - 2];
+    const ans = s - 3;
+    return { seq, ans, opts: numOptions(ans, 3, 0, 20) };
+  };
+  return (
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🔙" hint="倒著數,接下來是幾?"
+      makeQ={makeQ}
+      say={(q) => zh(speak, `${q.seq.map(numZh).join("、")},接下來是?`, { rate: 0.8 })}
+      options={(q) => q.opts} keyOf={(o) => String(o)}
+      isRight={(o, q) => o === q.ans}
+      renderPrompt={(q) => (
+        <div style={{ fontSize: 40, fontWeight: 800, color: T.purple, letterSpacing: 4 }}>
+          {q.seq.join(" ")} <span style={{ color: "#C9C4E8" }}>?</span>
+        </div>
+      )}
+      renderOption={optBigNum}
+      onRight={(q) => zh(speak, `對!是 ${numZh(q.ans)}`, { rate: 0.9 })}
+      onWrong={(q) => zh(speak, `${q.seq.map(numZh).join("、")}、${numZh(q.ans)}`, { rate: 0.75 })}
+    />
+  );
+}
+
+// ---------- 14. 跳著數(2 / 5 / 10)----------
+function NumSkipMode({ speak, addStars }) {
+  const makeQ = () => {
+    const step = pickOne([2, 5, 10]);
+    const k = randInt(1, 3);
+    const seq = [k * step, (k + 1) * step, (k + 2) * step];
+    const ans = (k + 3) * step;
+    const set = new Set([ans]);
+    while (set.size < 3) set.add(pickOne([ans + step, ans - step, ans + 1, ans - 1, ans + step * 2]));
+    return { step, seq, ans, opts: shuffle([...set]) };
+  };
+  return (
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🦘" hint="跳著數,接下來是幾?"
+      makeQ={makeQ}
+      say={(q) => zh(speak, `${q.step} 個 ${q.step} 個數:${q.seq.join("、")},接下來?`, { rate: 0.8 })}
+      options={(q) => q.opts} keyOf={(o) => String(o)}
+      isRight={(o, q) => o === q.ans}
+      renderPrompt={(q) => (
+        <>
+          <div style={{ fontSize: 14, color: T.sub, fontWeight: 700 }}>
+            {q.step} 個 {q.step} 個數
+          </div>
+          <div style={{ fontSize: 36, fontWeight: 800, color: T.purple, letterSpacing: 3 }}>
+            {q.seq.join(" ")} <span style={{ color: "#C9C4E8" }}>?</span>
+          </div>
+        </>
+      )}
+      renderOption={optBigNum}
+      onRight={(q) => zh(speak, `對!是 ${q.ans}`, { rate: 0.9 })}
+      onWrong={(q) => zh(speak, `${q.seq.join("、")}、${q.ans}`, { rate: 0.75 })}
+    />
+  );
+}
+
+// ---------- 15. 找規律 ----------
+const PATTERN_KINDS = [
+  { name: "AB", seq: [0, 1, 0, 1, 0], next: 1 },
+  { name: "AAB", seq: [0, 0, 1, 0, 0], next: 1 },
+  { name: "ABB", seq: [0, 1, 1, 0, 1], next: 1 },
+  { name: "ABC", seq: [0, 1, 2, 0, 1], next: 2 },
+];
+function NumPatternMode({ speak, addStars }) {
+  const makeQ = () => {
+    const k = pickOne(PATTERN_KINDS);
+    const es = shuffle(NUM_EMOJI).slice(0, 3);
+    const ansE = es[k.next];
+    const opts = shuffle([ansE, ...es.filter((e) => e !== ansE).slice(0, 2)]);
+    return { k, es, ansE, opts };
+  };
+  return (
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🔁" hint="看規律,接下來是哪一個?"
+      makeQ={() => makeQ()}
+      say={() => zh(speak, "看看規律,接下來是哪一個?", { rate: 0.85 })}
+      options={(q) => q.opts} keyOf={(o) => o}
+      isRight={(o, q) => o === q.ansE}
+      renderPrompt={(q, picked) => (
+        <div style={{ fontSize: 30, letterSpacing: 4 }}>
+          {q.k.seq.map((i, idx) => <span key={idx}>{q.es[i]}</span>)}
+          <span style={{ color: picked ? T.greenDark : "#C9C4E8", fontWeight: 800 }}>
+            {picked ? q.ansE : "❓"}
+          </span>
+        </div>
+      )}
+      renderOption={(o) => <div style={{ fontSize: 40 }}>{o}</div>}
+      onRight={() => zh(speak, "答對了!", { rate: 0.95 })}
+      onWrong={() => zh(speak, "再看一次規律", { rate: 0.8 })}
+    />
+  );
+}
+
+// ---------- 16. 形狀找找看 ----------
+function ShapeFindMode({ speak, addStars }) {
+  const makeQ = () => {
+    const ans = pickOne(SHAPES);
+    const others = pickOthers(SHAPES, 2, ans.k, (x) => x.k);
+    const cols = shuffle(SHAPE_COLORS).slice(0, 3);
+    return { ans, opts: shuffle([ans, ...others]), cols };
+  };
+  return (
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🔷" hint="聽形狀的名字,點出來"
+      makeQ={makeQ}
+      say={(q) => zh(speak, `哪一個是${q.ans.w}?`, { rate: 0.85 })}
+      options={(q) => q.opts} keyOf={(o) => o.k}
+      isRight={(o, q) => o.k === q.ans.k}
+      renderPrompt={(q, picked) => (
+        <>
+          <div style={{ fontSize: 48 }}>👀</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: picked ? T.greenDark : T.ink }}>
+            {q.ans.w}
+          </div>
+        </>
+      )}
+      renderOption={(o, q, picked) => (
+        <>
+          <ShapeIcon kind={o.k} color={q.cols[q.opts.indexOf(o) % 3]} size={52} />
+          {picked && <div style={{ fontSize: 13, fontWeight: 700, color: T.ink, marginTop: 4 }}>{o.w}</div>}
+        </>
+      )}
+      onRight={(q) => zh(speak, `對!${q.ans.w}`, { rate: 0.9, onEnd: () => speak(q.ans.en, { rate: 0.9 }) })}
+      onWrong={(q) => zh(speak, `這個才是${q.ans.w}`, { rate: 0.8 })}
+    />
+  );
+}
+
+// ---------- 17. 數形狀 ----------
+function ShapeCountMode({ speak, addStars }) {
+  const makeQ = () => {
+    const target = pickOne(SHAPES);
+    const other = pickOne(SHAPES.filter((s) => s.k !== target.k));
+    const n = randInt(2, 6);
+    const noise = randInt(2, 5);
+    const items = shuffle([
+      ...Array.from({ length: n }, () => target),
+      ...Array.from({ length: noise }, () => other),
+    ]).map((s, i) => ({ s, c: SHAPE_COLORS[i % SHAPE_COLORS.length], id: i }));
+    return { target, n, items, opts: numOptions(n, 3, 1, 8) };
+  };
+  return (
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🔺" hint="數數看,有幾個那個形狀?"
+      makeQ={makeQ}
+      say={(q) => zh(speak, `有幾個${q.target.w}?`, { rate: 0.85 })}
+      options={(q) => q.opts} keyOf={(o) => String(o)}
+      isRight={(o, q) => o === q.n}
+      renderPrompt={(q, picked) => (
+        <>
+          <div style={{ fontSize: 18, fontWeight: 800, color: T.ink, marginBottom: 6 }}>
+            有幾個 {q.target.w}?
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 6 }}>
+            {q.items.map((it) => (
+              <div key={it.id} style={{ opacity: picked && it.s.k !== q.target.k ? 0.25 : 1 }}>
+                <ShapeIcon kind={it.s.k} color={it.c} size={34} />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+      renderOption={optBigNum}
+      onRight={(q) => zh(speak, `對!${numZh(q.n)}個${q.target.w}`, { rate: 0.9 })}
+      onWrong={(q) => zh(speak, `有 ${numZh(q.n)} 個${q.target.w}`, { rate: 0.8 })}
+    />
+  );
+}
+
+// ---------- 18. 認時鐘(整點與半點)----------
+function NumClockMode({ speak, addStars }) {
+  const makeQ = () => {
+    const h = randInt(1, 12);
+    const m = Math.random() < 0.5 ? 0 : 30;
+    const set = new Map([[`${h}-${m}`, { h, m }]]);
+    let guard = 0;
+    while (set.size < 3 && guard++ < 60) {
+      const hh = randInt(1, 12), mm = Math.random() < 0.5 ? 0 : 30;
+      set.set(`${hh}-${mm}`, { h: hh, m: mm });
+    }
+    return { h, m, opts: shuffle([...set.values()]) };
+  };
+  return (
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🕐" hint="現在是幾點?"
+      makeQ={makeQ}
+      say={() => zh(speak, "現在是幾點?", { rate: 0.85 })}
+      options={(q) => q.opts} keyOf={(o) => `${o.h}-${o.m}`}
+      isRight={(o, q) => o.h === q.h && o.m === q.m}
+      renderPrompt={(q, picked) => (
+        <>
+          <ClockFace h={q.h} m={q.m} size={140} />
+          {picked && (
+            <div style={{ fontSize: 20, fontWeight: 800, color: T.greenDark, marginTop: 4 }}>
+              {clockZh(q.h, q.m)}
+            </div>
+          )}
+        </>
+      )}
+      renderOption={(o) => (
+        <div style={{ fontSize: 18, fontWeight: 800, color: T.ink }}>{clockZh(o.h, o.m)}</div>
+      )}
+      onRight={(q) => zh(speak, `對!${clockZh(q.h, q.m)}`, { rate: 0.9 })}
+      onWrong={(q) => zh(speak, `現在是${clockZh(q.h, q.m)}`, { rate: 0.8 })}
+    />
+  );
+}
+
+// ---------- 19. 認錢幣 ----------
+function NumCoinMode({ speak, addStars }) {
+  const makeQ = () => {
+    const coins = [];
+    const tens = randInt(0, 1), fives = randInt(0, 1), ones = randInt(1, 4);
+    for (let i = 0; i < tens; i++) coins.push(10);
+    for (let i = 0; i < fives; i++) coins.push(5);
+    for (let i = 0; i < ones; i++) coins.push(1);
+    const sum = coins.reduce((a, b) => a + b, 0);
+    return { coins, sum, opts: numOptions(sum, 3, 1, 20) };
+  };
+  return (
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🪙" hint="數數看,一共幾元?"
+      makeQ={makeQ}
+      say={() => zh(speak, "一共有幾元?", { rate: 0.85 })}
+      options={(q) => q.opts} keyOf={(o) => String(o)}
+      isRight={(o, q) => o === q.sum}
+      renderPrompt={(q, picked) => (
+        <>
+          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center" }}>
+            {q.coins.map((v, i) => <CoinIcon key={i} v={v} />)}
+          </div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: picked ? T.greenDark : T.ink, marginTop: 6 }}>
+            {picked ? `${q.sum} 元` : "一共幾元?"}
+          </div>
+        </>
+      )}
+      renderOption={(o) => (
+        <div style={{ fontSize: 28, fontWeight: 800, color: T.ink }}>{o} 元</div>
+      )}
+      onRight={(q) => zh(speak, `對!一共 ${numZh(q.sum)} 元`, { rate: 0.9 })}
+      onWrong={(q) => zh(speak, `一共 ${numZh(q.sum)} 元`, { rate: 0.8 })}
+    />
+  );
+}
+
+// ---------- 20. 第幾個(序數)----------
+function NumOrdinalMode({ speak, addStars }) {
+  const makeQ = () => {
+    const line = shuffle(NUM_LINE).slice(0, 5);
+    const idx = randInt(0, 4);
+    return { line, idx, ans: idx + 1, opts: numOptions(idx + 1, 3, 1, 5) };
+  };
+  return (
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🚩" hint="從左邊數過來,排第幾個?"
+      makeQ={makeQ}
+      say={(q) => zh(speak, `從左邊數過來,${NUM_LINE_ZH[q.line[q.idx]]} 排第幾個?`, { rate: 0.8 })}
+      options={(q) => q.opts} keyOf={(o) => String(o)}
+      isRight={(o, q) => o === q.ans}
+      renderPrompt={(q, picked) => (
+        <>
+          <div style={{ fontSize: 13, color: T.sub, fontWeight: 700 }}>← 從這邊開始數</div>
+          <div style={{ display: "flex", justifyContent: "center", gap: 4 }}>
+            {q.line.map((e, i) => (
+              <span key={i} style={{
+                fontSize: 34, padding: 3, borderRadius: 10,
+                background: i === q.idx ? (picked ? "#E9FBEF" : "#FFF7DA") : "transparent",
+              }}>{e}</span>
+            ))}
+          </div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: T.ink, marginTop: 4 }}>
+            {NUM_LINE_ZH[q.line[q.idx]]} 排第幾個?
+          </div>
+        </>
+      )}
+      renderOption={(o) => (
+        <>
+          <div style={{ fontSize: 30, fontWeight: 800, color: T.purple }}>{o}</div>
+          <div style={{ fontSize: 13, color: T.sub, fontWeight: 700 }}>{ORDINAL_ZH[o]}</div>
+        </>
+      )}
+      onRight={(q) => zh(speak, `對!${ORDINAL_ZH[q.ans]}個`, { rate: 0.9 })}
+      onWrong={(q) => zh(speak, `是${ORDINAL_ZH[q.ans]}個`, { rate: 0.8 })}
+    />
+  );
+}
+
+// ---------- 21. 分一分點心(平分)----------
+function NumShareMode({ speak, addStars }) {
+  const KIDS = ["🧒", "👧", "🧑"];
+  const makeQ = () => {
+    const people = randInt(2, 3);
+    const each = randInt(1, 4);
+    const total = people * each;
+    return { people, each, total, e: pickOne(["🍪", "🍬", "🍎", "🍌"]), opts: numOptions(each, 3, 1, 6) };
+  };
+  return (
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🍪" hint="平分以後,一個人拿幾個?"
+      makeQ={makeQ}
+      say={(q) => zh(speak, `${numZh(q.total)} 個平分給 ${numZh(q.people)} 個人,一個人幾個?`, { rate: 0.8 })}
+      options={(q) => q.opts} keyOf={(o) => String(o)}
+      isRight={(o, q) => o === q.each}
+      renderPrompt={(q, picked) => (
+        <>
+          <div style={{ fontSize: 28, lineHeight: 1.4 }}>{q.e.repeat(q.total)}</div>
+          <div style={{ fontSize: 30, margin: "4px 0" }}>
+            {KIDS.slice(0, q.people).join(" ")}
+          </div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: picked ? T.greenDark : T.ink }}>
+            {picked ? `一個人 ${q.each} 個` : `${q.total} 個分給 ${q.people} 個人`}
+          </div>
+        </>
+      )}
+      renderOption={optBigNum}
+      onRight={(q) => zh(speak, `對!一個人 ${numZh(q.each)} 個`, { rate: 0.9 })}
+      onWrong={(q) => zh(speak, `一個人 ${numZh(q.each)} 個`, { rate: 0.8 })}
+    />
+  );
+}
+
+// ========== 數字:7 個自訂玩法 ==========
+
+const NUM20_EN = [...NUM10, "eleven", "twelve", "thirteen", "fourteen", "fifteen",
+  "sixteen", "seventeen", "eighteen", "nineteen", "twenty"];
+
+// ---------- 1. 認識數字(0–20 數字表)----------
+const NUM_SECTIONS = [
+  { key: "a", label: "0–10", range: [0, 11] },
+  { key: "b", label: "11–20", range: [11, 21] },
+];
+function NumLearnMode({ speak }) {
+  const [sec, setSec] = useState(NUM_SECTIONS[0]);
+  const [n, setN] = useState(1);
+  const say = (v) => zh(speak, numZh(v), { rate: 0.8, onEnd: () => speak(NUM20_EN[v], { rate: 0.9 }) });
+  const nums = Array.from({ length: sec.range[1] - sec.range[0] }, (_, i) => sec.range[0] + i);
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>
+        點一下數字,先聽中文再聽英文;下面的點點幫她看見「多少」。
+      </p>
+      <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 12 }}>
+        {NUM_SECTIONS.map((s) => (
+          <button key={s.key} onClick={() => { setSec(s); setN(s.range[0] === 0 ? 1 : s.range[0]); }}
+            style={{
+              fontFamily: "inherit", fontWeight: 700, fontSize: 15,
+              padding: "8px 16px", borderRadius: 999, cursor: "pointer",
+              border: `3px solid ${sec.key === s.key ? T.purpleDark : "#E8E4FA"}`,
+              background: sec.key === s.key ? T.purple : T.card,
+              color: sec.key === s.key ? "#fff" : T.ink,
+            }}>{s.label}</button>
+        ))}
+      </div>
+
+      <div style={{ background: T.card, borderRadius: 24, padding: "18px 16px",
+        boxShadow: "0 6px 0 #E0DBF7", marginBottom: 14 }}>
+        <div style={{ fontSize: 76, fontWeight: 800, color: T.purple, lineHeight: 1 }}>{n}</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: T.ink, margin: "2px 0 10px" }}>
+          {numZh(n)} · {NUM20_EN[n]}
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <TenFrame n={Math.min(n, 10)} dot={17} />
+          {n > 10 && <TenFrame n={n - 10} dot={17} color={T.pink} />}
+        </div>
+        <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={() => say(n)}
+          style={{ color: T.ink, marginTop: 12 }}>
+          🔊 再聽一次
+        </ChunkyButton>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 8 }}>
+        {nums.map((v) => (
+          <button key={v} onClick={() => { setN(v); say(v); }}
+            style={{
+              fontFamily: "inherit", fontWeight: 800, fontSize: 22,
+              padding: "12px 0", borderRadius: 14, cursor: "pointer",
+              border: `3px solid ${v === n ? T.purpleDark : "#E8E4FA"}`,
+              background: v === n ? T.purple : T.card,
+              color: v === n ? "#fff" : T.ink, transition: "all .15s",
+            }}>{v}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------- 2. 認識形狀 ----------
+function ShapeLearnMode({ speak }) {
+  const [i, setI] = useState(0);
+  const sh = SHAPES[i];
+  const say = (s) => zh(speak, s.w, { rate: 0.85, onEnd: () => speak(s.en, { rate: 0.9 }) });
+  return (
+    <div style={{ textAlign: "center" }}>
+      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>
+        點一下形狀,先聽中文再聽英文;可以一起在家裡找找看有沒有一樣的形狀。
+      </p>
+      <div style={{ background: T.card, borderRadius: 24, padding: "18px 16px",
+        boxShadow: "0 6px 0 #E0DBF7", marginBottom: 14 }}>
+        <ShapeIcon kind={sh.k} color={SHAPE_COLORS[i % SHAPE_COLORS.length]} size={120} />
+        <div style={{ fontSize: 24, fontWeight: 800, color: T.ink, marginTop: 8 }}>{sh.w}</div>
+        <div style={{ fontSize: 16, color: T.sub, fontWeight: 700 }}>{sh.en}</div>
+        <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={() => say(sh)}
+          style={{ color: T.ink, marginTop: 12 }}>
+          🔊 再聽一次
+        </ChunkyButton>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+        {SHAPES.map((s, k) => (
+          <button key={s.k} onClick={() => { setI(k); say(s); }}
+            style={{
+              background: k === i ? "#EFECFB" : T.card,
+              border: `3px solid ${k === i ? T.purpleDark : "#E8E4FA"}`,
+              borderRadius: 18, padding: "10px 4px 8px", fontFamily: "inherit",
+              cursor: "pointer", boxShadow: "0 5px 0 #E0DBF7", transition: "all .15s",
+            }}>
+            <ShapeIcon kind={s.k} color={SHAPE_COLORS[k % SHAPE_COLORS.length]} size={38} />
+            <div style={{ fontSize: 12, fontWeight: 700, color: T.ink, marginTop: 4 }}>{s.w}</div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------- 3. 點幾個(一個一個數出來)----------
+function NumTapMode({ speak, addStars }) {
+  const TOTAL = 6;
+  const makeRound = () => ({
+    target: randInt(2, 8), e: pickOne(NUM_EMOJI), key: Math.random(),
+  });
+  const [roundNo, setRoundNo] = useState(1);
+  const [right, setRight] = useState(0);
+  const [round, setRound] = useState(makeRound);
+  const [picked, setPicked] = useState(() => new Set());
+  const [result, setResult] = useState(null); // null | "ok" | "no"
+  const [done, setDone] = useState(false);
+
+  const say = useCallback(
+    () => zh(speak, `請點出 ${numZh(round.target)} 個`, { rate: 0.85 }),
+    [round, speak]
+  );
+  useEffect(() => {
+    if (!done) { const t = setTimeout(say, 400); return () => clearTimeout(t); }
+  }, [round, say, done]);
+
+  const toggle = (i) => {
+    if (result) return;
+    setPicked((p) => {
+      const n = new Set(p);
+      if (n.has(i)) n.delete(i); else n.add(i);
+      zh(speak, numZh(n.size), { rate: 1 });
+      return n;
+    });
+  };
+
+  const check = () => {
+    if (result) return;
+    if (picked.size === round.target) {
+      setResult("ok"); setRight((r) => r + 1); addStars(1);
+      zh(speak, `對!${numZh(round.target)} 個`, { rate: 0.9 });
+      setTimeout(() => {
+        if (roundNo >= TOTAL) setDone(true);
+        else { setRoundNo((r) => r + 1); setRound(makeRound()); setPicked(new Set()); setResult(null); }
+      }, 1500);
+    } else {
+      setResult("no");
+      zh(speak, `你拿了 ${numZh(picked.size)} 個,再數一次`, { rate: 0.8 });
+      setTimeout(() => { setPicked(new Set()); setResult(null); }, 1800);
+    }
+  };
+
+  if (done)
+    return (
+      <div style={{ textAlign: "center", padding: "24px 0" }}>
+        <div style={{ fontSize: 56 }}>{right >= 5 ? "🏆" : "🧺"}</div>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>拿對 {right} / {TOTAL} 次!</h2>
+        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
+          onClick={() => { setRoundNo(1); setRight(0); setRound(makeRound()); setPicked(new Set()); setResult(null); setDone(false); }}>
+          再玩一次
+        </ChunkyButton>
+      </div>
+    );
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 10 }}>
+        第 {roundNo} / {TOTAL} 次・一個一個點,拿出老師說的數量
+      </div>
+      <div style={{ background: T.card, borderRadius: 22, padding: "14px 12px",
+        marginBottom: 12, boxShadow: "0 5px 0 #E0DBF7" }}>
+        <div style={{ fontSize: 20, fontWeight: 800, color: T.ink }}>
+          請拿出 <span style={{ color: T.purple, fontSize: 26 }}>{round.target}</span> 個
+        </div>
+        <div style={{ fontSize: 15, color: result === "no" ? T.red : T.sub, fontWeight: 700 }}>
+          已經拿了 {picked.size} 個
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginBottom: 12 }}>
+        {Array.from({ length: 10 }, (_, i) => {
+          const on = picked.has(i);
+          return (
+            <button key={`${round.key}-${i}`} onClick={() => toggle(i)}
+              style={{
+                background: on ? "#E9FBEF" : T.card,
+                border: `3px solid ${on ? T.green : "#E8E4FA"}`,
+                borderRadius: 16, padding: "10px 0", fontFamily: "inherit",
+                fontSize: 30, cursor: result ? "default" : "pointer",
+                boxShadow: "0 4px 0 #E0DBF7", transition: "all .12s",
+                transform: on ? "scale(0.94)" : "scale(1)",
+              }}>{round.e}</button>
+          );
+        })}
+      </div>
+      <ChunkyButton color={result === "ok" ? T.green : T.pink}
+        dark={result === "ok" ? T.greenDark : "#D14B7D"} onClick={check} style={{ width: "100%" }}>
+        {result === "ok" ? "🎉 答對了!" : result === "no" ? "再數一次…" : "✓ 好了,我數好了"}
+      </ChunkyButton>
+      <div style={{ marginTop: 10 }}>
+        <button onClick={say}
+          style={{ fontFamily: "inherit", fontWeight: 700, fontSize: 14, background: "none",
+            border: "none", color: T.sub, cursor: "pointer" }}>
+          🔊 再聽一次
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------- 4. 數字泡泡 ----------
+function NumBubbleMode({ speak, addStars }) {
+  const TOTAL = 8;
+  const makeRound = () => {
+    const four = shuffle(Array.from({ length: 20 }, (_, i) => i + 1)).slice(0, 4);
+    return { items: four, target: pickOne(four), key: Math.random() };
+  };
+  const [round, setRound] = useState(makeRound);
+  const [pops, setPops] = useState(0);
+  const [popping, setPopping] = useState(null);
+  const [cheer, setCheer] = useState("");
+  const [done, setDone] = useState(false);
+
+  const say = useCallback(() => zh(speak, numZh(round.target), { rate: 0.8 }), [round, speak]);
+  useEffect(() => {
+    if (!done) { const t = setTimeout(say, 500); return () => clearTimeout(t); }
+  }, [round, say, done]);
+
+  const tap = (n) => {
+    if (popping) return;
+    if (n === round.target) {
+      setPopping(n); setCheer(""); addStars(1);
+      zh(speak, `${numZh(n)}!答對了`, { rate: 0.95 });
+      const np = pops + 1;
+      setTimeout(() => {
+        setPopping(null); setPops(np);
+        if (np >= TOTAL) setDone(true); else setRound(makeRound());
+      }, 800);
+    } else {
+      setCheer("再聽聽看,是哪個數字?🫧");
+      say();
+    }
+  };
+
+  if (done)
+    return (
+      <div style={{ textAlign: "center", padding: "24px 0" }}>
+        <div style={{ fontSize: 56 }}>🫧✨</div>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>戳破了 {TOTAL} 個泡泡!</h2>
+        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
+          onClick={() => { setPops(0); setDone(false); setRound(makeRound()); }}>
+          再玩一次
+        </ChunkyButton>
+      </div>
+    );
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 10 }}>
+        聽數字,戳破正確的泡泡!{pops} / {TOTAL} 🫧
+      </div>
+      <div style={{
+        position: "relative", height: 330, overflow: "hidden",
+        background: "linear-gradient(#EAF6FF, #F6FBFF)",
+        borderRadius: 24, border: "3px solid #E8E4FA",
+        boxShadow: "0 6px 0 #E0DBF7", marginBottom: 12,
+      }}>
+        {round.items.map((n, i) => (
+          <button key={`${round.key}-${n}`} onClick={() => tap(n)}
+            style={{
+              position: "absolute", left: `${4 + i * 24}%`, bottom: -110,
+              width: 88, height: 88, borderRadius: "50%",
+              background: popping === n ? "transparent" : BUBBLE_COLORS[i],
+              border: popping === n ? "none" : "3px solid #FFFFFFCC",
+              boxShadow: popping === n ? "none" : "inset -6px -8px 0 #FFFFFF88, 0 3px 8px #B9D4EE66",
+              fontFamily: "inherit", fontWeight: 800, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              animation: `wp-float ${11 + i * 3.5}s linear infinite`,
+              animationDelay: `${-i * 4.2}s`,
+              animationPlayState: popping ? "paused" : "running",
+            }}>
+            {popping === n ? <span style={{ fontSize: 40 }}>⭐</span>
+              : <span style={{ fontSize: 34, color: T.ink }}>{n}</span>}
+          </button>
+        ))}
+      </div>
+      <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={say} style={{ color: T.ink }}>
+        🔊 再聽一次
+      </ChunkyButton>
+      {cheer && <div style={{ marginTop: 10, fontSize: 15, color: T.sub, fontWeight: 700 }}>{cheer}</div>}
+    </div>
+  );
+}
+
+// ---------- 5. 數字翻翻樂(數字 ↔ 點點)----------
+function NumPairsMode({ speak, addStars }) {
+  const newDeck = () => {
+    const five = shuffle(Array.from({ length: 10 }, (_, i) => i + 1)).slice(0, 5);
+    const cards = five.flatMap((n) => [{ n, kind: "num" }, { n, kind: "dot" }]);
+    return shuffle(cards).map((c, k) => ({ ...c, id: k }));
+  };
+  const [cards, setCards] = useState(newDeck);
+  const [open, setOpen] = useState([]);
+  const [matched, setMatched] = useState(() => new Set());
+  const [misses, setMisses] = useState(0);
+  const [lock, setLock] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const flip = (i) => {
+    if (lock || open.includes(i) || matched.has(cards[i].n)) return;
+    zh(speak, numZh(cards[i].n), { rate: 0.9 });
+    if (open.length === 0) { setOpen([i]); return; }
+    const j = open[0];
+    if (cards[j].n === cards[i].n) {
+      const nm = new Set(matched).add(cards[i].n);
+      setMatched(nm); setOpen([]); addStars(1);
+      if (nm.size === 5) {
+        addStars(2);
+        zh(speak, "全部配對完成!好棒", { rate: 0.9 });
+        setTimeout(() => setDone(true), 900);
+      }
+    } else {
+      setOpen([j, i]); setLock(true); setMisses((m) => m + 1);
+      setTimeout(() => { setOpen([]); setLock(false); }, 950);
+    }
+  };
+
+  const restart = () => {
+    setCards(newDeck()); setOpen([]); setMatched(new Set());
+    setMisses(0); setLock(false); setDone(false);
+  };
+
+  if (done)
+    return (
+      <div style={{ textAlign: "center", padding: "24px 0" }}>
+        <div style={{ fontSize: 60 }}>{misses <= 3 ? "👑" : "🎉"}</div>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>5 對數字全部找到!</h2>
+        <p style={{ color: T.sub, fontSize: 15 }}>失誤 {misses} 次</p>
+        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 10 }} onClick={restart}>
+          再玩一次
+        </ChunkyButton>
+      </div>
+    );
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
+        color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
+        <span>數字配點點</span>
+        <span>找到 {matched.size} / 5 對{"⭐".repeat(matched.size)}</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+        {cards.map((c, i) => {
+          const isUp = open.includes(i) || matched.has(c.n);
+          const isMatched = matched.has(c.n);
+          return (
+            <button key={c.id} onClick={() => flip(i)}
+              style={{
+                aspectRatio: "1 / 1.05", display: "grid", placeItems: "center",
+                background: isMatched ? "#E9FBEF" : isUp ? "#FFF7DA" : T.purple,
+                border: `3px solid ${isMatched ? T.green : isUp ? T.yellow : T.purpleDark}`,
+                borderRadius: 18, fontFamily: "inherit",
+                fontSize: 30, fontWeight: 800, color: T.ink,
+                cursor: isUp ? "default" : "pointer",
+                boxShadow: "0 5px 0 #E0DBF7", transition: "all .2s",
+                opacity: isMatched ? 0.85 : 1,
+              }}>
+              {!isUp ? "🎈" : c.kind === "num" ? c.n : (
+                <span style={{ fontSize: 15, lineHeight: 1.1, maxWidth: 56, wordBreak: "break-all" }}>
+                  {"●".repeat(c.n)}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+      <p style={{ color: "#B7B2D8", fontSize: 13, marginTop: 14 }}>
+        翻開卡片,把「數字」和「一樣多的點點」配成一對!
+      </p>
+    </div>
+  );
+}
+
+// ---------- 6. 排大小(數字由小到大)----------
+function NumSortMode({ speak, addStars }) {
+  const TOTAL = 6;
+  const makeQ = () => {
+    const set = new Set();
+    while (set.size < 3) set.add(randInt(1, 20));
+    const order = [...set].sort((a, b) => a - b);
+    return { order, display: shuffle([...order]) };
+  };
+  const [roundNo, setRoundNo] = useState(1);
+  const [right, setRight] = useState(0);
+  const [q, setQ] = useState(makeQ);
+  const [progress, setProgress] = useState(0);
+  const [wrong, setWrong] = useState(null);
+  const [cleared, setCleared] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const nextRound = () => {
+    if (roundNo >= TOTAL) { setDone(true); return; }
+    setRoundNo((r) => r + 1); setQ(makeQ()); setProgress(0); setCleared(false);
+  };
+
+  const tap = (n) => {
+    if (cleared) return;
+    if (n === q.order[progress]) {
+      zh(speak, numZh(n), { rate: 0.9 });
+      const np = progress + 1;
+      setProgress(np); setWrong(null);
+      if (np >= q.order.length) {
+        setRight((r) => r + 1); addStars(1); setCleared(true);
+        zh(speak, "太棒了!", { rate: 0.95 });
+        setTimeout(nextRound, 1300);
+      }
+    } else {
+      setWrong(n); zh(speak, numZh(n), { rate: 0.9 });
+      setTimeout(() => setWrong(null), 500);
+    }
+  };
+
+  if (done)
+    return (
+      <div style={{ textAlign: "center", padding: "24px 0" }}>
+        <div style={{ fontSize: 56 }}>{right >= 5 ? "🏆" : "📊"}</div>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>排對 {right} / {TOTAL} 組!</h2>
+        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setProgress(0); setCleared(false); setDone(false); }}>
+          再玩一次
+        </ChunkyButton>
+      </div>
+    );
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 6 }}>
+        第 {roundNo} / {TOTAL} 組・從最小的開始,由小到大點!
+      </div>
+      <div style={{ fontSize: 18, marginBottom: 12, color: T.purple, fontWeight: 700 }}>
+        1️⃣ 小 →→→ 大 🔟
+      </div>
+      <div style={{ minHeight: 66, display: "flex", gap: 10, justifyContent: "center",
+        alignItems: "center", marginBottom: 8 }}>
+        {q.order.slice(0, progress).map((n, i) => (
+          <span key={n} style={{ fontSize: 26 + i * 8, fontWeight: 800, color: T.greenDark }}>{n}</span>
+        ))}
+        {progress < q.order.length && (
+          <span style={{ fontSize: 20, color: "#C9C4E8" }}>👉 點第 {progress + 1} 小的</span>
+        )}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+        {q.display.map((n) => {
+          const placed = q.order.slice(0, progress).includes(n);
+          const isWrong = wrong === n;
+          return (
+            <button key={n} onClick={() => tap(n)} disabled={placed}
+              style={{
+                background: placed ? "#E9FBEF" : isWrong ? "#FFEDED" : T.card,
+                border: `3px solid ${placed ? T.green : isWrong ? T.red : "#E8E4FA"}`,
+                borderRadius: 18, padding: "20px 4px", fontFamily: "inherit",
+                fontSize: 38, fontWeight: 800, color: T.ink,
+                cursor: placed ? "default" : "pointer", boxShadow: "0 5px 0 #E0DBF7",
+                opacity: placed ? 0.6 : 1, animation: isWrong ? "wp-shake .3s" : "none",
+                transition: "all .15s",
+              }}>{n}</button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------- 7. 數字手寫(0–9 描寫)----------
+const NUM_TRACE_KEY = "wordpop-num-done";
+function loadNumDone() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(NUM_TRACE_KEY) || "[]");
+    return Array.isArray(arr) ? new Set(arr) : new Set();
+  } catch { return new Set(); }
+}
+function NumWriteMode({ speak, addStars }) {
+  const [idx, setIdx] = useState(1);
+  const [celebrate, setCelebrate] = useState(false);
+  const [cheer, setCheer] = useState("");
+  const [doneSet, setDoneSet] = useState(loadNumDone);
+  const d = DIGITS[idx];
+  const color = TRACE_COLORS[idx % TRACE_COLORS.length];
+
+  const sayNum = (v) => zh(speak, numZh(Number(v)), { rate: 0.85, onEnd: () => speak(NUM10[Number(v)], { rate: 0.9 }) });
+
+  const select = (i) => {
+    setIdx(i); setCelebrate(false); setCheer(""); sayNum(DIGITS[i]);
+  };
+
+  const markDone = () => {
+    setCelebrate(true); setCheer(""); addStars(2);
+    sayNum(d);
+    setDoneSet((prev) => {
+      const next = new Set(prev);
+      next.add(d);
+      try { localStorage.setItem(NUM_TRACE_KEY, JSON.stringify([...next])); } catch { /* ignore */ }
+      return next;
+    });
+  };
+
+  const onStrokeDone = (n) => {
+    setCheer(`第 ${n} 筆寫對了!換第 ${n + 1} 筆 👍`);
+    setTimeout(() => setCheer(""), 1400);
+  };
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>
+        從 1 號圓點開始,照箭頭方向寫;每筆都寫對才會換下一筆!已完成{" "}
+        <b style={{ color: T.purple }}>{doneSet.size}</b> / {DIGITS.length}
+      </p>
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center",
+        gap: 10, marginBottom: 12 }}>
+        <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={() => sayNum(d)}
+          style={{ color: T.ink, padding: "10px 18px", fontSize: 16 }}>
+          🔊 {d} 怎麼唸
+        </ChunkyButton>
+        <div style={{ background: T.card, border: "3px solid #E8E4FA", borderRadius: 16,
+          padding: "6px 12px", boxShadow: "0 4px 0 #E0DBF7" }}>
+          <TenFrame n={Number(d)} dot={11} />
+        </div>
+      </div>
+
+      <TraceCanvas
+        char={d}
+        strokeColor={color}
+        strokeData={DIGIT_STROKES[d]}
+        grid="tian"
+        onStrokeDone={onStrokeDone}
+        onComplete={markDone}
+      />
+
+      {celebrate ? (
+        <div style={{ marginTop: 14 }}>
+          <div style={{ fontSize: 22, color: T.greenDark, fontWeight: 700 }}>
+            🎉 太棒了!{d} 寫得真漂亮!+2 ⭐
+          </div>
+          <ChunkyButton color={T.green} dark={T.greenDark}
+            onClick={() => select((idx + 1) % DIGITS.length)} style={{ marginTop: 10 }}>
+            下一個數字 →
+          </ChunkyButton>
+        </div>
+      ) : (
+        cheer && (
+          <div style={{ marginTop: 14, fontSize: 16, color: T.sub, fontWeight: 700 }}>{cheer}</div>
+        )
+      )}
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginTop: 16 }}>
+        {DIGITS.map((v, i) => {
+          const finished = doneSet.has(v);
+          const active = i === idx;
+          return (
+            <button key={v} onClick={() => select(i)}
+              style={{
+                fontFamily: "inherit", fontWeight: 800, fontSize: 22,
+                padding: "10px 0", borderRadius: 14, cursor: "pointer",
+                border: `3px solid ${active ? T.purpleDark : finished ? T.green : "#E8E4FA"}`,
+                background: active ? T.purple : finished ? "#E9FBEF" : T.card,
+                color: active ? "#fff" : T.ink, transition: "all .15s",
+              }}>{v}</button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -7870,7 +9310,7 @@ const SUBJECTS = [
   { key: "bopo", icon: "ㄅ",  label: "ㄅㄆㄇ", color: "#D63031", dark: "#A32320",
     sub: "注音:認符號、拼音、聲調、聽力與標準筆順手寫" },
   { key: "num",  icon: "🔢", label: "數字",  color: "#3867D6", dark: "#284D9E",
-    sub: "數字:順序與加法" },
+    sub: "數學:數數、比大小、加減、形狀、時鐘、錢" },
 ];
 const SUBJECT_KEY = "wordpop-subject";
 
@@ -8061,12 +9501,104 @@ const MENU_GROUPS = [
   },
   {
     subject: "num",
-    label: "🔢 數字與算數",
+    label: "🔢 認識數字",
     items: [
+      { mode: "numlearn", color: T.purple, dark: T.purpleDark, label: "📚 認識數字",
+        tip: "當數字表用:先聽中文再聽英文,下面的點點讓她「看見」多少" },
       { mode: "numorder", color: "#3867D6", dark: "#284D9E", label: "🔢 數字接龍",
         tip: "接不出來就一起從 1 數到那個數字" },
-      { mode: "add", color: "#F39C12", dark: "#C67C0A", label: "➕ 加加看",
-        tip: "請她把兩堆東西合起來,用手指一個一個數總數" },
+      { mode: "numlisten", color: "#4B7BEC", dark: "#3560BC", label: "👂 數字聽力挑戰",
+        tip: "聽英文找數字;答對後跟著唸一次 one、two" },
+      { mode: "numwrite", color: "#E17055", dark: "#B3543F", label: "✍️ 數字手寫",
+        tip: "0–9 一筆一筆寫,方向錯了不會過關;先看示範再自己寫" },
+    ],
+  },
+  {
+    subject: "num",
+    label: "🍎 數數看",
+    items: [
+      { mode: "numcount", color: "#20BF6B", dark: "#169553", label: "🍎 數數看",
+        tip: "陪她用手指一個一個點著數,別用猜的" },
+      { mode: "numtap", color: "#EE5A24", dark: "#BC4519", label: "🧺 點幾個",
+        tip: "邊點邊數出聲音,這是「數量對應」最關鍵的一步" },
+      { mode: "numdots", color: "#00B894", dark: "#008B6E", label: "🎯 數字配點點",
+        tip: "十格框滿五、滿十一眼看得出來,幫她建立數感" },
+      { mode: "numbubble", color: "#45AAF2", dark: "#2D87C7", label: "🫧 數字泡泡",
+        tip: "沒有時間壓力,適合當獎勵遊戲放鬆玩" },
+      { mode: "numpairs", color: "#EE5A6F", dark: "#C43D52", label: "🎴 數字翻翻樂",
+        tip: "翻牌時把點點數出聲,數字和數量一起記" },
+    ],
+  },
+  {
+    subject: "num",
+    label: "📏 比大小",
+    items: [
+      { mode: "nummore", color: "#F79F1F", dark: "#C67C14", label: "⚖️ 誰比較多?",
+        tip: "先讓她一對一比對,不會數也能比出多少" },
+      { mode: "numcompare", color: "#9B59D0", dark: "#7A3FAC", label: "🔢 數字比大小",
+        tip: "想不出來就回想數線:後面的數字比較大" },
+      { mode: "numsort", color: "#3B3B98", dark: "#2C2C74", label: "📊 排大小(數字)",
+        tip: "問她為什麼這個比較小,說出理由更重要" },
+      { mode: "numlong", color: "#D980FA", dark: "#A961C6", label: "📏 比長短",
+        tip: "可以拿家裡的筆或積木實際比一次,更有感覺" },
+      { mode: "numheavy", color: "#8D6E63", dark: "#6B5249", label: "⚖️ 比輕重",
+        tip: "兩隻手各拿一樣東西比比看,比用眼睛看更準" },
+    ],
+  },
+  {
+    subject: "num",
+    label: "🧮 加與減",
+    items: [
+      { mode: "add", color: "#F0932B", dark: "#C4731A", label: "➕ 加加看",
+        tip: "先數左邊再接著數右邊,不要從頭重數" },
+      { mode: "numsub", color: "#EB4D4B", dark: "#B83A39", label: "➖ 減減看",
+        tip: "被劃掉的就是拿走的;剩下的再數一次就好" },
+      { mode: "numten", color: "#0FB9B1", dark: "#0A8880", label: "🔟 湊十高手",
+        tip: "湊十是進位加法的地基,值得多玩幾次" },
+      { mode: "numsplit", color: "#6AB04C", dark: "#4F8438", label: "🍰 分一分",
+        tip: "用真的餅乾分兩堆做一次,她馬上就懂" },
+      { mode: "numequal", color: "#22A6B3", dark: "#187D87", label: "🟰 一樣多嗎?",
+        tip: "不用數也可以:一個對一個,有剩下就是比較多" },
+    ],
+  },
+  {
+    subject: "num",
+    label: "🔁 數字規律",
+    items: [
+      { mode: "nummissing", color: "#E056FD", dark: "#AF44CA", label: "🕵️ 少了誰?(數字)",
+        tip: "從前一個數字往下數一個就找得到" },
+      { mode: "numback", color: "#B33771", dark: "#8C2B5A", label: "🔙 往回數",
+        tip: "倒數比正數難很多,可以先一起大聲倒數 10 到 1" },
+      { mode: "numskip", color: "#FF9F1A", dark: "#CC7F14", label: "🦘 跳著數",
+        tip: "兩個兩個數、五個五個數,是乘法的前身" },
+      { mode: "numpattern", color: "#FD7272", dark: "#CA5B5B", label: "🔁 找規律",
+        tip: "請她把規律唸出來:蘋果、香蕉、蘋果、香蕉…" },
+    ],
+  },
+  {
+    subject: "num",
+    label: "🔷 形狀",
+    items: [
+      { mode: "shapelearn", color: "#7158E2", dark: "#5341B4", label: "🔷 認識形狀",
+        tip: "玩完在家裡找找看:時鐘是圓形、門是長方形" },
+      { mode: "shapefind", color: "#12CBC4", dark: "#0E9F9A", label: "👀 形狀找找看",
+        tip: "顏色和大小會變,只看「形狀」才不會被騙" },
+      { mode: "shapecount", color: "#F97F51", dark: "#C6663F", label: "🔺 數形狀",
+        tip: "教她先用手指把同一種形狀圈起來再數" },
+    ],
+  },
+  {
+    subject: "num",
+    label: "🕐 生活數學",
+    items: [
+      { mode: "numclock", color: "#0984E3", dark: "#0668B0", label: "🕐 認時鐘",
+        tip: "先只看短針指哪裡;整點和半點分清楚就很棒了" },
+      { mode: "numcoin", color: "#D4A94E", dark: "#A8863E", label: "🪙 認錢幣",
+        tip: "拿真的零錢玩一次,買東西時讓她付錢最有效" },
+      { mode: "numordinal", color: "#BE2EDD", dark: "#8F1DAD", label: "🚩 第幾個",
+        tip: "「幾個」和「第幾個」不一樣,排隊時可以順便練" },
+      { mode: "numshare", color: "#00A8A8", dark: "#007878", label: "🍪 分一分點心",
+        tip: "分點心時真的一人一個輪流發,除法就從這裡開始" },
     ],
   },
   {
@@ -8150,6 +9682,7 @@ export default function WordPop() {
       localStorage.removeItem(TRACE_KEY);
       localStorage.removeItem(BOPO_TRACE_KEY);
       localStorage.removeItem(ZH_SIGHT_KEY);
+      localStorage.removeItem(NUM_TRACE_KEY);
     } catch { /* 清不掉就算了 */ }
     setStars(0);
     setConfirmClear(false);
@@ -8468,6 +10001,34 @@ canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
         {mode === "zhsize" && <ZhSizeMode speak={speak} addStars={addStars} />}
         {mode === "zhstory" && <ZhStoryMode speak={speak} addStars={addStars} />}
         {mode === "zhsight" && <ZhSightMode speak={speak} addStars={addStars} />}
+        {mode === "numlearn" && <NumLearnMode speak={speak} />}
+        {mode === "numlisten" && <NumListenMode speak={speak} addStars={addStars} />}
+        {mode === "numwrite" && <NumWriteMode speak={speak} addStars={addStars} />}
+        {mode === "numcount" && <NumCountMode speak={speak} addStars={addStars} />}
+        {mode === "numtap" && <NumTapMode speak={speak} addStars={addStars} />}
+        {mode === "numdots" && <NumDotsMode speak={speak} addStars={addStars} />}
+        {mode === "numbubble" && <NumBubbleMode speak={speak} addStars={addStars} />}
+        {mode === "numpairs" && <NumPairsMode speak={speak} addStars={addStars} />}
+        {mode === "nummore" && <NumMoreMode speak={speak} addStars={addStars} />}
+        {mode === "numcompare" && <NumCompareMode speak={speak} addStars={addStars} />}
+        {mode === "numsort" && <NumSortMode speak={speak} addStars={addStars} />}
+        {mode === "numlong" && <NumLongMode speak={speak} addStars={addStars} />}
+        {mode === "numheavy" && <NumHeavyMode speak={speak} addStars={addStars} />}
+        {mode === "numsub" && <NumSubMode speak={speak} addStars={addStars} />}
+        {mode === "numten" && <NumTenMode speak={speak} addStars={addStars} />}
+        {mode === "numsplit" && <NumSplitMode speak={speak} addStars={addStars} />}
+        {mode === "numequal" && <NumEqualMode speak={speak} addStars={addStars} />}
+        {mode === "nummissing" && <NumMissingMode speak={speak} addStars={addStars} />}
+        {mode === "numback" && <NumBackMode speak={speak} addStars={addStars} />}
+        {mode === "numskip" && <NumSkipMode speak={speak} addStars={addStars} />}
+        {mode === "numpattern" && <NumPatternMode speak={speak} addStars={addStars} />}
+        {mode === "shapelearn" && <ShapeLearnMode speak={speak} />}
+        {mode === "shapefind" && <ShapeFindMode speak={speak} addStars={addStars} />}
+        {mode === "shapecount" && <ShapeCountMode speak={speak} addStars={addStars} />}
+        {mode === "numclock" && <NumClockMode speak={speak} addStars={addStars} />}
+        {mode === "numcoin" && <NumCoinMode speak={speak} addStars={addStars} />}
+        {mode === "numordinal" && <NumOrdinalMode speak={speak} addStars={addStars} />}
+        {mode === "numshare" && <NumShareMode speak={speak} addStars={addStars} />}
       </div>
     </div>
   );
