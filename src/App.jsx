@@ -361,7 +361,7 @@ const SIGHT_WORDS = [
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
 // 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
-const APP_VERSION = "v1.27";
+const APP_VERSION = "v1.28";
 const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
@@ -5837,8 +5837,20 @@ function WriteMode({ speak, addStars }) {
 
 // ---------- 主程式 ----------
 // 首頁選單:同類遊戲放同一組
+// 首頁科目分頁:ABC / 注音 / 數字 分開顯示,不混在一起
+const SUBJECTS = [
+  { key: "abc",  icon: "🔤", label: "ABC",   color: T.purple, dark: T.purpleDark,
+    sub: "英文:聽、說、讀、寫、理解" },
+  { key: "bopo", icon: "ㄅ",  label: "ㄅㄆㄇ", color: "#D63031", dark: "#A32320",
+    sub: "注音:認符號、找首音、標準筆順手寫" },
+  { key: "num",  icon: "🔢", label: "數字",  color: "#3867D6", dark: "#284D9E",
+    sub: "數字:順序與加法" },
+];
+const SUBJECT_KEY = "wordpop-subject";
+
 const MENU_GROUPS = [
   {
+    subject: "abc",
     label: "🧠 認識單字",
     items: [
       { mode: "learn", color: T.purple, dark: T.purpleDark, label: "📚 學習單字",
@@ -5848,6 +5860,7 @@ const MENU_GROUPS = [
     ],
   },
   {
+    subject: "abc",
     label: "👂 聽聲音找字",
     items: [
       { mode: "quiz", color: T.pink, dark: "#D14B7D", label: "🎯 聽力挑戰",
@@ -5863,6 +5876,7 @@ const MENU_GROUPS = [
     ],
   },
   {
+    subject: "abc",
     label: "💬 聽懂句子",
     items: [
       { mode: "listendo", color: "#E17055", dark: "#B3543F", label: "🎧 聽指令點圖",
@@ -5878,6 +5892,7 @@ const MENU_GROUPS = [
     ],
   },
   {
+    subject: "abc",
     label: "📖 拼讀 Phonics",
     items: [
       { mode: "syllable", color: "#00A8A8", dark: "#007878", label: "👏 音節拍拍",
@@ -5889,6 +5904,7 @@ const MENU_GROUPS = [
     ],
   },
   {
+    subject: "abc",
     label: "🧩 拼字與字母",
     items: [
       { mode: "spell", color: "#6AB04C", dark: "#4F8438", label: "🧩 拼字小廚師",
@@ -5904,6 +5920,7 @@ const MENU_GROUPS = [
     ],
   },
   {
+    subject: "bopo",
     label: "ㄅ 注音 ㄅㄆㄇ",
     items: [
       { mode: "bopoorder", color: "#D63031", dark: "#A32320", label: "ㄅ ㄅㄆㄇ 接接看",
@@ -5917,6 +5934,7 @@ const MENU_GROUPS = [
     ],
   },
   {
+    subject: "num",
     label: "🔢 數字與算數",
     items: [
       { mode: "numorder", color: "#3867D6", dark: "#284D9E", label: "🔢 數字接龍",
@@ -5926,6 +5944,7 @@ const MENU_GROUPS = [
     ],
   },
   {
+    subject: "abc",
     label: "🧠 動動腦",
     items: [
       { mode: "missing", color: "#4834D4", dark: "#332592", label: "🧠 少了誰?",
@@ -5939,6 +5958,7 @@ const MENU_GROUPS = [
     ],
   },
   {
+    subject: "abc",
     label: "📖 故事與分類",
     items: [
       { mode: "story", color: "#786FA6", dark: "#5A5280", label: "📖 迷你小故事",
@@ -5948,6 +5968,7 @@ const MENU_GROUPS = [
     ],
   },
   {
+    subject: "abc",
     label: "🔤 常見字 Sight Words(同一套字)",
     items: [
       { mode: "sight", color: "#3FA7E0", dark: "#2B7BAB", label: "👀 認字快手",
@@ -5957,6 +5978,7 @@ const MENU_GROUPS = [
     ],
   },
   {
+    subject: "abc",
     label: "🗣️ 開口與動手",
     items: [
       { mode: "sayit", color: "#F0932B", dark: "#C4731A", label: "🎤 跟讀小勇士",
@@ -5975,6 +5997,17 @@ export default function WordPop() {
   const [confirmClear, setConfirmClear] = useState(false);
   const [cleared, setCleared] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  // 目前選的科目分頁(記住上次選的)
+  const [subject, setSubject] = useState(() => {
+    try {
+      const v = localStorage.getItem(SUBJECT_KEY);
+      return SUBJECTS.some((s) => s.key === v) ? v : "abc";
+    } catch { return "abc"; }
+  });
+  const selectSubject = (k) => {
+    setSubject(k);
+    try { localStorage.setItem(SUBJECT_KEY, k); } catch { /* ignore */ }
+  };
 
   // 首頁預熱常用字的音檔,第一個遊戲一點就即時出聲
   useEffect(() => {
@@ -6073,11 +6106,38 @@ canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
             <h1 style={{ color: T.ink, fontSize: 30, margin: "0 0 6px" }}>
               點一下,單字 POP 出聲音!
             </h1>
-            <p style={{ color: T.sub, fontSize: 16, margin: "0 0 28px" }}>
-              先在學習模式聽熟,再到挑戰模式測驗聽力
+            <p style={{ color: T.sub, fontSize: 16, margin: "0 0 18px" }}>
+              {SUBJECTS.find((s) => s.key === subject)?.sub}
             </p>
+
+            {/* 科目分頁:ABC / ㄅㄆㄇ / 數字 分開,不混在一起 */}
+            <div style={{
+              display: "grid", gridTemplateColumns: `repeat(${SUBJECTS.length}, 1fr)`,
+              gap: 8, maxWidth: 420, margin: "0 auto 22px",
+            }}>
+              {SUBJECTS.map((s) => {
+                const on = s.key === subject;
+                return (
+                  <button key={s.key} onClick={() => selectSubject(s.key)}
+                    style={{
+                      fontFamily: "inherit", fontWeight: 700, fontSize: 16,
+                      padding: "12px 4px 10px", borderRadius: 18, cursor: "pointer",
+                      border: "none",
+                      background: on ? s.color : "#E8E4FA",
+                      color: on ? "#fff" : T.sub,
+                      boxShadow: on ? `0 4px 0 ${s.dark}` : "none",
+                      transform: on ? "none" : "translateY(2px)",
+                      transition: "all .15s",
+                    }}>
+                    <div style={{ fontSize: 22, lineHeight: 1.1 }}>{s.icon}</div>
+                    {s.label}
+                  </button>
+                );
+              })}
+            </div>
+
             <div style={{ maxWidth: 420, margin: "0 auto" }}>
-              {MENU_GROUPS.map((group) => (
+              {MENU_GROUPS.filter((g) => g.subject === subject).map((group) => (
                 <div key={group.label} style={{ marginBottom: 18 }}>
                   <div
                     style={{
