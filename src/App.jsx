@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { BOPO_STROKES } from "./bopomofoStrokes.js";
 
 // ---------- 單字庫(大班程度・約 200 字)----------
 const WORD_BANK = {
@@ -360,7 +361,7 @@ const SIGHT_WORDS = [
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
 // 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
-const APP_VERSION = "v1.26";
+const APP_VERSION = "v1.27";
 const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
@@ -5051,7 +5052,32 @@ function drawWritingLines(g) {
   g.setLineDash([]);
 }
 
-function TraceCanvas({ char, strokeColor, onStrokeDone, onComplete }) {
+// 田字格(注音/國字用):外框 + 中間十字虛線
+function drawTianGrid(g) {
+  const a = TRACE_PAD - 6, b = TRACE_SIZE - TRACE_PAD + 6, m = (a + b) / 2;
+  g.fillStyle = "#FFFBEA";
+  g.fillRect(a, a, b - a, b - a);
+  g.setLineDash([]);
+  g.lineWidth = 3;
+  g.strokeStyle = "#F2A9BC";
+  g.strokeRect(a, a, b - a, b - a);
+  g.setLineDash([10, 8]);
+  g.lineWidth = 2.5;
+  g.strokeStyle = "#E7B9C6";
+  g.beginPath(); g.moveTo(a, m); g.lineTo(b, m); g.moveTo(m, a); g.lineTo(m, b); g.stroke();
+  g.setLineDash([]);
+}
+
+// 依狀態取得筆畫底圖顏色
+const bodyColorFor = (i, activeIdx) =>
+  i < activeIdx ? "#CDEFDD" : i === activeIdx ? "#E6E0FB" : "#F1EEFB";
+
+function TraceCanvas({
+  char, strokeColor, onStrokeDone, onComplete,
+  strokeData,   // 外部筆畫(0–100 座標);未給則用 LETTER_STROKES
+  outlines,     // 外部字形輪廓(SVG path,0–100 座標),有給就用填色輪廓當底圖
+  grid = "latin", // latin = 四線三格,tian = 田字格
+}) {
   const guideRef = useRef(null);
   const drawRef = useRef(null);
   const rafRef = useRef(0);
@@ -5063,19 +5089,39 @@ function TraceCanvas({ char, strokeColor, onStrokeDone, onComplete }) {
   const [strokeIdx, setStrokeIdx] = useState(0);
   const [hint, setHint] = useState("");
 
-  // 這個字母的筆畫(換算成畫布像素)
+  // 這個字的筆畫(換算成畫布像素)
   const strokes = useMemo(() => {
-    const s = LETTER_STROKES[char];
+    const s = strokeData || LETTER_STROKES[char];
     return s ? s.map((p) => p.map(toPx)) : null;
-  }, [char]);
+  }, [char, strokeData]);
   const total = strokes ? strokes.length : 1;
+
+  // 外部輪廓 → Path2D(畫布座標)
+  const outlinePaths = useMemo(() => {
+    if (!outlines || typeof Path2D === "undefined") return null;
+    try {
+      return outlines.map((d) => {
+        const p = new Path2D();
+        const m = new DOMMatrix().translate(TRACE_PAD, TRACE_PAD).scale(TRACE_SC);
+        p.addPath(new Path2D(d), m);
+        return p;
+      });
+    } catch {
+      return null;
+    }
+  }, [outlines]);
+
+  const drawGrid = useCallback((g) => {
+    if (grid === "tian") drawTianGrid(g);
+    else drawWritingLines(g);
+  }, [grid]);
 
   // 畫引導:已完成的筆變綠打勾,目前這筆亮起(虛線+編號+箭頭+起點光圈),還沒到的筆淡淡的
   const paintGuide = useCallback(
     (activeIdx) => {
       const g = guideRef.current.getContext("2d");
       g.clearRect(0, 0, TRACE_SIZE, TRACE_SIZE);
-      drawWritingLines(g); // 四線三格墊底
+      drawGrid(g);
       if (!strokes) {
         g.font = `700 ${TRACE_SIZE * 0.72}px 'Fredoka', 'Comic Sans MS', ui-rounded, sans-serif`;
         g.textAlign = "center";
@@ -5087,16 +5133,22 @@ function TraceCanvas({ char, strokeColor, onStrokeDone, onComplete }) {
       g.lineCap = "round";
       g.lineJoin = "round";
       g.setLineDash([]);
-      // 筆身(依狀態上色)
-      strokes.forEach((s, i) => {
-        g.lineWidth = 46;
-        g.strokeStyle =
-          i < activeIdx ? "#CDEFDD" : i === activeIdx ? "#E6E0FB" : "#F1EEFB";
-        g.beginPath();
-        g.moveTo(s[0][0], s[0][1]);
-        for (const [x, y] of s) g.lineTo(x, y);
-        g.stroke();
-      });
+      // 筆身(依狀態上色):有輪廓資料就填真實字形,否則用粗線條近似
+      if (outlinePaths) {
+        outlinePaths.forEach((p, i) => {
+          g.fillStyle = bodyColorFor(i, activeIdx);
+          g.fill(p);
+        });
+      } else {
+        strokes.forEach((s, i) => {
+          g.lineWidth = 46;
+          g.strokeStyle = bodyColorFor(i, activeIdx);
+          g.beginPath();
+          g.moveTo(s[0][0], s[0][1]);
+          for (const [x, y] of s) g.lineTo(x, y);
+          g.stroke();
+        });
+      }
       // 目前這筆的虛線中心線
       const act = strokes[activeIdx];
       if (act) {
@@ -5165,25 +5217,30 @@ function TraceCanvas({ char, strokeColor, onStrokeDone, onComplete }) {
         g.fillText(String(i + 1), bx, by + 1);
       });
     },
-    [strokes, char]
+    [strokes, char, outlinePaths, drawGrid]
   );
 
   // 全筆順示範用的底圖(每一筆都顯示編號和箭頭)
   const paintDemoBase = useCallback(() => {
     const g = guideRef.current.getContext("2d");
     g.clearRect(0, 0, TRACE_SIZE, TRACE_SIZE);
-    drawWritingLines(g);
+    drawGrid(g);
     if (!strokes) return;
     g.lineCap = "round";
     g.lineJoin = "round";
-    g.lineWidth = 46;
-    g.strokeStyle = "#E6E0FB";
     g.setLineDash([]);
-    for (const s of strokes) {
-      g.beginPath();
-      g.moveTo(s[0][0], s[0][1]);
-      for (const [x, y] of s) g.lineTo(x, y);
-      g.stroke();
+    if (outlinePaths) {
+      g.fillStyle = "#E6E0FB";
+      for (const p of outlinePaths) g.fill(p);
+    } else {
+      g.lineWidth = 46;
+      g.strokeStyle = "#E6E0FB";
+      for (const s of strokes) {
+        g.beginPath();
+        g.moveTo(s[0][0], s[0][1]);
+        for (const [x, y] of s) g.lineTo(x, y);
+        g.stroke();
+      }
     }
     const badges = [];
     strokes.forEach((s, i) => {
@@ -5213,7 +5270,7 @@ function TraceCanvas({ char, strokeColor, onStrokeDone, onComplete }) {
       g.textBaseline = "middle";
       g.fillText(String(i + 1), bx, by + 1);
     });
-  }, [strokes]);
+  }, [strokes, outlinePaths, drawGrid]);
 
   // 筆順示範:小鉛筆照 1→2→3 順序畫一次給小朋友看
   const playDemo = useCallback(() => {
@@ -5468,6 +5525,134 @@ function TraceCanvas({ char, strokeColor, onStrokeDone, onComplete }) {
 }
 
 const TRACE_COLORS = ["#6C5CE7", "#FF6B9D", "#4ECB71", "#F0932B", "#3FA7E0"];
+
+// ---------- 注音手寫練習(教育部標準筆順)----------
+const BOPO_TRACE_KEY = "wordpop-bopo-done";
+function loadBopoDone() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(BOPO_TRACE_KEY) || "[]");
+    return Array.isArray(arr) ? new Set(arr) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function BopoWriteMode({ speak, addStars }) {
+  const [idx, setIdx] = useState(0);
+  const [celebrate, setCelebrate] = useState(false);
+  const [cheer, setCheer] = useState("");
+  const [doneSet, setDoneSet] = useState(loadBopoDone);
+  const item = BOPOMOFO[idx];
+  const s = item.s;
+  const data = BOPO_STROKES[s];
+  const color = TRACE_COLORS[idx % TRACE_COLORS.length];
+
+  const select = (i) => {
+    setIdx(i);
+    setCelebrate(false);
+    setCheer("");
+    zh(speak, BOPOMOFO[i].sound, { rate: 0.8 });
+  };
+
+  const markDone = () => {
+    setCelebrate(true);
+    setCheer("");
+    addStars(2);
+    zh(speak, `${item.sound}!${item.word}`, { rate: 0.9 });
+    setDoneSet((prev) => {
+      const next = new Set(prev);
+      next.add(s);
+      try { localStorage.setItem(BOPO_TRACE_KEY, JSON.stringify([...next])); } catch { /* ignore */ }
+      return next;
+    });
+  };
+
+  const onStrokeDone = (n, tot) => {
+    setCheer(`第 ${n} 筆寫對了!換第 ${n + 1} 筆 👍`);
+    setTimeout(() => setCheer(""), 1400);
+  };
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>
+        照教育部標準筆順,從 1 號圓點跟著箭頭寫!已完成{" "}
+        <b style={{ color: T.purple }}>{doneSet.size}</b> / {BOPOMOFO.length}
+      </p>
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center",
+        gap: 10, marginBottom: 12 }}>
+        <ChunkyButton color={T.yellow} dark={T.yellowDark}
+          onClick={() => zh(speak, item.sound, { rate: 0.8 })}
+          style={{ color: T.ink, padding: "10px 18px", fontSize: 16 }}>
+          🔊 {s} 怎麼唸
+        </ChunkyButton>
+        <button
+          onClick={() => zh(speak, item.word, { rate: 0.85 })}
+          style={{
+            fontFamily: "inherit", fontWeight: 700, fontSize: 15,
+            background: T.card, color: T.ink, border: "3px solid #E8E4FA",
+            borderRadius: 16, padding: "8px 14px", cursor: "pointer",
+            boxShadow: "0 4px 0 #E0DBF7",
+          }}>
+          {item.emoji} {item.word}
+        </button>
+      </div>
+
+      <TraceCanvas
+        char={s}
+        strokeColor={color}
+        strokeData={data?.strokes}
+        outlines={data?.outlines}
+        grid="tian"
+        onStrokeDone={onStrokeDone}
+        onComplete={markDone}
+      />
+
+      {celebrate ? (
+        <div style={{ marginTop: 14 }}>
+          <div style={{ fontSize: 22, color: T.greenDark, fontWeight: 700 }}>
+            🎉 太棒了!{s} 寫得真漂亮!+2 ⭐
+          </div>
+          <ChunkyButton color={T.green} dark={T.greenDark}
+            onClick={() => select((idx + 1) % BOPOMOFO.length)}
+            style={{ marginTop: 10 }}>
+            下一個注音 →
+          </ChunkyButton>
+        </div>
+      ) : (
+        cheer && (
+          <div style={{ marginTop: 14, fontSize: 16, color: T.sub, fontWeight: 700 }}>
+            {cheer}
+          </div>
+        )
+      )}
+
+      {/* 注音選擇表 */}
+      <div style={{
+        display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(46px, 1fr))",
+        gap: 8, marginTop: 18,
+      }}>
+        {BOPOMOFO.map((b, i) => {
+          const finished = doneSet.has(b.s);
+          const active = i === idx;
+          return (
+            <button key={b.s} onClick={() => select(i)}
+              style={{
+                fontFamily: "inherit", fontWeight: 700, fontSize: 22,
+                padding: "10px 0", borderRadius: 14, cursor: "pointer",
+                border: `3px solid ${active ? T.purpleDark : finished ? T.green : "#E8E4FA"}`,
+                background: active ? T.purple : finished ? "#E9FBEF" : T.card,
+                color: active ? "#fff" : T.ink,
+                transition: "all .15s",
+              }}>
+              {b.s}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function WriteMode({ speak, addStars }) {
   const [caseMode, setCaseMode] = useState("upper"); // upper | lower
@@ -5727,6 +5912,8 @@ const MENU_GROUPS = [
         tip: "聽詞找開頭的注音;答對後跟著唸一次「ㄅ,爸爸」" },
       { mode: "bopomatch", color: "#00B894", dark: "#008B6E", label: "🧩 注音配對",
         tip: "看注音找圖片,是獵人的反向練習" },
+      { mode: "bopowrite", color: "#E17055", dark: "#B3543F", label: "✍️ 注音手寫",
+        tip: "教育部標準筆順;先按「筆順示範」看一次再自己寫" },
     ],
   },
   {
@@ -6058,6 +6245,7 @@ canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
         {mode === "bopoorder" && <BopoOrderMode speak={speak} addStars={addStars} />}
         {mode === "bopohunt" && <BopoHuntMode speak={speak} addStars={addStars} />}
         {mode === "bopomatch" && <BopoMatchMode speak={speak} addStars={addStars} />}
+        {mode === "bopowrite" && <BopoWriteMode speak={speak} addStars={addStars} />}
       </div>
     </div>
   );
