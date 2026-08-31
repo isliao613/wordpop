@@ -361,7 +361,7 @@ const SIGHT_WORDS = [
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
 // 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
-const APP_VERSION = "v1.29";
+const APP_VERSION = "v1.30";
 const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
@@ -5173,6 +5173,1451 @@ function BopoSayMode({ speak, addStars }) {
   );
 }
 
+
+// ========== ㄅㄆㄇ 共用:中文題庫 + 測驗骨架 ==========
+
+// 中文常用詞(注音 + 圖示 + 分類),供多個注音遊戲共用
+const ZH_WORDS = [
+  { w: "貓", zhu: "ㄇㄠ", e: "🐱", cat: "動物" },
+  { w: "狗", zhu: "ㄍㄡˇ", e: "🐶", cat: "動物" },
+  { w: "豬", zhu: "ㄓㄨ", e: "🐷", cat: "動物" },
+  { w: "牛", zhu: "ㄋㄧㄡˊ", e: "🐮", cat: "動物" },
+  { w: "馬", zhu: "ㄇㄚˇ", e: "🐴", cat: "動物" },
+  { w: "羊", zhu: "ㄧㄤˊ", e: "🐑", cat: "動物" },
+  { w: "魚", zhu: "ㄩˊ", e: "🐟", cat: "動物" },
+  { w: "鳥", zhu: "ㄋㄧㄠˇ", e: "🐦", cat: "動物" },
+  { w: "兔子", zhu: "ㄊㄨˋ˙ㄗ", e: "🐰", cat: "動物" },
+  { w: "老虎", zhu: "ㄌㄠˇㄏㄨˇ", e: "🐯", cat: "動物" },
+  { w: "獅子", zhu: "ㄕ˙ㄗ", e: "🦁", cat: "動物" },
+  { w: "大象", zhu: "ㄉㄚˋㄒㄧㄤˋ", e: "🐘", cat: "動物" },
+  { w: "蘋果", zhu: "ㄆㄧㄥˊㄍㄨㄛˇ", e: "🍎", cat: "食物" },
+  { w: "香蕉", zhu: "ㄒㄧㄤㄐㄧㄠ", e: "🍌", cat: "食物" },
+  { w: "西瓜", zhu: "ㄒㄧㄍㄨㄚ", e: "🍉", cat: "食物" },
+  { w: "草莓", zhu: "ㄘㄠˇㄇㄟˊ", e: "🍓", cat: "食物" },
+  { w: "蛋", zhu: "ㄉㄢˋ", e: "🥚", cat: "食物" },
+  { w: "麵包", zhu: "ㄇㄧㄢˋㄅㄠ", e: "🍞", cat: "食物" },
+  { w: "牛奶", zhu: "ㄋㄧㄡˊㄋㄞˇ", e: "🥛", cat: "食物" },
+  { w: "糖果", zhu: "ㄊㄤˊㄍㄨㄛˇ", e: "🍬", cat: "食物" },
+  { w: "車子", zhu: "ㄔㄜ˙ㄗ", e: "🚗", cat: "交通" },
+  { w: "公車", zhu: "ㄍㄨㄥㄔㄜ", e: "🚌", cat: "交通" },
+  { w: "飛機", zhu: "ㄈㄟㄐㄧ", e: "✈️", cat: "交通" },
+  { w: "船", zhu: "ㄔㄨㄢˊ", e: "⛵", cat: "交通" },
+  { w: "腳踏車", zhu: "ㄐㄧㄠˇㄊㄚˋㄔㄜ", e: "🚲", cat: "交通" },
+  { w: "門", zhu: "ㄇㄣˊ", e: "🚪", cat: "居家" },
+  { w: "燈", zhu: "ㄉㄥ", e: "💡", cat: "居家" },
+  { w: "床", zhu: "ㄔㄨㄤˊ", e: "🛏️", cat: "居家" },
+  { w: "杯子", zhu: "ㄅㄟ˙ㄗ", e: "🥤", cat: "居家" },
+  { w: "書", zhu: "ㄕㄨ", e: "📖", cat: "學校" },
+  { w: "鉛筆", zhu: "ㄑㄧㄢㄅㄧˇ", e: "✏️", cat: "學校" },
+  { w: "椅子", zhu: "ㄧˇ˙ㄗ", e: "🪑", cat: "學校" },
+  { w: "書包", zhu: "ㄕㄨㄅㄠ", e: "🎒", cat: "學校" },
+  { w: "花", zhu: "ㄏㄨㄚ", e: "🌸", cat: "自然" },
+  { w: "樹", zhu: "ㄕㄨˋ", e: "🌳", cat: "自然" },
+  { w: "月亮", zhu: "ㄩㄝˋㄌㄧㄤˋ", e: "🌙", cat: "自然" },
+  { w: "太陽", zhu: "ㄊㄞˋㄧㄤˊ", e: "☀️", cat: "自然" },
+  { w: "水", zhu: "ㄕㄨㄟˇ", e: "💧", cat: "自然" },
+  { w: "雨傘", zhu: "ㄩˇㄙㄢˇ", e: "☂️", cat: "居家" },
+  { w: "帽子", zhu: "ㄇㄠˋ˙ㄗ", e: "🧢", cat: "衣服" },
+  { w: "襪子", zhu: "ㄨㄚˋ˙ㄗ", e: "🧦", cat: "衣服" },
+  { w: "褲子", zhu: "ㄎㄨˋ˙ㄗ", e: "👖", cat: "衣服" },
+  { w: "手", zhu: "ㄕㄡˇ", e: "✋", cat: "身體" },
+  { w: "耳朵", zhu: "ㄦˇ˙ㄉㄨㄛ", e: "👂", cat: "身體" },
+  { w: "眼睛", zhu: "ㄧㄢˇ˙ㄐㄧㄥ", e: "👀", cat: "身體" },
+  { w: "嘴巴", zhu: "ㄗㄨㄟˇ˙ㄅㄚ", e: "👄", cat: "身體" },
+];
+
+// 中文顏色 / 相反詞 / 大小排序 / 方位
+const ZH_COLORS = [
+  { w: "紅色", css: "#E74C3C" }, { w: "藍色", css: "#3498DB" },
+  { w: "黃色", css: "#F1C40F" }, { w: "綠色", css: "#2ECC71" },
+  { w: "紫色", css: "#9B59B6" }, { w: "粉紅色", css: "#FD79A8" },
+  { w: "橘色", css: "#E67E22" }, { w: "咖啡色", css: "#8D6E63" },
+];
+const ZH_OPPOSITES = [
+  { a: { w: "大", e: "🐘" }, b: { w: "小", e: "🐭" } },
+  { a: { w: "熱", e: "🥵" }, b: { w: "冷", e: "🥶" } },
+  { a: { w: "高興", e: "😀" }, b: { w: "難過", e: "😢" } },
+  { a: { w: "上面", e: "⬆️" }, b: { w: "下面", e: "⬇️" } },
+  { a: { w: "快", e: "🐇" }, b: { w: "慢", e: "🐢" } },
+  { a: { w: "濕", e: "💦" }, b: { w: "乾", e: "🌵" } },
+  { a: { w: "白天", e: "☀️" }, b: { w: "晚上", e: "🌙" } },
+  { a: { w: "長", e: "🐍" }, b: { w: "短", e: "🐛" } },
+  { a: { w: "多", e: "🍇" }, b: { w: "少", e: "🍒" } },
+];
+const ZH_SIZE = [
+  { w: "螞蟻", e: "🐜", size: 1 }, { w: "老鼠", e: "🐭", size: 2 },
+  { w: "魚", e: "🐟", size: 3 }, { w: "貓", e: "🐱", size: 4 },
+  { w: "狗", e: "🐶", size: 5 }, { w: "豬", e: "🐷", size: 6 },
+  { w: "馬", e: "🐴", size: 7 }, { w: "牛", e: "🐮", size: 8 },
+  { w: "大象", e: "🐘", size: 9 }, { w: "鯨魚", e: "🐳", size: 10 },
+];
+const ZH_PREPS = [
+  { w: "上面", prep: "on" }, { w: "裡面", prep: "in" },
+  { w: "下面", prep: "under" }, { w: "旁邊", prep: "next to" },
+];
+
+// 依韻母分家族(押韻/韻母家族用):取注音最後一個韻母符號
+const ZH_FINALS = "ㄚㄛㄜㄝㄞㄟㄠㄡㄢㄣㄤㄥㄦㄧㄨㄩ".split("");
+const stripTone = (z) => z.replace(/[ˊˇˋ˙]/g, "");
+function finalOf(zhu) {
+  const z = stripTone(zhu);
+  for (let i = z.length - 1; i >= 0; i--) if (ZH_FINALS.includes(z[i])) return z[i];
+  return null;
+}
+// 只取「單字」(一個音節)來做韻母家族,多字詞的尾音會混淆
+const ZH_RHYME_POOL = ZH_WORDS.filter((x) => x.w.length === 1 && finalOf(x.zhu));
+const ZH_FAMILIES = ZH_FINALS
+  .map((f) => ({ f, items: ZH_RHYME_POOL.filter((x) => finalOf(x.zhu) === f) }))
+  .filter((g) => g.items.length >= 2);
+
+// ---------- 共用測驗骨架(8 題、答錯只鼓勵、答對加星)----------
+function ZhQuiz({
+  speak, addStars, TOTAL = 8, hint, makeQ, say,
+  options, keyOf, isRight, renderPrompt, renderOption,
+  onRight, onWrong, cols = 3, delay = 1800,
+  doneIcon = "🏆", doneLabel = (r, t) => `答對 ${r} / ${t} 題!`,
+}) {
+  const [roundNo, setRoundNo] = useState(1);
+  const [right, setRight] = useState(0);
+  const [q, setQ] = useState(makeQ);
+  const [picked, setPicked] = useState(null);
+  const [done, setDone] = useState(false);
+
+  // say 由父層每次 render 重建,用 ref 固定,避免加星後重新念題目
+  const sayRef = useRef(say);
+  sayRef.current = say;
+  const sayQ = useCallback(() => sayRef.current(q), [q]);
+  useEffect(() => {
+    const t = setTimeout(() => sayRef.current(q), 400);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  const pick = (o) => {
+    if (picked !== null) return;
+    setPicked(keyOf(o));
+    const ok = isRight(o, q);
+    if (ok) { setRight((r) => r + 1); addStars(1); onRight?.(q, o); }
+    else onWrong?.(q, o);
+    setTimeout(() => {
+      if (roundNo >= TOTAL) setDone(true);
+      else { setRoundNo((r) => r + 1); setQ(makeQ()); setPicked(null); }
+    }, delay);
+  };
+
+  const restart = () => {
+    setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false);
+  };
+
+  if (done)
+    return (
+      <div style={{ textAlign: "center", padding: "24px 0" }}>
+        <div style={{ fontSize: 56 }}>{right >= TOTAL - 1 ? "🏆" : doneIcon}</div>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{doneLabel(right, TOTAL)}</h2>
+        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }} onClick={restart}>
+          再玩一次
+        </ChunkyButton>
+      </div>
+    );
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
+        第 {roundNo} / {TOTAL} 題・{hint}
+      </div>
+      <div style={{ background: T.card, borderRadius: 22, padding: "18px 16px",
+        marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
+        {renderPrompt(q, picked)}
+        <div style={{ marginTop: 10 }}>
+          <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={sayQ} style={{ color: T.ink }}>
+            🔊 再聽一次
+          </ChunkyButton>
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 12 }}>
+        {options(q).map((o) => {
+          const k = keyOf(o);
+          const ans = isRight(o, q);
+          let bg = T.card, bd = "#E8E4FA";
+          if (picked !== null) {
+            if (ans) { bg = "#E9FBEF"; bd = T.green; }
+            else if (k === picked) { bg = "#FFF7DA"; bd = T.yellow; }
+          }
+          return (
+            <button key={k} onClick={() => pick(o)}
+              style={{
+                background: bg, border: `3px solid ${bd}`, borderRadius: 18,
+                padding: "16px 4px", fontFamily: "inherit",
+                cursor: picked !== null ? "default" : "pointer",
+                boxShadow: "0 5px 0 #E0DBF7", transition: "all .15s",
+              }}>
+              {renderOption(o, q, picked)}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// 小工具:從陣列取 n 個不重複、且排除某項
+const pickOthers = (arr, n, notKey, keyFn) =>
+  shuffle(arr.filter((x) => keyFn(x) !== notKey)).slice(0, n);
+
+// ========== ㄅㄆㄇ:14 個以 ZhQuiz 骨架實作的遊戲 ==========
+const BOPO_SOUND = Object.fromEntries(BOPOMOFO.map((b) => [b.s, b.sound]));
+const ZH_CONSONANTS = BOPOMOFO.slice(0, 21);   // 聲母 21
+const ZH_VOWELS = BOPOMOFO.slice(24);          // 韻母 13
+const ZH_NUM = ["零", "一", "二", "三", "四", "五", "六"];
+const pickOne = (a) => a[Math.floor(Math.random() * a.length)];
+
+// 介音在中間的字(中間的音用)
+const ZH_MEDIAL = [
+  { w: "花", zhu: "ㄏㄨㄚ", m: "ㄨ", e: "🌸" },
+  { w: "水", zhu: "ㄕㄨㄟ", m: "ㄨ", e: "💧" },
+  { w: "船", zhu: "ㄔㄨㄢ", m: "ㄨ", e: "⛵" },
+  { w: "光", zhu: "ㄍㄨㄤ", m: "ㄨ", e: "🔦" },
+  { w: "牛", zhu: "ㄋㄧㄡ", m: "ㄧ", e: "🐮" },
+  { w: "鳥", zhu: "ㄋㄧㄠ", m: "ㄧ", e: "🐦" },
+  { w: "電", zhu: "ㄉㄧㄢ", m: "ㄧ", e: "⚡" },
+  { w: "天", zhu: "ㄊㄧㄢ", m: "ㄧ", e: "☁️" },
+  { w: "家", zhu: "ㄐㄧㄚ", m: "ㄧ", e: "🏠" },
+  { w: "象", zhu: "ㄒㄧㄤ", m: "ㄧ", e: "🐘" },
+  { w: "熊", zhu: "ㄒㄩㄥ", m: "ㄩ", e: "🐻" },
+  { w: "雪", zhu: "ㄒㄩㄝ", m: "ㄩ", e: "❄️" },
+];
+
+const optEmojiWord = (o, _q, picked) => (
+  <>
+    <div style={{ fontSize: 34 }}>{o.e}</div>
+    <div style={{ fontSize: 16, fontWeight: 700, color: T.ink }}>{o.w}</div>
+    {picked && o.zhu && <div style={{ fontSize: 12, color: T.sub, marginTop: 2 }}>{o.zhu}</div>}
+  </>
+);
+
+// ---------- 1. 韻母家族 ----------
+function ZhFamilyMode({ speak, addStars }) {
+  const makeQ = () => {
+    const g = pickOne(ZH_FAMILIES);
+    const ans = pickOne(g.items);
+    const others = shuffle(ZH_RHYME_POOL.filter((x) => finalOf(x.zhu) !== g.f)).slice(0, 2);
+    return { f: g.f, ans, opts: shuffle([ans, ...others]) };
+  };
+  return (
+    <ZhQuiz speak={speak} addStars={addStars} doneIcon="👨‍👩‍👧" hint="哪一個字的韻母是它?"
+      makeQ={makeQ}
+      say={(q) => zh(speak, `找出韻母是 ${BOPO_SOUND[q.f]} 的字`, { rate: 0.8 })}
+      options={(q) => q.opts} keyOf={(o) => o.w}
+      isRight={(o, q) => finalOf(o.zhu) === q.f}
+      renderPrompt={(q) => (
+        <>
+          <div style={{ fontSize: 64, fontWeight: 800, color: T.purple }}>{q.f}</div>
+          <div style={{ fontSize: 14, color: T.sub, fontWeight: 700 }}>韻母家族</div>
+        </>
+      )}
+      renderOption={optEmojiWord}
+      onRight={(q, o) => zh(speak, `對!${o.w},韻母是 ${BOPO_SOUND[q.f]}`, { rate: 0.85 })}
+      onWrong={(q) => zh(speak, `答案是 ${q.ans.w}`, { rate: 0.8 })}
+    />
+  );
+}
+
+// ---------- 2. 注音聽力挑戰 ----------
+function ZhListenQuizMode({ speak, addStars }) {
+  const makeQ = () => {
+    const ans = pickOne(ZH_WORDS);
+    const others = pickOthers(ZH_WORDS, 2, ans.w, (x) => x.w);
+    return { ans, opts: shuffle([ans, ...others]) };
+  };
+  return (
+    <ZhQuiz speak={speak} addStars={addStars} doneIcon="👂" hint="聽聽看,是哪一個?"
+      makeQ={makeQ}
+      say={(q) => zh(speak, q.ans.w, { rate: 0.8 })}
+      options={(q) => q.opts} keyOf={(o) => o.w}
+      isRight={(o, q) => o.w === q.ans.w}
+      renderPrompt={(q, picked) => (
+        <>
+          <div style={{ fontSize: 56 }}>👂</div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: picked ? T.greenDark : "#CFC9EE" }}>
+            {picked ? `${q.ans.w} ${q.ans.zhu}` : "???"}
+          </div>
+        </>
+      )}
+      renderOption={optEmojiWord}
+      onRight={(q) => zh(speak, `對!${q.ans.w}`, { rate: 0.9 })}
+      onWrong={(q) => zh(speak, `這是 ${q.ans.w}`, { rate: 0.8 })}
+    />
+  );
+}
+
+// ---------- 3. 韻母偵探(尾音)----------
+function ZhEndSoundMode({ speak, addStars }) {
+  const makeQ = () => {
+    const ans = pickOne(ZH_RHYME_POOL);
+    const f = finalOf(ans.zhu);
+    const others = shuffle(ZH_FINALS.filter((x) => x !== f)).slice(0, 2);
+    return { ans, f, opts: shuffle([f, ...others]) };
+  };
+  return (
+    <ZhQuiz speak={speak} addStars={addStars} doneIcon="🔎" hint="這個字的韻母(最後的音)是哪個?"
+      makeQ={makeQ}
+      say={(q) => zh(speak, q.ans.w, { rate: 0.7 })}
+      options={(q) => q.opts} keyOf={(o) => o}
+      isRight={(o, q) => o === q.f}
+      renderPrompt={(q, picked) => (
+        <>
+          <div style={{ fontSize: 56 }}>{q.ans.e}</div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: T.ink }}>
+            {q.ans.w}{picked ? ` ${q.ans.zhu}` : ""}
+          </div>
+        </>
+      )}
+      renderOption={(o, q, picked) => (
+        <>
+          <div style={{ fontSize: 40, fontWeight: 800, color: T.purple }}>{o}</div>
+          {picked && <div style={{ fontSize: 13, color: T.sub }}>{BOPO_SOUND[o]}</div>}
+        </>
+      )}
+      onRight={(q) => zh(speak, `對!${q.ans.w} 的韻母是 ${BOPO_SOUND[q.f]}`, { rate: 0.85 })}
+      onWrong={(q) => zh(speak, `${q.ans.w},韻母是 ${BOPO_SOUND[q.f]}`, { rate: 0.8 })}
+    />
+  );
+}
+
+// ---------- 4. 押韻火車(注音)----------
+function ZhRhymeMode({ speak, addStars }) {
+  const POOL = ZH_FAMILIES.filter((g) => g.items.length >= 2);
+  const makeQ = () => {
+    const g = pickOne(POOL);
+    const [cue, ans] = shuffle(g.items).slice(0, 2);
+    const others = shuffle(ZH_RHYME_POOL.filter((x) => finalOf(x.zhu) !== g.f)).slice(0, 2);
+    return { cue, ans, f: g.f, opts: shuffle([ans, ...others]) };
+  };
+  return (
+    <ZhQuiz speak={speak} addStars={addStars} doneIcon="🚂" hint="哪一個和它押韻?"
+      makeQ={makeQ}
+      say={(q) => zh(speak, `${q.cue.w},哪一個和 ${q.cue.w} 押韻?`, { rate: 0.8 })}
+      options={(q) => q.opts} keyOf={(o) => o.w}
+      isRight={(o, q) => finalOf(o.zhu) === q.f}
+      renderPrompt={(q, picked) => (
+        <>
+          <div style={{ fontSize: 56 }}>{q.cue.e}</div>
+          <div style={{ fontSize: 26, fontWeight: 800, color: T.ink }}>{q.cue.w}</div>
+          <div style={{ fontSize: 15, color: picked ? T.greenDark : T.sub, fontWeight: 700 }}>
+            {picked ? `韻母 ${q.f}` : q.cue.zhu}
+          </div>
+        </>
+      )}
+      renderOption={optEmojiWord}
+      onRight={(q, o) => zh(speak, `${q.cue.w}、${o.w},押韻!`, { rate: 0.85 })}
+      onWrong={(q) => zh(speak, `${q.cue.w} 和 ${q.ans.w} 押韻`, { rate: 0.8 })}
+    />
+  );
+}
+
+// ---------- 5. 聽指令點圖(中文)----------
+const ZH_ORDERS = ["請點一下", "找找看", "可以指出"];
+function ZhListenDoMode({ speak, addStars }) {
+  const makeQ = () => {
+    const ans = pickOne(ZH_WORDS);
+    const others = pickOthers(ZH_WORDS, 2, ans.w, (x) => x.w);
+    return { ans, verb: pickOne(ZH_ORDERS), opts: shuffle([ans, ...others]) };
+  };
+  return (
+    <ZhQuiz speak={speak} addStars={addStars} doneIcon="👉" hint="聽指令,點出正確的圖"
+      makeQ={makeQ}
+      say={(q) => zh(speak, `${q.verb} ${q.ans.w}`, { rate: 0.8 })}
+      options={(q) => q.opts} keyOf={(o) => o.w}
+      isRight={(o, q) => o.w === q.ans.w}
+      renderPrompt={(q, picked) => (
+        <>
+          <div style={{ fontSize: 52 }}>👉</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: picked ? T.greenDark : "#CFC9EE" }}>
+            {picked ? `${q.verb} ${q.ans.w}` : "聽聽看老師說什麼"}
+          </div>
+        </>
+      )}
+      renderOption={(o, _q, picked) => (
+        <>
+          <div style={{ fontSize: 40 }}>{o.e}</div>
+          {picked && <div style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>{o.w}</div>}
+        </>
+      )}
+      onRight={() => zh(speak, "答對了!", { rate: 0.95 })}
+      onWrong={(q) => zh(speak, `這個才是 ${q.ans.w}`, { rate: 0.8 })}
+    />
+  );
+}
+
+// ---------- 6. 是不是?(中文)----------
+function ZhYesNoMode({ speak, addStars }) {
+  const makeQ = () => {
+    const item = pickOne(ZH_WORDS);
+    const same = Math.random() < 0.5;
+    const claim = same ? item : pickOne(ZH_WORDS.filter((x) => x.w !== item.w));
+    return { item, claim, same };
+  };
+  return (
+    <ZhQuiz speak={speak} addStars={addStars} cols={2} doneIcon="✅" hint="聽問題,回答是或不是"
+      makeQ={makeQ}
+      say={(q) => zh(speak, `這是 ${q.claim.w} 嗎?`, { rate: 0.8 })}
+      options={() => ["yes", "no"]} keyOf={(o) => o}
+      isRight={(o, q) => (o === "yes") === q.same}
+      renderPrompt={(q, picked) => (
+        <>
+          <div style={{ fontSize: 64 }}>{q.item.e}</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: T.ink }}>
+            這是 {q.claim.w} 嗎?
+          </div>
+          {picked && (
+            <div style={{ fontSize: 14, color: T.greenDark, fontWeight: 700 }}>
+              這是 {q.item.w}
+            </div>
+          )}
+        </>
+      )}
+      renderOption={(o) => (
+        <div style={{ fontSize: 22, fontWeight: 800, color: T.ink }}>
+          {o === "yes" ? "⭕ 是" : "❌ 不是"}
+        </div>
+      )}
+      onRight={() => zh(speak, "答對了!", { rate: 0.95 })}
+      onWrong={(q) => zh(speak, `這是 ${q.item.w}`, { rate: 0.8 })}
+    />
+  );
+}
+
+// ---------- 7. 數數小市場(中文)----------
+function ZhCountMode({ speak, addStars }) {
+  const makeQ = () => {
+    const item = pickOne(ZH_WORDS.filter((x) => x.cat === "食物" || x.cat === "動物"));
+    const n = 1 + Math.floor(Math.random() * 5);
+    const set = new Set([n]);
+    while (set.size < 3) set.add(1 + Math.floor(Math.random() * 5));
+    return { item, n, opts: shuffle([...set]) };
+  };
+  return (
+    <ZhQuiz speak={speak} addStars={addStars} doneIcon="🧺" hint="數數看,有幾個?"
+      makeQ={makeQ}
+      say={(q) => zh(speak, `這裡有幾個 ${q.item.w}?`, { rate: 0.8 })}
+      options={(q) => q.opts} keyOf={(o) => String(o)}
+      isRight={(o, q) => o === q.n}
+      renderPrompt={(q) => (
+        <>
+          <div style={{ fontSize: 34, lineHeight: 1.35 }}>{q.item.e.repeat(q.n)}</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: T.ink }}>有幾個 {q.item.w}?</div>
+        </>
+      )}
+      renderOption={(o) => (
+        <>
+          <div style={{ fontSize: 34, fontWeight: 800, color: T.purple }}>{o}</div>
+          <div style={{ fontSize: 14, color: T.sub, fontWeight: 700 }}>{ZH_NUM[o]}</div>
+        </>
+      )}
+      onRight={(q) => zh(speak, `對!${ZH_NUM[q.n]}個`, { rate: 0.9 })}
+      onWrong={(q) => zh(speak, `一起數:有 ${ZH_NUM[q.n]} 個`, { rate: 0.8 })}
+    />
+  );
+}
+
+// ---------- 8. 聽顏色(中文)----------
+function ZhColorMode({ speak, addStars }) {
+  const makeQ = () => {
+    const ans = pickOne(ZH_COLORS);
+    const others = pickOthers(ZH_COLORS, 2, ans.w, (x) => x.w);
+    return { ans, opts: shuffle([ans, ...others]) };
+  };
+  return (
+    <ZhQuiz speak={speak} addStars={addStars} doneIcon="🎨" hint="聽顏色,點出對的那個"
+      makeQ={makeQ}
+      say={(q) => zh(speak, `哪一個是 ${q.ans.w}?`, { rate: 0.8 })}
+      options={(q) => q.opts} keyOf={(o) => o.w}
+      isRight={(o, q) => o.w === q.ans.w}
+      renderPrompt={(q, picked) => (
+        <>
+          <div style={{ fontSize: 56 }}>🎨</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: picked ? q.ans.css : "#CFC9EE" }}>
+            {picked ? q.ans.w : "???"}
+          </div>
+        </>
+      )}
+      renderOption={(o, _q, picked) => (
+        <>
+          <div style={{ width: 46, height: 46, borderRadius: "50%", margin: "0 auto",
+            background: o.css, boxShadow: "inset 0 -3px 0 rgba(0,0,0,.15)" }} />
+          {picked && <div style={{ fontSize: 13, fontWeight: 700, color: T.ink, marginTop: 4 }}>{o.w}</div>}
+        </>
+      )}
+      onRight={(q) => zh(speak, `對!${q.ans.w}`, { rate: 0.9 })}
+      onWrong={(q) => zh(speak, `這個才是 ${q.ans.w}`, { rate: 0.8 })}
+    />
+  );
+}
+
+// ---------- 9. 在哪裡?(中文方位)----------
+function ZhPrepMode({ speak, addStars }) {
+  const makeQ = () => {
+    const ans = pickOne(ZH_PREPS);
+    const others = pickOthers(ZH_PREPS, 2, ans.w, (x) => x.w);
+    return { ans, opts: shuffle([ans, ...others]) };
+  };
+  return (
+    <ZhQuiz speak={speak} addStars={addStars} doneIcon="🧭" hint="聽聽看,球在盒子的哪裡?"
+      makeQ={makeQ}
+      say={(q) => zh(speak, `球在盒子的${q.ans.w}`, { rate: 0.8 })}
+      options={(q) => q.opts} keyOf={(o) => o.w}
+      isRight={(o, q) => o.w === q.ans.w}
+      renderPrompt={(q, picked) => (
+        <>
+          <div style={{ fontSize: 44 }}>⚽ 📦</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: picked ? T.greenDark : T.sub }}>
+            {picked ? `球在盒子的${q.ans.w}` : "球在盒子的哪裡?"}
+          </div>
+        </>
+      )}
+      renderOption={(o, _q, picked) => (
+        <>
+          <PrepScene prep={o.prep} />
+          {picked && <div style={{ fontSize: 14, fontWeight: 700, color: T.ink, marginTop: 4 }}>{o.w}</div>}
+        </>
+      )}
+      onRight={() => zh(speak, "答對了!", { rate: 0.95 })}
+      onWrong={(q) => zh(speak, `球在盒子的${q.ans.w}`, { rate: 0.8 })}
+    />
+  );
+}
+
+// ---------- 10. 幾個字(音節)----------
+function ZhSyllableMode({ speak, addStars }) {
+  const makeQ = () => ({ item: pickOne(ZH_WORDS) });
+  return (
+    <ZhQuiz speak={speak} addStars={addStars} doneIcon="👏" hint="拍拍看,這個詞有幾個字?"
+      makeQ={makeQ}
+      say={(q) => zh(speak, q.item.w, { rate: 0.6 })}
+      options={() => [1, 2, 3]} keyOf={(o) => String(o)}
+      isRight={(o, q) => o === q.item.w.length}
+      renderPrompt={(q, picked) => (
+        <>
+          <div style={{ fontSize: 56 }}>{q.item.e}</div>
+          <div style={{ fontSize: 26, fontWeight: 800, color: T.ink, letterSpacing: 4 }}>
+            {q.item.w}
+          </div>
+          {picked && <div style={{ fontSize: 14, color: T.sub }}>{q.item.zhu}</div>}
+        </>
+      )}
+      renderOption={(o) => (
+        <>
+          <div style={{ fontSize: 22 }}>{"👏".repeat(o)}</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: T.purple }}>{o}</div>
+        </>
+      )}
+      onRight={(q) => zh(speak, `對!${ZH_NUM[q.item.w.length]}個字`, { rate: 0.9 })}
+      onWrong={(q) => zh(speak, `${q.item.w},${ZH_NUM[q.item.w.length]}個字`, { rate: 0.7 })}
+    />
+  );
+}
+
+// ---------- 11. 中間的音(介音)----------
+function ZhMedialMode({ speak, addStars }) {
+  const makeQ = () => ({ item: pickOne(ZH_MEDIAL) });
+  return (
+    <ZhQuiz speak={speak} addStars={addStars} doneIcon="🅰️" hint="中間少了哪個音?"
+      makeQ={makeQ}
+      say={(q) => zh(speak, q.item.w, { rate: 0.6 })}
+      options={() => ["ㄧ", "ㄨ", "ㄩ"]} keyOf={(o) => o}
+      isRight={(o, q) => o === q.item.m}
+      renderPrompt={(q, picked) => (
+        <>
+          <div style={{ fontSize: 52 }}>{q.item.e}</div>
+          <div style={{ fontSize: 34, fontWeight: 800, color: T.ink, letterSpacing: 3 }}>
+            {picked
+              ? q.item.zhu
+              : q.item.zhu.replace(q.item.m, "◯")}
+          </div>
+          <div style={{ fontSize: 14, color: T.sub, fontWeight: 700 }}>{picked ? q.item.w : ""}</div>
+        </>
+      )}
+      renderOption={(o, _q, picked) => (
+        <>
+          <div style={{ fontSize: 40, fontWeight: 800, color: T.purple }}>{o}</div>
+          {picked && <div style={{ fontSize: 13, color: T.sub }}>{BOPO_SOUND[o]}</div>}
+        </>
+      )}
+      onRight={(q) => zh(speak, `對!${q.item.w}`, { rate: 0.85 })}
+      onWrong={(q) => zh(speak, `是 ${BOPO_SOUND[q.item.m]},${q.item.w}`, { rate: 0.75 })}
+    />
+  );
+}
+
+// ---------- 12. 注音找找看(聽音認符號)----------
+function ZhFindMode({ speak, addStars }) {
+  const makeQ = () => {
+    const ans = pickOne(BOPOMOFO);
+    const others = pickOthers(BOPOMOFO, 2, ans.s, (x) => x.s);
+    return { ans, opts: shuffle([ans, ...others]) };
+  };
+  return (
+    <ZhQuiz speak={speak} addStars={addStars} doneIcon="🔍" hint="聽注音的聲音,找出符號"
+      makeQ={makeQ}
+      say={(q) => zh(speak, q.ans.sound, { rate: 0.6 })}
+      options={(q) => q.opts} keyOf={(o) => o.s}
+      isRight={(o, q) => o.s === q.ans.s}
+      renderPrompt={(q, picked) => (
+        <>
+          <div style={{ fontSize: 52 }}>👂</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: picked ? T.greenDark : "#CFC9EE" }}>
+            {picked ? `${q.ans.s}(${q.ans.sound})` : "???"}
+          </div>
+        </>
+      )}
+      renderOption={(o, _q, picked) => (
+        <>
+          <div style={{ fontSize: 42, fontWeight: 800, color: T.purple }}>{o.s}</div>
+          {picked && <div style={{ fontSize: 13, color: T.sub }}>{o.sound}</div>}
+        </>
+      )}
+      onRight={(q) => zh(speak, `對!${q.ans.sound},${q.ans.word}`, { rate: 0.85 })}
+      onWrong={(q) => zh(speak, `是這個,${q.ans.sound}`, { rate: 0.8 })}
+    />
+  );
+}
+
+// ---------- 13. 聲母還是韻母? ----------
+function ZhTypeMode({ speak, addStars }) {
+  const makeQ = () => {
+    const isC = Math.random() < 0.5;
+    return { item: pickOne(isC ? ZH_CONSONANTS : ZH_VOWELS), isC };
+  };
+  return (
+    <ZhQuiz speak={speak} addStars={addStars} cols={2} doneIcon="🧠" hint="這個注音放前面還是後面?"
+      makeQ={makeQ}
+      say={(q) => zh(speak, q.item.sound, { rate: 0.6 })}
+      options={() => ["c", "v"]} keyOf={(o) => o}
+      isRight={(o, q) => (o === "c") === q.isC}
+      renderPrompt={(q, picked) => (
+        <>
+          <div style={{ fontSize: 72, fontWeight: 800, color: T.purple }}>{q.item.s}</div>
+          <div style={{ fontSize: 15, color: picked ? T.greenDark : T.sub, fontWeight: 700 }}>
+            {picked ? `${q.item.sound} · ${q.item.word}` : "聽聽看再選"}
+          </div>
+        </>
+      )}
+      renderOption={(o) => (
+        <div style={{ fontSize: 18, fontWeight: 800, color: T.ink, lineHeight: 1.35 }}>
+          {o === "c" ? "🅱️ 聲母" : "🅾️ 韻母"}
+          <div style={{ fontSize: 12, color: T.sub, fontWeight: 700 }}>
+            {o === "c" ? "放前面" : "放後面"}
+          </div>
+        </div>
+      )}
+      onRight={(q) => zh(speak, `對!${q.item.s} 是${q.isC ? "聲母" : "韻母"}`, { rate: 0.85 })}
+      onWrong={(q) => zh(speak, `${q.item.s} 是${q.isC ? "聲母,放前面" : "韻母,放後面"}`, { rate: 0.8 })}
+    />
+  );
+}
+
+// ---------- 14. 相反詞配對(中文)----------
+function ZhOppositeMode({ speak, addStars }) {
+  const makeQ = () => {
+    const p = pickOne(ZH_OPPOSITES);
+    const flip = Math.random() < 0.5;
+    const cue = flip ? p.b : p.a;
+    const ans = flip ? p.a : p.b;
+    const others = shuffle(ZH_OPPOSITES.filter((x) => x !== p))
+      .slice(0, 2)
+      .map((x) => (Math.random() < 0.5 ? x.a : x.b));
+    return { cue, ans, opts: shuffle([ans, ...others]) };
+  };
+  return (
+    <ZhQuiz speak={speak} addStars={addStars} doneIcon="↔️" hint="哪一個是它的相反?"
+      makeQ={makeQ}
+      say={(q) => zh(speak, `${q.cue.w} 的相反是什麼?`, { rate: 0.8 })}
+      options={(q) => q.opts} keyOf={(o) => o.w}
+      isRight={(o, q) => o.w === q.ans.w}
+      renderPrompt={(q) => (
+        <>
+          <div style={{ fontSize: 56 }}>{q.cue.e}</div>
+          <div style={{ fontSize: 26, fontWeight: 800, color: T.ink }}>{q.cue.w}</div>
+          <div style={{ fontSize: 15, color: T.sub, fontWeight: 700 }}>的相反是?</div>
+        </>
+      )}
+      renderOption={optEmojiWord}
+      onRight={(q) => zh(speak, `對!${q.cue.w} 的相反是 ${q.ans.w}`, { rate: 0.85 })}
+      onWrong={(q) => zh(speak, `${q.cue.w} 的相反是 ${q.ans.w}`, { rate: 0.8 })}
+    />
+  );
+}
+
+// ========== ㄅㄆㄇ:6 個自訂玩法 ==========
+
+// ---------- 15. 拼注音小廚師 ----------
+const ZH_SPELL_POOL = ZH_WORDS.filter((x) => x.w.length === 1 && stripTone(x.zhu).length >= 2);
+function makeZhSpellRound() {
+  const word = pickOne(ZH_SPELL_POOL);
+  const parts = stripTone(word.zhu).split("");
+  const extras = shuffle(BOPO_SYMBOLS.filter((s) => !parts.includes(s))).slice(0, 2);
+  return { word, parts, tiles: shuffle([...parts, ...extras]).map((ch, i) => ({ id: i, ch })) };
+}
+function ZhSpellMode({ speak, addStars }) {
+  const [round, setRound] = useState(makeZhSpellRound);
+  const [used, setUsed] = useState(() => new Set());
+  const [filled, setFilled] = useState(0);
+  const [wrongId, setWrongId] = useState(null);
+  const [doneWord, setDoneWord] = useState(false);
+  const [wins, setWins] = useState(0);
+  const { word, parts, tiles } = round;
+
+  useEffect(() => {
+    const t = setTimeout(() => zh(speak, word.w, { rate: 0.7 }), 400);
+    return () => clearTimeout(t);
+  }, [round, word, speak]);
+
+  const next = () => {
+    setRound(makeZhSpellRound()); setUsed(new Set()); setFilled(0);
+    setWrongId(null); setDoneWord(false);
+  };
+
+  const tap = (tile) => {
+    if (doneWord || used.has(tile.id)) return;
+    if (tile.ch === parts[filled]) {
+      const nf = filled + 1;
+      setUsed((u) => new Set(u).add(tile.id));
+      setFilled(nf);
+      setWrongId(null);
+      if (nf >= parts.length) {
+        setDoneWord(true); setWins((w) => w + 1); addStars(2);
+        zh(speak, word.w, { rate: 0.85, onEnd: () => zh(speak, "太棒了!", { rate: 0.95 }) });
+      } else zh(speak, BOPO_SOUND[tile.ch], { rate: 0.7 });
+    } else {
+      setWrongId(tile.id);
+      setTimeout(() => setWrongId(null), 600);
+    }
+  };
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>
+        照順序點注音磚,把這個字拼出來!拼好一個 +2 ⭐,已完成 {wins} 個
+      </p>
+      <div style={{ background: T.card, borderRadius: 24, padding: "22px 16px",
+        boxShadow: "0 6px 0 #E0DBF7", marginBottom: 14 }}>
+        <div style={{ fontSize: 56 }}>{word.e}</div>
+        <div style={{ fontSize: 22, color: T.ink, fontWeight: 700, marginBottom: 12 }}>{word.w}</div>
+        <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+          {parts.map((ch, i) => {
+            const isFilled = i < filled;
+            const isNext = i === filled && !doneWord;
+            return (
+              <div key={i} style={{
+                width: 52, height: 60, borderRadius: 12, display: "grid", placeItems: "center",
+                fontSize: 32, fontWeight: 700,
+                background: isFilled ? "#E9FBEF" : "#F6F4FE",
+                border: `3px solid ${isFilled ? T.green : isNext ? T.purple : "#E8E4FA"}`,
+                color: isFilled ? T.greenDark : "#C9C4E8", transition: "all .15s",
+              }}>{ch}</div>
+            );
+          })}
+        </div>
+        {doneWord && (
+          <div style={{ marginTop: 10, fontSize: 19, color: T.greenDark, fontWeight: 700 }}>
+            🎉 拼出「{word.w}」{word.zhu} 了!+2 ⭐
+          </div>
+        )}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10,
+        maxWidth: 320, margin: "0 auto 14px" }}>
+        {tiles.map((tile) => {
+          const spent = used.has(tile.id);
+          const isWrong = wrongId === tile.id;
+          return (
+            <button key={tile.id} onClick={() => tap(tile)}
+              style={{
+                padding: "16px 0", borderRadius: 16, fontFamily: "inherit",
+                fontSize: 28, fontWeight: 700,
+                background: spent ? "#F1EEFB" : isWrong ? "#FFEDED" : T.yellow,
+                border: `3px solid ${isWrong ? T.red : spent ? "#E8E4FA" : T.yellowDark}`,
+                color: spent ? "#D2CCED" : T.ink, cursor: spent ? "default" : "pointer",
+                boxShadow: spent ? "none" : "0 4px 0 #E0B400",
+                animation: isWrong ? "wp-shake .3s" : "none", transition: "all .15s",
+              }}>{tile.ch}</button>
+          );
+        })}
+      </div>
+      {doneWord ? (
+        <ChunkyButton color={T.green} dark={T.greenDark} onClick={next}>下一個字 →</ChunkyButton>
+      ) : (
+        <ChunkyButton color={T.yellow} dark={T.yellowDark} style={{ color: T.ink }}
+          onClick={() => zh(speak, word.w, { rate: 0.7 })}>🔊 再聽一次</ChunkyButton>
+      )}
+    </div>
+  );
+}
+
+// ---------- 16. 少了誰?(注音記憶)----------
+function makeZhMissingQ(n) {
+  const items = shuffle(BOPOMOFO).slice(0, n);
+  const missing = pickOne(items);
+  return { items, missing, shown: shuffle(items.filter((x) => x.s !== missing.s)) };
+}
+function ZhMissingMode({ speak, addStars }) {
+  const TOTAL = 8;
+  const [roundNo, setRoundNo] = useState(1);
+  const [right, setRight] = useState(0);
+  const [q, setQ] = useState(() => makeZhMissingQ(3));
+  const [phase, setPhase] = useState("memorize");
+  const [picked, setPicked] = useState(null);
+  const [done, setDone] = useState(false);
+  const options = useMemo(() => shuffle([...q.items]), [q]);
+
+  const nextRound = () => {
+    const r = roundNo + 1;
+    setRoundNo(r); setQ(makeZhMissingQ(r > 4 ? 4 : 3));
+    setPhase("memorize"); setPicked(null);
+  };
+
+  const pick = (b) => {
+    if (picked) return;
+    setPicked(b.s);
+    const ok = b.s === q.missing.s;
+    if (ok) { setRight((r) => r + 1); addStars(1); zh(speak, `對!是 ${q.missing.sound}`, { rate: 0.9 }); }
+    else zh(speak, `少了 ${q.missing.sound}`, { rate: 0.8 });
+    setTimeout(() => { if (roundNo >= TOTAL) setDone(true); else nextRound(); }, 1700);
+  };
+
+  if (done)
+    return (
+      <div style={{ textAlign: "center", padding: "24px 0" }}>
+        <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "🧠"}</div>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>答對 {right} / {TOTAL} 題!</h2>
+        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeZhMissingQ(3)); setPhase("memorize"); setPicked(null); setDone(false); }}>
+          再玩一次
+        </ChunkyButton>
+      </div>
+    );
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
+        第 {roundNo} / {TOTAL} 題・{phase === "memorize" ? "先記住這些注音 👀" : "少了哪一個注音?"}
+      </div>
+      <div style={{ background: T.card, borderRadius: 22, padding: "22px 12px",
+        marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7", minHeight: 110,
+        display: "flex", gap: 14, justifyContent: "center", alignItems: "center", flexWrap: "wrap" }}>
+        {(phase === "memorize" ? q.items : q.shown).map((b) => (
+          <span key={b.s} style={{ fontSize: 46, fontWeight: 800, color: T.purple }}>{b.s}</span>
+        ))}
+        {phase === "guess" && <span style={{ fontSize: 46 }}>❓</span>}
+      </div>
+      {phase === "memorize" ? (
+        <ChunkyButton color={T.purple} dark={T.purpleDark} onClick={() => setPhase("guess")}>
+          記好了,蓋起來!
+        </ChunkyButton>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${options.length}, 1fr)`, gap: 10 }}>
+          {options.map((b) => {
+            const isAns = b.s === q.missing.s;
+            let bg = T.card, bd = "#E8E4FA";
+            if (picked) {
+              if (isAns) { bg = "#E9FBEF"; bd = T.green; }
+              else if (b.s === picked) { bg = "#FFF7DA"; bd = T.yellow; }
+            }
+            return (
+              <button key={b.s} onClick={() => pick(b)}
+                style={{
+                  background: bg, border: `3px solid ${bd}`, borderRadius: 18,
+                  padding: "16px 0", fontFamily: "inherit", fontSize: 36, fontWeight: 800,
+                  color: T.purple, cursor: picked ? "default" : "pointer",
+                  boxShadow: "0 5px 0 #E0DBF7", transition: "all .15s",
+                }}>{b.s}</button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------- 17. 記憶排排看(注音)----------
+function ZhSequenceMode({ speak, addStars }) {
+  const TOTAL = 6;
+  const poolRef = useRef(shuffle(BOPOMOFO).slice(0, 4));
+  const seqLen = (r) => (r <= 2 ? 2 : r <= 4 ? 3 : 4);
+  const makeSeq = (r) => {
+    const pool = poolRef.current;
+    const s = [];
+    for (let i = 0; i < seqLen(r); i++) s.push(pickOne(pool));
+    return s;
+  };
+  const [roundNo, setRoundNo] = useState(1);
+  const [right, setRight] = useState(0);
+  const [seq, setSeq] = useState(() => makeSeq(1));
+  const [phase, setPhase] = useState("show");
+  const [litIdx, setLitIdx] = useState(-1);
+  const [step, setStep] = useState(0);
+  const [done, setDone] = useState(false);
+  const timers = useRef([]);
+  const clearTimers = () => { timers.current.forEach(clearTimeout); timers.current = []; };
+
+  useEffect(() => {
+    if (phase !== "show") return;
+    clearTimers();
+    setLitIdx(-1);
+    seq.forEach((b, i) => {
+      timers.current.push(setTimeout(() => { setLitIdx(i); zh(speak, b.sound, { rate: 0.7 }); }, 500 + i * 950));
+    });
+    timers.current.push(setTimeout(() => { setLitIdx(-1); setStep(0); setPhase("input"); }, 500 + seq.length * 950 + 300));
+    return clearTimers;
+  }, [phase, seq, speak]);
+
+  const startRound = (r) => { setSeq(makeSeq(r)); setStep(0); setLitIdx(-1); setPhase("show"); };
+
+  const tap = (b) => {
+    if (phase !== "input") return;
+    if (b.s === seq[step].s) {
+      zh(speak, b.sound, { rate: 0.75 });
+      const ns = step + 1;
+      if (ns >= seq.length) {
+        addStars(1); setRight((r) => r + 1); setPhase("good");
+        zh(speak, "太棒了!", { rate: 0.95 });
+        timers.current.push(setTimeout(() => {
+          if (roundNo >= TOTAL) setDone(true);
+          else { const nr = roundNo + 1; setRoundNo(nr); startRound(nr); }
+        }, 1300));
+      } else setStep(ns);
+    } else {
+      zh(speak, seq[step].sound, { rate: 0.7 });
+      timers.current.push(setTimeout(() => setPhase("show"), 700));
+    }
+  };
+
+  if (done)
+    return (
+      <div style={{ textAlign: "center", padding: "24px 0" }}>
+        <div style={{ fontSize: 56 }}>{right >= 5 ? "🏆" : "🧠"}</div>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>記對 {right} / {TOTAL} 組順序!</h2>
+        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
+          onClick={() => { setRoundNo(1); setRight(0); startRound(1); setDone(false); }}>
+          再玩一次
+        </ChunkyButton>
+      </div>
+    );
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
+        第 {roundNo} / {TOTAL} 組・{phase === "input" ? "照剛剛的順序點出來!" : "記住亮起來的順序 👀"}
+      </div>
+      {phase !== "input" && (
+        <div style={{ background: T.card, borderRadius: 22, padding: "24px 12px",
+          marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7", minHeight: 120,
+          display: "flex", gap: 12, justifyContent: "center", alignItems: "center", flexWrap: "wrap" }}>
+          {seq.map((b, i) => (
+            <span key={i} style={{
+              fontSize: 48, fontWeight: 800, color: T.purple, transition: "all .2s",
+              transform: litIdx === i ? "scale(1.3)" : "scale(1)",
+              opacity: litIdx === i ? 1 : 0.25,
+            }}>{b.s}</span>
+          ))}
+        </div>
+      )}
+      {phase === "input" && (
+        <>
+          <div style={{ fontSize: 22, marginBottom: 10 }}>
+            {seq.map((_, i) => <span key={i}>{i < step ? "⭐" : "⬜"}</span>)}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            {poolRef.current.map((b) => (
+              <button key={b.s} onClick={() => tap(b)}
+                style={{
+                  background: T.card, border: "3px solid #E8E4FA", borderRadius: 18,
+                  padding: "18px 4px", fontFamily: "inherit", cursor: "pointer",
+                  boxShadow: "0 5px 0 #E0DBF7",
+                }}>
+                <div style={{ fontSize: 42, fontWeight: 800, color: T.purple }}>{b.s}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.sub }}>{b.sound}</div>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ---------- 18. 排大小(中文)----------
+function ZhSizeMode({ speak, addStars }) {
+  const TOTAL = 6;
+  const makeQ = () => {
+    const three = shuffle(ZH_SIZE).slice(0, 3).sort((a, b) => a.size - b.size);
+    return { order: three, display: shuffle([...three]) };
+  };
+  const [roundNo, setRoundNo] = useState(1);
+  const [right, setRight] = useState(0);
+  const [q, setQ] = useState(makeQ);
+  const [progress, setProgress] = useState(0);
+  const [wrong, setWrong] = useState(null);
+  const [done, setDone] = useState(false);
+  const [cleared, setCleared] = useState(false);
+
+  const nextRound = () => {
+    if (roundNo >= TOTAL) { setDone(true); return; }
+    setRoundNo((r) => r + 1); setQ(makeQ()); setProgress(0); setCleared(false);
+  };
+
+  const tap = (item) => {
+    if (cleared) return;
+    if (item.size === q.order[progress].size) {
+      zh(speak, item.w, { rate: 0.85 });
+      const np = progress + 1;
+      setProgress(np); setWrong(null);
+      if (np >= q.order.length) {
+        setRight((r) => r + 1); addStars(1); setCleared(true);
+        zh(speak, "太棒了!", { rate: 0.95 });
+        setTimeout(nextRound, 1300);
+      }
+    } else {
+      setWrong(item.w);
+      zh(speak, item.w, { rate: 0.85 });
+      setTimeout(() => setWrong(null), 500);
+    }
+  };
+
+  if (done)
+    return (
+      <div style={{ textAlign: "center", padding: "24px 0" }}>
+        <div style={{ fontSize: 56 }}>{right >= 5 ? "🏆" : "📏"}</div>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>排對 {right} / {TOTAL} 組!</h2>
+        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setProgress(0); setCleared(false); setDone(false); }}>
+          再玩一次
+        </ChunkyButton>
+      </div>
+    );
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 6 }}>
+        第 {roundNo} / {TOTAL} 組・從「最小」開始,由小到大點!
+      </div>
+      <div style={{ fontSize: 20, marginBottom: 12, color: T.purple, fontWeight: 700 }}>
+        🐜 小 →→→ 大 🐘
+      </div>
+      <div style={{ minHeight: 70, display: "flex", gap: 10, justifyContent: "center", alignItems: "center", marginBottom: 8 }}>
+        {q.order.slice(0, progress).map((it, i) => (
+          <span key={it.w} style={{ fontSize: 30 + i * 12 }}>{it.e}</span>
+        ))}
+        {progress < q.order.length && <span style={{ fontSize: 22, color: "#C9C4E8" }}>👉 點第 {progress + 1} 小的</span>}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+        {q.display.map((it) => {
+          const placed = q.order.slice(0, progress).some((x) => x.w === it.w);
+          const isWrong = wrong === it.w;
+          return (
+            <button key={it.w} onClick={() => tap(it)} disabled={placed}
+              style={{
+                background: placed ? "#E9FBEF" : isWrong ? "#FFEDED" : T.card,
+                border: `3px solid ${placed ? T.green : isWrong ? T.red : "#E8E4FA"}`,
+                borderRadius: 18, padding: "16px 4px", fontFamily: "inherit",
+                cursor: placed ? "default" : "pointer", boxShadow: "0 5px 0 #E0DBF7",
+                opacity: placed ? 0.6 : 1, animation: isWrong ? "wp-shake .3s" : "none",
+                transition: "all .15s",
+              }}>
+              <div style={{ fontSize: 44 }}>{it.e}</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: T.ink }}>{it.w}</div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------- 19. 注音小故事 ----------
+const ZH_STORIES = [
+  {
+    title: "我的生日", emoji: "🎂",
+    lines: [
+      { zh: "今天是我的生日", zhu: "ㄐㄧㄣ ㄊㄧㄢ ㄕˋ ㄨㄛˇ ˙ㄉㄜ ㄕㄥ ㄖˋ", e: "🎉" },
+      { zh: "我和家人吃蛋糕", zhu: "ㄨㄛˇ ㄏㄢˋ ㄐㄧㄚ ㄖㄣˊ ㄔ ㄉㄢˋ ㄍㄠ", e: "🎂" },
+      { zh: "我好開心", zhu: "ㄨㄛˇ ㄏㄠˇ ㄎㄞ ㄒㄧㄣ", e: "🤩" },
+    ],
+    q: { zh: "我吃了什麼?", ans: "蛋糕",
+      options: [{ w: "蛋糕", e: "🎂" }, { w: "蛋", e: "🥚" }, { w: "麵包", e: "🍞" }] },
+  },
+  {
+    title: "樹上的小鳥", emoji: "🐦",
+    lines: [
+      { zh: "小鳥在樹上", zhu: "ㄒㄧㄠˇ ㄋㄧㄠˇ ㄗㄞˋ ㄕㄨˋ ㄕㄤˋ", e: "🌳" },
+      { zh: "小鳥在唱歌", zhu: "ㄒㄧㄠˇ ㄋㄧㄠˇ ㄗㄞˋ ㄔㄤˋ ㄍㄜ", e: "🎤" },
+      { zh: "我聽小鳥唱歌", zhu: "ㄨㄛˇ ㄊㄧㄥ ㄒㄧㄠˇ ㄋㄧㄠˇ ㄔㄤˋ ㄍㄜ", e: "🎧" },
+    ],
+    q: { zh: "小鳥在哪裡?", ans: "樹",
+      options: [{ w: "樹", e: "🌳" }, { w: "車子", e: "🚗" }, { w: "床", e: "🛏️" }] },
+  },
+  {
+    title: "小熊晚安", emoji: "🐻",
+    lines: [
+      { zh: "小熊好累", zhu: "ㄒㄧㄠˇ ㄒㄩㄥˊ ㄏㄠˇ ㄌㄟˋ", e: "🐻" },
+      { zh: "小熊去睡覺", zhu: "ㄒㄧㄠˇ ㄒㄩㄥˊ ㄑㄩˋ ㄕㄨㄟˋ ㄐㄧㄠˋ", e: "🛏️" },
+      { zh: "小熊晚安", zhu: "ㄒㄧㄠˇ ㄒㄩㄥˊ ㄨㄢˇ ㄢ", e: "🌙" },
+    ],
+    q: { zh: "小熊去做什麼?", ans: "睡覺",
+      options: [{ w: "睡覺", e: "🛏️" }, { w: "上學", e: "🏫" }, { w: "游泳", e: "🏊" }] },
+  },
+  {
+    title: "去海邊", emoji: "🏖️",
+    lines: [
+      { zh: "我們坐公車", zhu: "ㄨㄛˇ ˙ㄇㄣ ㄗㄨㄛˋ ㄍㄨㄥ ㄔㄜ", e: "🚌" },
+      { zh: "公車跑得好快", zhu: "ㄍㄨㄥ ㄔㄜ ㄆㄠˇ ˙ㄉㄜ ㄏㄠˇ ㄎㄨㄞˋ", e: "💨" },
+      { zh: "我們到海邊了", zhu: "ㄨㄛˇ ˙ㄇㄣ ㄉㄠˋ ㄏㄞˇ ㄅㄧㄢ ˙ㄌㄜ", e: "🏖️" },
+    ],
+    q: { zh: "我們去哪裡?", ans: "海邊",
+      options: [{ w: "海邊", e: "🏖️" }, { w: "學校", e: "🏫" }, { w: "山", e: "⛰️" }] },
+  },
+  {
+    title: "小猴子吃香蕉", emoji: "🐵",
+    lines: [
+      { zh: "小猴子肚子餓", zhu: "ㄒㄧㄠˇ ㄏㄡˊ ˙ㄗ ㄉㄨˋ ˙ㄗ ㄜˋ", e: "🐵" },
+      { zh: "小猴子吃香蕉", zhu: "ㄒㄧㄠˇ ㄏㄡˊ ˙ㄗ ㄔ ㄒㄧㄤ ㄐㄧㄠ", e: "🍌" },
+      { zh: "好好吃呀", zhu: "ㄏㄠˇ ㄏㄠˇ ㄔ ㄧㄚ", e: "😋" },
+    ],
+    q: { zh: "小猴子吃什麼?", ans: "香蕉",
+      options: [{ w: "香蕉", e: "🍌" }, { w: "披薩", e: "🍕" }, { w: "葉子", e: "🍃" }] },
+  },
+];
+function ZhStoryMode({ speak, addStars }) {
+  const [si, setSi] = useState(0);
+  const [heard, setHeard] = useState(() => new Set());
+  const [picked, setPicked] = useState(null);
+  const story = ZH_STORIES[si];
+  const allHeard = heard.size >= story.lines.length;
+
+  const goStory = (i) => { setSi(i); setHeard(new Set()); setPicked(null); };
+
+  const pick = (opt) => {
+    if (picked) return;
+    setPicked(opt.w);
+    if (opt.w === story.q.ans) {
+      addStars(2);
+      zh(speak, story.q.ans, { rate: 0.85, onEnd: () => zh(speak, "太棒了!", { rate: 0.95 }) });
+    } else {
+      zh(speak, story.q.zh, { rate: 0.75 });
+      setTimeout(() => setPicked(null), 1500);
+    }
+  };
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 10px" }}>
+        第 {si + 1} / {ZH_STORIES.length} 個小故事・每句都點一下聽,聽完回答問題!
+      </p>
+      <h2 style={{ color: T.ink, fontSize: 22, margin: "0 0 12px" }}>
+        {story.emoji} {story.title}
+      </h2>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+        {story.lines.map((ln, i) => {
+          const ok = heard.has(i);
+          return (
+            <button key={i}
+              onClick={() => { zh(speak, ln.zh, { rate: 0.75 }); setHeard((s) => new Set(s).add(i)); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 12, textAlign: "left",
+                background: ok ? "#E9FBEF" : T.card,
+                border: `3px solid ${ok ? T.green : "#E8E4FA"}`,
+                borderRadius: 18, padding: "12px 14px", fontFamily: "inherit",
+                cursor: "pointer", boxShadow: "0 4px 0 #E0DBF7", transition: "all .15s",
+              }}>
+              <span style={{ fontSize: 34 }}>{ln.e}</span>
+              <span>
+                <div style={{ fontSize: 18, fontWeight: 700, color: T.ink }}>{ln.zh}</div>
+                <div style={{ fontSize: 12, color: T.sub, letterSpacing: 1 }}>{ln.zhu}</div>
+              </span>
+              <span style={{ marginLeft: "auto", fontSize: 14, color: ok ? T.greenDark : "#C9C4E8" }}>
+                {ok ? "✓" : "🔈"}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {allHeard && (
+        <div style={{ background: T.card, borderRadius: 22, padding: "16px",
+          boxShadow: "0 5px 0 #E0DBF7", marginBottom: 12 }}>
+          <button onClick={() => zh(speak, story.q.zh, { rate: 0.8 })}
+            style={{ background: "none", border: "none", fontFamily: "inherit", cursor: "pointer" }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: T.purple }}>❓ {story.q.zh} 🔈</div>
+          </button>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 12 }}>
+            {story.q.options.map((opt) => {
+              const isAns = opt.w === story.q.ans;
+              let bg = T.card, bd = "#E8E4FA";
+              if (picked) {
+                if (isAns) { bg = "#E9FBEF"; bd = T.green; }
+                else if (opt.w === picked) { bg = "#FFF7DA"; bd = T.yellow; }
+              }
+              return (
+                <button key={opt.w} onClick={() => pick(opt)}
+                  style={{
+                    background: bg, border: `3px solid ${bd}`, borderRadius: 16,
+                    padding: "12px 4px", fontFamily: "inherit", fontWeight: 700,
+                    cursor: picked ? "default" : "pointer", boxShadow: "0 4px 0 #E0DBF7",
+                    transition: "all .15s",
+                  }}>
+                  <div style={{ fontSize: 36 }}>{opt.e}</div>
+                  <div style={{ fontSize: 14, color: T.ink }}>{opt.w}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+        {ZH_STORIES.map((s, i) => (
+          <button key={i} onClick={() => goStory(i)}
+            style={{
+              fontFamily: "inherit", fontSize: 22, border: "none", borderRadius: 14,
+              padding: "8px 12px", cursor: "pointer",
+              background: i === si ? T.purple : "#EFECFB",
+              boxShadow: i === si ? "0 4px 0 #4B3BAF" : "none",
+            }}>{s.emoji}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------- 20. 注音快手(關卡制)----------
+const ZH_SIGHT_KEY = "wordpop-bopo-sight-progress";
+const ZH_SIGHT_LEVELS = [];
+for (let i = 0; i < BOPOMOFO.length; i += 5) ZH_SIGHT_LEVELS.push(BOPOMOFO.slice(i, i + 5));
+if (ZH_SIGHT_LEVELS.length > 1 && ZH_SIGHT_LEVELS[ZH_SIGHT_LEVELS.length - 1].length < 3) {
+  const tail = ZH_SIGHT_LEVELS.pop();
+  ZH_SIGHT_LEVELS[ZH_SIGHT_LEVELS.length - 1] = ZH_SIGHT_LEVELS[ZH_SIGHT_LEVELS.length - 1].concat(tail);
+}
+
+function ZhSightMode({ speak, addStars }) {
+  const [view, setView] = useState("map");
+  const [lv, setLv] = useState(0);
+  const [progress, setProgress] = useState(() => loadProgress(ZH_SIGHT_KEY));
+  const [heard, setHeard] = useState(() => new Set());
+  const [queue, setQueue] = useState([]);
+  const [options, setOptions] = useState([]);
+  const [picked, setPicked] = useState(null);
+  const [mastered, setMastered] = useState(() => new Set());
+  const [wrongSet, setWrongSet] = useState(() => new Set());
+  const [encourage, setEncourage] = useState("");
+  const [gotStars, setGotStars] = useState(1);
+
+  const items = ZH_SIGHT_LEVELS[lv];
+  const nChoices = lv < 3 ? 2 : 3;
+  const target = queue[0];
+
+  const makeOptions = (b, pool, n) => {
+    const others = shuffle(pool.filter((x) => x.s !== b.s)).slice(0, n - 1);
+    return shuffle([b, ...others]);
+  };
+
+  const openLevel = (i) => { setLv(i); setHeard(new Set()); setView("learn"); };
+
+  const startQuiz = () => {
+    const q = shuffle(items);
+    setQueue(q); setMastered(new Set()); setWrongSet(new Set());
+    setPicked(null); setEncourage("");
+    setOptions(makeOptions(q[0], items, nChoices));
+    setView("quiz");
+  };
+
+  useEffect(() => {
+    if (view === "quiz" && target) {
+      const t = setTimeout(() => zh(speak, target.sound, { rate: 0.65 }), 400);
+      return () => clearTimeout(t);
+    }
+  }, [view, target, speak]);
+
+  const pick = (b) => {
+    if (picked || !target) return;
+    setPicked(b.s);
+    if (b.s === target.s) {
+      addStars(1);
+      zh(speak, `${target.sound}!${target.word}`, { rate: 0.85 });
+      const nm = new Set(mastered).add(target.s);
+      setTimeout(() => {
+        setMastered(nm);
+        const rest = queue.slice(1);
+        if (rest.length === 0) {
+          const perfect = items.length - wrongSet.size;
+          const starsGot = perfect >= items.length ? 3 : perfect >= items.length - 1 ? 2 : 1;
+          setGotStars(starsGot); addStars(starsGot);
+          setProgress((p) => {
+            const np = { ...p, [lv]: Math.max(p[lv] || 0, starsGot) };
+            saveProgress(ZH_SIGHT_KEY, np);
+            return np;
+          });
+          setView("clear");
+        } else {
+          setQueue(rest); setPicked(null); setEncourage("");
+          setOptions(makeOptions(rest[0], items, nChoices));
+        }
+      }, 1200);
+    } else {
+      setWrongSet((s) => new Set(s).add(target.s));
+      setEncourage("沒關係!仔細聽,它等一下還會再出現 💪");
+      zh(speak, target.sound, { rate: 0.6 });
+      setTimeout(() => {
+        const rest = [...queue.slice(1), queue[0]];
+        setQueue(rest); setPicked(null);
+        setOptions(makeOptions(rest[0], items, nChoices));
+      }, 1600);
+    }
+  };
+
+  if (view === "map") {
+    const crowns = Object.values(progress).filter((s) => s >= 3).length;
+    return (
+      <div style={{ textAlign: "center" }}>
+        <p style={{ color: T.sub, fontSize: 14, margin: "0 0 4px" }}>
+          聽到聲音就要馬上認出注音符號,一關 5 個。
+        </p>
+        <p style={{ color: T.ink, fontSize: 16, fontWeight: 700, margin: "0 0 14px" }}>
+          收集皇冠吧!👑 {crowns} / {ZH_SIGHT_LEVELS.length}
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+          {ZH_SIGHT_LEVELS.map((lvItems, i) => {
+            const unlocked = i === 0 || (progress[i - 1] || 0) >= 1;
+            const best = progress[i] || 0;
+            return (
+              <button key={i} onClick={() => unlocked && openLevel(i)}
+                style={{
+                  fontFamily: "inherit", fontWeight: 700, border: "none",
+                  borderRadius: 18, padding: "12px 0 10px",
+                  cursor: unlocked ? "pointer" : "default",
+                  background: unlocked ? (best >= 3 ? "#FFF7DA" : T.card) : "#ECEAF6",
+                  color: unlocked ? T.ink : "#C0BBDE",
+                  boxShadow: unlocked ? "0 5px 0 #E0DBF7" : "none", transition: "all .15s",
+                }}>
+                <div style={{ fontSize: 20 }}>{unlocked ? (best >= 3 ? "👑" : lvItems[0].s) : "🔒"}</div>
+                <div style={{ fontSize: 12, height: 16, color: T.yellowDark }}>
+                  {best > 0 ? "⭐".repeat(best) : ""}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <p style={{ color: "#B7B2D8", fontSize: 13, marginTop: 16 }}>
+          每一關都一定會過,答錯的會再出現,答對就好 💜
+        </p>
+      </div>
+    );
+  }
+
+  if (view === "clear") {
+    return (
+      <div style={{ textAlign: "center", padding: "24px 0" }}>
+        <div style={{ fontSize: 60 }}>{gotStars >= 3 ? "👑" : "🎉"}</div>
+        <h2 style={{ color: T.ink, fontSize: 28, margin: "8px 0 4px" }}>第 {lv + 1} 關完成!</h2>
+        <div style={{ fontSize: 34 }}>{"⭐".repeat(gotStars)}</div>
+        <p style={{ color: T.sub, fontSize: 15, margin: "6px 0 18px" }}>
+          {gotStars >= 3 ? "全部一次答對,拿到皇冠!" : "這一關的注音全部學會了,太厲害!"}
+        </p>
+        <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+          <ChunkyButton color={T.purple} dark={T.purpleDark} onClick={() => setView("map")}>
+            回關卡地圖
+          </ChunkyButton>
+          {lv + 1 < ZH_SIGHT_LEVELS.length && (
+            <ChunkyButton color={T.green} dark={T.greenDark} onClick={() => openLevel(lv + 1)}>
+              下一關 →
+            </ChunkyButton>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (view === "learn") {
+    const allHeard = heard.size >= items.length;
+    return (
+      <div style={{ textAlign: "center" }}>
+        <p style={{ color: T.ink, fontSize: 16, fontWeight: 700, margin: "0 0 4px" }}>
+          第 {lv + 1} 關的 {items.length} 個注音 👋
+        </p>
+        <p style={{ color: T.sub, fontSize: 14, margin: "0 0 14px" }}>
+          每張卡都點一下聽聽看,全部聽過就可以開始挑戰!
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(84px, 1fr))", gap: 10, marginBottom: 16 }}>
+          {items.map((b) => {
+            const ok = heard.has(b.s);
+            return (
+              <button key={b.s}
+                onClick={() => { zh(speak, `${b.sound},${b.word}`, { rate: 0.75 }); setHeard((s) => new Set(s).add(b.s)); }}
+                style={{
+                  background: ok ? "#E9FBEF" : T.card,
+                  border: `3px solid ${ok ? T.green : "#E8E4FA"}`,
+                  borderRadius: 18, padding: "16px 4px 12px", fontFamily: "inherit",
+                  fontSize: 34, fontWeight: 800, color: T.purple, cursor: "pointer",
+                  boxShadow: "0 5px 0 #E0DBF7", transition: "all .15s",
+                }}>
+                {b.s}
+                <div style={{ fontSize: 12, marginTop: 6, color: ok ? T.greenDark : "#C9C4E8" }}>
+                  {ok ? `✓ ${b.word}` : "🔈 點我"}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <ChunkyButton color={T.pink} dark="#D14B7D" onClick={startQuiz} disabled={!allHeard}
+          style={{ width: "100%" }}>
+          {allHeard ? "🎈 開始挑戰!" : `再聽 ${items.length - heard.size} 張卡就能挑戰`}
+        </ChunkyButton>
+        <button onClick={() => setView("map")}
+          style={{
+            marginTop: 12, fontFamily: "inherit", fontWeight: 700, fontSize: 14,
+            background: "none", border: "none", color: T.sub, cursor: "pointer",
+          }}>← 回關卡地圖</button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ fontSize: 26, letterSpacing: 4, marginBottom: 10 }}>
+        {items.map((b) => <span key={b.s}>{mastered.has(b.s) ? "⭐" : "🎈"}</span>)}
+      </div>
+      <div style={{ background: T.card, borderRadius: 22, padding: "20px 16px",
+        marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
+        <p style={{ color: T.sub, margin: "0 0 10px", fontSize: 15 }}>
+          仔細聽,點出正確的注音,氣球就會變星星!
+        </p>
+        <ChunkyButton color={T.yellow} dark={T.yellowDark} style={{ color: T.ink }}
+          onClick={() => target && zh(speak, target.sound, { rate: 0.65 })}>
+          🔊 再聽一次
+        </ChunkyButton>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: nChoices === 2 ? "1fr 1fr" : "1fr 1fr 1fr", gap: 12 }}>
+        {options.map((b) => {
+          let bg = T.card, bd = "#E8E4FA";
+          if (picked) {
+            if (target && b.s === target.s) { bg = "#E9FBEF"; bd = T.green; }
+            else if (b.s === picked) { bg = "#FFF7DA"; bd = T.yellow; }
+          }
+          return (
+            <button key={b.s} onClick={() => pick(b)}
+              style={{
+                background: bg, border: `3px solid ${bd}`, borderRadius: 18,
+                padding: "24px 8px", fontFamily: "inherit", fontSize: 40,
+                fontWeight: 800, color: T.purple, cursor: picked ? "default" : "pointer",
+                boxShadow: "0 5px 0 #E0DBF7", transition: "all .15s",
+              }}>{b.s}</button>
+          );
+        })}
+      </div>
+      {encourage && (
+        <div style={{ marginTop: 14, fontSize: 15, color: T.sub, fontWeight: 700 }}>{encourage}</div>
+      )}
+    </div>
+  );
+}
+
 // ---------- 首音偵探(音素覺察)----------
 function makeSoundQ() {
   const pool = ALL_WORDS.filter((w) => /^[a-z]+$/i.test(w.en));
@@ -6423,7 +7868,7 @@ const SUBJECTS = [
   { key: "abc",  icon: "🔤", label: "ABC",   color: T.purple, dark: T.purpleDark,
     sub: "英文:聽、說、讀、寫、理解" },
   { key: "bopo", icon: "ㄅ",  label: "ㄅㄆㄇ", color: "#D63031", dark: "#A32320",
-    sub: "注音:認符號、找首音、標準筆順手寫" },
+    sub: "注音:認符號、拼音、聲調、聽力與標準筆順手寫" },
   { key: "num",  icon: "🔢", label: "數字",  color: "#3867D6", dark: "#284D9E",
     sub: "數字:順序與加法" },
 ];
@@ -6512,14 +7957,34 @@ const MENU_GROUPS = [
   },
   {
     subject: "bopo",
-    label: "👂 聽音找注音",
+    label: "👂 聽聲音找注音",
     items: [
+      { mode: "zhquiz", color: "#4B7BEC", dark: "#3560BC", label: "👂 注音聽力挑戰",
+        tip: "只用聽的選圖;答對後請她跟著唸一次那個詞" },
       { mode: "bopohunt", color: "#0984E3", dark: "#0668B0", label: "🔍 注音獵人",
         tip: "聽詞找開頭的注音;答對後跟著唸一次「ㄅ,爸爸」" },
-      { mode: "bopomatch", color: "#00B894", dark: "#008B6E", label: "🧩 注音配對",
-        tip: "看注音找圖片,是獵人的反向練習" },
+      { mode: "zhend", color: "#7158E2", dark: "#5341B4", label: "🔎 韻母偵探",
+        tip: "聽最後的音;把詞拉長唸「貓——ㄠ」她比較聽得出來" },
+      { mode: "zhrhyme", color: "#FF7675", dark: "#CC5250", label: "🚂 押韻火車(注音)",
+        tip: "押韻是聽出韻母的第一步,唸給她聽:貓、貓、ㄠ!" },
       { mode: "bopobubble", color: "#45AAF2", dark: "#2D87C7", label: "🫧 注音泡泡",
         tip: "沒有時間壓力,適合當獎勵遊戲放鬆玩" },
+    ],
+  },
+  {
+    subject: "bopo",
+    label: "💬 聽懂中文句子",
+    items: [
+      { mode: "zhdo", color: "#20BF6B", dark: "#169553", label: "👉 聽指令點圖(中文)",
+        tip: "只給聲音不給字,訓練專心聽完一整句" },
+      { mode: "zhyesno", color: "#F79F1F", dark: "#C67C14", label: "❓ 是不是?(中文)",
+        tip: "答錯不用急著糾正,再問一次「這是什麼?」" },
+      { mode: "zhcount", color: "#EE5A24", dark: "#BC4519", label: "🧺 數數小市場(中文)",
+        tip: "陪她用手指一個一個點著數,別用猜的" },
+      { mode: "zhcolor", color: "#D980FA", dark: "#A961C6", label: "🎨 聽顏色(中文)",
+        tip: "玩完可以在家找找看:哪些東西是紅色的?" },
+      { mode: "zhprep", color: "#12CBC4", dark: "#0E9F9A", label: "🧭 在哪裡?(中文)",
+        tip: "拿一顆球和盒子實際擺一次,理解最快" },
     ],
   },
   {
@@ -6530,19 +7995,63 @@ const MENU_GROUPS = [
         tip: "ㄍ+ㄡ=ㄍㄡ,這是自己讀注音的關鍵,值得多玩" },
       { mode: "bopotone", color: "#9B59D0", dark: "#7A3FAC", label: "🎵 聲調小老師",
         tip: "先誇張地唸給她聽:媽、麻、馬、罵,再讓她分辨" },
+      { mode: "zhsyll", color: "#00A8A8", dark: "#007878", label: "👏 幾個字(音節)",
+        tip: "一起拍手數:腳-踏-車 拍三下!" },
+      { mode: "zhmedial", color: "#7D5FFF", dark: "#5A43C4", label: "🅰️ 中間的音(介音)",
+        tip: "ㄧㄨㄩ 最容易漏掉,慢慢把三個音分開唸給她聽" },
+      { mode: "zhfamily", color: "#FD7272", dark: "#CA5B5B", label: "👨‍👩‍👧 韻母家族",
+        tip: "同一個韻母的字排在一起唸,她會發現規律" },
     ],
   },
   {
     subject: "bopo",
-    label: "🧠 記憶與挑戰",
+    label: "🧩 認符號與拼注音",
     items: [
+      { mode: "zhspell", color: "#6AB04C", dark: "#4F8438", label: "🧩 拼注音小廚師",
+        tip: "拼完請她看著綠色注音,把整個字大聲唸一次" },
+      { mode: "bopomatch", color: "#00B894", dark: "#008B6E", label: "🧩 注音配對",
+        tip: "看注音找圖片,是獵人的反向練習" },
+      { mode: "zhfind", color: "#F5A623", dark: "#C6841A", label: "🔎 注音找找看",
+        tip: "純用聽的找符號;答錯會再唸一次,讓她自己修正" },
+      { mode: "zhtype", color: "#22A6B3", dark: "#187D87", label: "🔠 聲母還是韻母?",
+        tip: "聲母放前面、韻母放後面,先建立這個概念再拼音" },
+    ],
+  },
+  {
+    subject: "bopo",
+    label: "🧠 動動腦(注音)",
+    items: [
+      { mode: "zhmissing", color: "#E056FD", dark: "#AF44CA", label: "🕵️ 少了誰?(注音)",
+        tip: "先讓她把注音一個一個唸過再蓋起來,比較記得住" },
+      { mode: "zhopp", color: "#FF9F1A", dark: "#CC7F14", label: "↔️ 相反詞配對(中文)",
+        tip: "生活中就能練:燈開了/關了、水熱的/冷的" },
+      { mode: "zhseq", color: "#B33771", dark: "#8C2B5A", label: "🧠 記憶排排看(注音)",
+        tip: "記不住是正常的,遊戲會自動重播,不算失敗" },
+      { mode: "zhsize", color: "#3B3B98", dark: "#2C2C74", label: "📏 排大小(中文)",
+        tip: "問她:為什麼你覺得這個比較大?說出理由更重要" },
+    ],
+  },
+  {
+    subject: "bopo",
+    label: "📖 故事",
+    items: [
+      { mode: "zhstory", color: "#F97F51", dark: "#C6663F", label: "📖 注音小故事",
+        tip: "先聽三句再回答問題;可以指著注音一起唸" },
+    ],
+  },
+  {
+    subject: "bopo",
+    label: "🔤 注音快手",
+    items: [
+      { mode: "zhsight", color: "#E15F41", dark: "#B44C34", label: "⚡ 注音快手",
+        tip: "一關 5 個符號,答錯的會再出現,一定過得了關" },
       { mode: "bopopairs", color: "#EE5A6F", dark: "#C43D52", label: "🎴 注音翻翻樂",
         tip: "翻牌時跟著唸出聲,符號和聲音一起記" },
     ],
   },
   {
     subject: "bopo",
-    label: "🗣️ 開口與動手",
+    label: "🗣️ 開口與動手(注音)",
     items: [
       { mode: "boposay", color: "#F0932B", dark: "#C4731A", label: "🎤 注音跟讀",
         tip: "找安靜環境;先按「先聽一次」再自己唸" },
@@ -6639,6 +8148,8 @@ export default function WordPop() {
       localStorage.removeItem(SIGHT_KEY);
       localStorage.removeItem(MATCH_KEY);
       localStorage.removeItem(TRACE_KEY);
+      localStorage.removeItem(BOPO_TRACE_KEY);
+      localStorage.removeItem(ZH_SIGHT_KEY);
     } catch { /* 清不掉就算了 */ }
     setStars(0);
     setConfirmClear(false);
@@ -6809,7 +8320,13 @@ canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
                     每個遊戲的一句話陪玩訣竅。共同原則:孩子答錯時不糾正、
                     讓遊戲自己引導;多讓她「開口跟著唸」效果加倍 💜
                   </p>
-                  {MENU_GROUPS.map((group) => (
+                  {SUBJECTS.map((sub) => (
+                    <div key={sub.key}>
+                      <div style={{ fontWeight: 800, fontSize: 15, color: T.ink,
+                        margin: "2px 0 8px", paddingBottom: 4, borderBottom: "2px solid #EFECFB" }}>
+                        {sub.icon} {sub.label}
+                      </div>
+                      {MENU_GROUPS.filter((g) => g.subject === sub.key).map((group) => (
                     <div key={group.label} style={{ marginBottom: 12 }}>
                       <div style={{ fontWeight: 700, fontSize: 14, color: T.purple, marginBottom: 6 }}>
                         {group.label}
@@ -6823,6 +8340,8 @@ canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
                             {g.tip}
                           </div>
                         </div>
+                      ))}
+                    </div>
                       ))}
                     </div>
                   ))}
@@ -6929,6 +8448,26 @@ canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
         {mode === "bopobubble" && <BopoBubbleMode speak={speak} addStars={addStars} />}
         {mode === "bopopairs" && <BopoPairsMode speak={speak} addStars={addStars} />}
         {mode === "boposay" && <BopoSayMode speak={speak} addStars={addStars} />}
+        {mode === "zhquiz" && <ZhListenQuizMode speak={speak} addStars={addStars} />}
+        {mode === "zhend" && <ZhEndSoundMode speak={speak} addStars={addStars} />}
+        {mode === "zhrhyme" && <ZhRhymeMode speak={speak} addStars={addStars} />}
+        {mode === "zhdo" && <ZhListenDoMode speak={speak} addStars={addStars} />}
+        {mode === "zhyesno" && <ZhYesNoMode speak={speak} addStars={addStars} />}
+        {mode === "zhcount" && <ZhCountMode speak={speak} addStars={addStars} />}
+        {mode === "zhcolor" && <ZhColorMode speak={speak} addStars={addStars} />}
+        {mode === "zhprep" && <ZhPrepMode speak={speak} addStars={addStars} />}
+        {mode === "zhsyll" && <ZhSyllableMode speak={speak} addStars={addStars} />}
+        {mode === "zhmedial" && <ZhMedialMode speak={speak} addStars={addStars} />}
+        {mode === "zhfamily" && <ZhFamilyMode speak={speak} addStars={addStars} />}
+        {mode === "zhspell" && <ZhSpellMode speak={speak} addStars={addStars} />}
+        {mode === "zhfind" && <ZhFindMode speak={speak} addStars={addStars} />}
+        {mode === "zhtype" && <ZhTypeMode speak={speak} addStars={addStars} />}
+        {mode === "zhmissing" && <ZhMissingMode speak={speak} addStars={addStars} />}
+        {mode === "zhopp" && <ZhOppositeMode speak={speak} addStars={addStars} />}
+        {mode === "zhseq" && <ZhSequenceMode speak={speak} addStars={addStars} />}
+        {mode === "zhsize" && <ZhSizeMode speak={speak} addStars={addStars} />}
+        {mode === "zhstory" && <ZhStoryMode speak={speak} addStars={addStars} />}
+        {mode === "zhsight" && <ZhSightMode speak={speak} addStars={addStars} />}
       </div>
     </div>
   );
