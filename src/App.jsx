@@ -361,7 +361,7 @@ const SIGHT_WORDS = [
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
 // 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
-const APP_VERSION = "v1.32";
+const APP_VERSION = "v1.33";
 const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
@@ -1832,6 +1832,234 @@ function SchoolWordsMode({ speak, addStars }) {
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+// ---------- 學校單字表:唸出來答題(語音辨識)----------
+// 用「唸得出來」當通過條件——這比三選一更接近老師在課堂上的檢核方式。
+// 語音辨識對這種短的功能字常常聽成同音字,所以放寬到真正分不出來的同音詞。
+const SAY_HOMOPHONES = {
+  I: ["i", "eye", "aye"],
+  a: ["a", "ay", "eh", "uh"],
+  to: ["to", "too", "two"], two: ["two", "to", "too"], too: ["too", "to", "two"],
+  for: ["for", "four", "fore"], four: ["four", "for", "fore"],
+  be: ["be", "bee", "b"], see: ["see", "sea", "c"],
+  here: ["here", "hear"], no: ["no", "know"], know: ["know", "no"],
+  our: ["our", "hour", "are"], one: ["one", "won"], some: ["some", "sum"],
+  there: ["there", "their", "theyre"], so: ["so", "sew", "sow"],
+  by: ["by", "buy", "bye"], new: ["new", "knew"], eat: ["eat", "eight"],
+  way: ["way", "weigh"], made: ["made", "maid"], its: ["its", "it's"],
+};
+const sayTargets = (w) => SAY_HOMOPHONES[w] || [w.toLowerCase()];
+
+function SchoolSayMode({ speak, addStars }) {
+  const [semIdx, setSemIdx] = useState(0);
+  const [known, setKnown] = useState(loadSchoolKnown);
+  const [idx, setIdx] = useState(0);
+  const [status, setStatus] = useState("idle"); // idle | listening | correct | tryagain
+  const [heard, setHeard] = useState("");
+  const [wins, setWins] = useState(0);
+  const recRef = useRef(null);
+  const timerRef = useRef(0);
+
+  const sem = SCHOOL_WORDS[semIdx];
+  const words = useMemo(() => schoolList(sem), [sem]);
+  // 還沒打勾的排前面,先練不會的
+  const queue = useMemo(
+    () => [...words.filter((w) => !known.has(w)), ...words.filter((w) => known.has(w))],
+    // 只在換學期時重排,免得打勾後題目跳掉
+    [words] // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const word = queue[idx] || queue[0];
+
+  const SR = typeof window !== "undefined" &&
+    (window.SpeechRecognition || window.webkitSpeechRecognition);
+
+  useEffect(() => { speak.prefetch?.(word); }, [word, speak]);
+
+  const stopListening = useCallback(() => {
+    clearTimeout(timerRef.current);
+    try { recRef.current?.abort(); } catch { /* 已停止就算了 */ }
+    recRef.current = null;
+  }, []);
+  useEffect(() => stopListening, [stopListening]); // 離開頁面關麥克風
+
+  const persist = (next) => {
+    try { localStorage.setItem(SCHOOL_KEY, JSON.stringify([...next])); } catch { /* 寫不進去就算了 */ }
+  };
+  // 唸對了就直接在單字表上打勾(和「學校單字表」共用同一份紀錄)
+  const markKnown = (w) => {
+    setKnown((prev) => {
+      if (prev.has(w)) return prev;
+      const next = new Set(prev).add(w);
+      persist(next);
+      return next;
+    });
+  };
+
+  const goto = (i) => {
+    stopListening();
+    setIdx(((i % queue.length) + queue.length) % queue.length);
+    setStatus("idle"); setHeard("");
+  };
+
+  const listen = () => {
+    if (!SR || status === "listening") return;
+    window.speechSynthesis?.cancel(); // 不要讓麥克風收到喇叭的示範音
+    stopListening();
+    try {
+      const rec = new SR();
+      recRef.current = rec;
+      rec.lang = "en-US";
+      rec.interimResults = true;   // 唸對立刻過關,不等瀏覽器判定講完
+      rec.maxAlternatives = 5;
+      rec.continuous = false;
+      setStatus("listening"); setHeard("");
+      const accepts = sayTargets(word);
+      let settled = false;
+      const succeed = () => {
+        if (settled) return;
+        settled = true;
+        stopListening();
+        setStatus("correct");
+        setWins((n) => n + 1);
+        addStars(2);
+        markKnown(word);
+        speak("Great job!", { rate: 1 });
+      };
+      const giveUp = () => {
+        if (settled) return;
+        settled = true;
+        stopListening();
+        setStatus("tryagain");
+      };
+      // 逐字比對:把聽到的句子切成單字,要有一個「完全等於」目標字(或其同音字)
+      const hit = (transcript) => {
+        const toks = transcript.toLowerCase().replace(/[^a-z' ]/g, " ").split(/\s+/).filter(Boolean);
+        return toks.some((tk) => accepts.includes(tk.replace(/'/g, "")));
+      };
+      rec.onresult = (e) => {
+        const alts = [];
+        for (const res of e.results)
+          for (const alt of res) alts.push(alt.transcript.trim());
+        if (alts[0]) setHeard(alts[0]);
+        if (alts.some(hit)) succeed();
+        else if (e.results[e.results.length - 1].isFinal) giveUp();
+      };
+      rec.onerror = giveUp;
+      rec.onend = () => {
+        clearTimeout(timerRef.current);
+        setStatus((s) => (s === "listening" ? "tryagain" : s));
+      };
+      timerRef.current = setTimeout(() => {
+        try { rec.stop(); } catch { giveUp(); }
+      }, 6000);
+      rec.start();
+    } catch {
+      setStatus("tryagain");
+    }
+  };
+
+  const knownCount = words.filter((w) => known.has(w)).length;
+  const swatch = SCHOOL_SWATCH[word];
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>
+        看著字<b style={{ color: T.purple }}>大聲唸出來</b>,唸對得 ⭐⭐,還會自動在單字表上打勾!
+      </p>
+
+      <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 12 }}>
+        {SCHOOL_WORDS.map((s, i) => {
+          const on = i === semIdx;
+          return (
+            <button key={s.key} onClick={() => { setSemIdx(i); goto(0); }}
+              style={{
+                fontFamily: "inherit", fontWeight: 700, fontSize: 15,
+                padding: "8px 16px", borderRadius: 999, cursor: "pointer",
+                border: `3px solid ${on ? T.purpleDark : "#E8E4FA"}`,
+                background: on ? T.purple : T.card,
+                color: on ? "#fff" : T.ink,
+              }}>
+              {s.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 13, marginBottom: 10 }}>
+        第 {idx + 1} / {queue.length} 個・這學期已會 {knownCount} / {words.length}・本次唸對 {wins} 個
+      </div>
+
+      <div style={{ background: T.card, borderRadius: 24, padding: "26px 16px",
+        boxShadow: "0 6px 0 #E0DBF7", marginBottom: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+          {swatch && (
+            <span style={{ width: 24, height: 24, borderRadius: "50%", background: swatch,
+              border: "2px solid #C9C4E8" }} />
+          )}
+          <span style={{ fontSize: 46, fontWeight: 800, color: T.ink }}>{word}</span>
+        </div>
+        {known.has(word) && (
+          <div style={{ fontSize: 13, color: T.greenDark, fontWeight: 700, marginTop: 2 }}>
+            ✓ 單字表上已經打勾了
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 10, justifyContent: "center",
+          flexWrap: "wrap", marginTop: 14 }}>
+          <ChunkyButton color={T.yellow} dark={T.yellowDark} style={{ color: T.ink }}
+            onClick={() => speak(word)} disabled={status === "listening"}>
+            🔊 先聽一次
+          </ChunkyButton>
+          {SR ? (
+            <ChunkyButton
+              color={status === "listening" ? T.red : T.pink}
+              dark={status === "listening" ? "#C94F4E" : "#D14B7D"}
+              onClick={listen} disabled={status === "listening"}>
+              {status === "listening" ? "🎤 聽你說…" : "🎤 換我唸!"}
+            </ChunkyButton>
+          ) : (
+            <ChunkyButton color={T.green} dark={T.greenDark}
+              onClick={() => { setStatus("correct"); setWins((n) => n + 1); addStars(1); markKnown(word); }}>
+              👍 她唸對了(家長按)
+            </ChunkyButton>
+          )}
+        </div>
+
+        {status === "listening" && (
+          <div style={{ marginTop: 14, fontSize: 17, color: T.pink, fontWeight: 700,
+            animation: "wp-pulse 1s ease-in-out infinite" }}>
+            🎙️ 我在聽,大聲唸出來!{heard && ` 「${heard}」`}
+          </div>
+        )}
+        {status === "correct" && (
+          <div style={{ marginTop: 14, fontSize: 20, color: T.greenDark, fontWeight: 700 }}>
+            🎉 唸對了!+2 ⭐
+          </div>
+        )}
+        {status === "tryagain" && (
+          <div style={{ marginTop: 14, fontSize: 15, color: T.sub }}>
+            {heard ? `我聽到「${heard}」,` : ""}再試一次,先按「先聽一次」再慢慢唸 💪
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+        <ChunkyButton color="#B7B2D8" dark="#9A95BF" onClick={() => goto(idx - 1)}>
+          ← 上一個
+        </ChunkyButton>
+        <ChunkyButton color={T.purple} dark={T.purpleDark} onClick={() => goto(idx + 1)}>
+          下一個 →
+        </ChunkyButton>
+      </div>
+
+      {!SR && (
+        <p style={{ color: "#B7B2D8", fontSize: 12, marginTop: 14 }}>
+          此瀏覽器不支援語音辨識,改由家長確認模式(建議用 Chrome)
+        </p>
+      )}
     </div>
   );
 }
@@ -9971,6 +10199,8 @@ const MENU_GROUPS = [
     items: [
       { mode: "school", color: "#2D98DA", dark: "#1F6E9C", label: "📋 學校單字表",
         tip: "就是學校那張檢核表:點字聽發音,唸得出來讓她自己打勾;考試會先挑還沒打勾的字" },
+      { mode: "schoolsay", color: "#F0932B", dark: "#C4731A", label: "🎤 學校單字跟讀",
+        tip: "看著字唸出來才算過,比選擇題更接近老師的檢核;唸對會自動幫她在單字表打勾" },
     ],
   },
   {
@@ -10293,6 +10523,7 @@ canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
         {mode === "quiz" && <QuizMode speak={speak} addStars={addStars} onExit={() => setMode("home")} />}
         {mode === "sight" && <SightMode speak={speak} addStars={addStars} />}
         {mode === "school" && <SchoolWordsMode speak={speak} addStars={addStars} />}
+        {mode === "schoolsay" && <SchoolSayMode speak={speak} addStars={addStars} />}
         {mode === "sound" && <FirstSoundMode speak={speak} addStars={addStars} />}
         {mode === "sayit" && <SayItMode speak={speak} addStars={addStars} />}
         {mode === "write" && <WriteMode speak={speak} addStars={addStars} />}
