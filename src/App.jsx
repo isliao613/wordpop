@@ -361,7 +361,7 @@ const SIGHT_WORDS = [
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
 // 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
-const APP_VERSION = "v1.31";
+const APP_VERSION = "v1.32";
 const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
@@ -1492,6 +1492,346 @@ function SightMode({ speak, addStars }) {
           {encourage}
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------- 學校單字表(High Frequency Words・大班上下學期)----------
+// 完全照學校發的自我檢核表:點單字聽發音,自己覺得會了就打勾。
+// 每一欄的順序和紙本一樣(由上往下、左欄到右欄)。
+const SCHOOL_WORDS = [
+  {
+    key: "s1", label: "上學期",
+    cols: [
+      ["I", "am", "the", "a", "to", "like", "he", "is", "have", "my", "we", "make", "me", "for", "with"],
+      ["she", "see", "look", "of", "are", "that", "do", "you", "they", "one", "two", "three", "four", "five", "here"],
+      ["go", "from", "yellow", "blue", "what", "green", "was", "said", "where", "any", "come", "play", "her", "how", "down"],
+    ],
+  },
+  {
+    key: "s2", label: "下學期",
+    cols: [
+      ["away", "give", "little", "were", "some", "funny", "live", "know", "going", "find", "over", "again", "all", "now", "pretty"],
+      ["black", "brown", "white", "good", "open", "could", "want", "every", "please", "may", "this", "round", "be", "saw", "our"],
+      ["eat", "soon", "walk", "who", "into", "there", "so", "out", "then", "new", "too", "when", "no", "say", "under"],
+    ],
+  },
+];
+// 顏色字在單字表裡附一個小色點(只在表格出現,挑戰時不給提示)
+const SCHOOL_SWATCH = {
+  yellow: "#F1C40F", blue: "#3498DB", green: "#2ECC71",
+  black: "#2C3E50", brown: "#8D6E63", white: "#FFFFFF",
+};
+const SCHOOL_KEY = "wordpop-school-words";
+const schoolList = (sem) => sem.cols.flat();
+function loadSchoolKnown() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(SCHOOL_KEY) || "[]");
+    return Array.isArray(arr) ? new Set(arr) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function SchoolWordsMode({ speak, addStars }) {
+  const QUIZ_TOTAL = 10;
+  const [semIdx, setSemIdx] = useState(0);
+  const [known, setKnown] = useState(loadSchoolKnown);
+  const [view, setView] = useState("list"); // list | quiz | result
+  const [queue, setQueue] = useState([]);
+  const [options, setOptions] = useState([]);
+  const [qNo, setQNo] = useState(1);
+  const [picked, setPicked] = useState(null);
+  const [right, setRight] = useState(0);
+  const [gotRight, setGotRight] = useState(() => new Set());
+  const [confirmReset, setConfirmReset] = useState(false);
+
+  const sem = SCHOOL_WORDS[semIdx];
+  const words = useMemo(() => schoolList(sem), [sem]);
+  const knownCount = words.filter((w) => known.has(w)).length;
+  const allDone = knownCount === words.length;
+  const target = view === "quiz" ? queue[qNo - 1] : null;
+
+  // 這學期的字先在背景查好真人音檔,點下去就出聲(查過會存起來,只會查這一次)
+  useEffect(() => {
+    if (view === "list") speak.prefetchMany?.(words);
+  }, [words, view, speak]);
+
+  useEffect(() => {
+    if (view === "quiz" && target) {
+      const t = setTimeout(() => speak(target), 400);
+      return () => clearTimeout(t);
+    }
+  }, [view, target, speak]);
+
+  const persist = (next) => {
+    try { localStorage.setItem(SCHOOL_KEY, JSON.stringify([...next])); } catch { /* 寫不進去就不保存 */ }
+  };
+
+  // 打勾是「自我檢核」不給星星,免得來回點就能刷星
+  const toggle = (w) => {
+    setKnown((prev) => {
+      const next = new Set(prev);
+      if (next.has(w)) next.delete(w);
+      else next.add(w);
+      persist(next);
+      return next;
+    });
+  };
+
+  const makeOptions = (w) =>
+    shuffle([w, ...shuffle(words.filter((x) => x !== w)).slice(0, 2)]);
+
+  const startQuiz = () => {
+    // 優先考還沒打勾的字;不夠 10 個再從會的字裡補
+    const todo = shuffle(words.filter((w) => !known.has(w)));
+    const rest = shuffle(words.filter((w) => known.has(w)));
+    const q = [...todo, ...rest].slice(0, QUIZ_TOTAL);
+    setQueue(q); setQNo(1); setRight(0); setGotRight(new Set());
+    setOptions(makeOptions(q[0])); setPicked(null); setView("quiz");
+    speak.prefetchMany?.(q);
+  };
+
+  const pick = (w) => {
+    if (picked || !target) return;
+    setPicked(w);
+    if (w === target) {
+      setRight((r) => r + 1);
+      addStars(1);
+      setGotRight((s) => new Set(s).add(target));
+      speak(target, { rate: 0.95, onEnd: () => speak("Great job!", { rate: 1 }) });
+    } else {
+      speak(target, { rate: 0.7 });
+    }
+    setTimeout(() => {
+      if (qNo >= QUIZ_TOTAL) setView("result");
+      else {
+        const n = qNo + 1;
+        setQNo(n); setOptions(makeOptions(queue[n - 1])); setPicked(null);
+      }
+    }, 1700);
+  };
+
+  const tickCorrect = () => {
+    setKnown((prev) => {
+      const next = new Set(prev);
+      gotRight.forEach((w) => next.add(w));
+      persist(next);
+      return next;
+    });
+    setView("list");
+  };
+
+  const clearSemester = () => {
+    setKnown((prev) => {
+      const next = new Set(prev);
+      words.forEach((w) => next.delete(w));
+      persist(next);
+      return next;
+    });
+    setConfirmReset(false);
+  };
+
+  // ----- 挑戰 -----
+  if (view === "quiz")
+    return (
+      <div style={{ textAlign: "center" }}>
+        <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
+          第 {qNo} / {QUIZ_TOTAL} 題・{sem.label}・聽聽看是哪個字?
+        </div>
+        <div style={{ background: T.card, borderRadius: 22, padding: "22px 16px",
+          marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
+          <div style={{ fontSize: 52 }}>👂</div>
+          <ChunkyButton color={T.yellow} dark={T.yellowDark} style={{ color: T.ink, marginTop: 6 }}
+            onClick={() => speak(target)}>
+            🔊 再聽一次
+          </ChunkyButton>
+        </div>
+        <div style={{ display: "grid", gap: 12 }}>
+          {options.map((w) => {
+            const isAns = w === target;
+            let bg = T.card, bd = "#E8E4FA";
+            if (picked) {
+              if (isAns) { bg = "#E9FBEF"; bd = T.green; }
+              else if (w === picked) { bg = "#FFF7DA"; bd = T.yellow; }
+            }
+            return (
+              <button key={w} onClick={() => pick(w)}
+                style={{
+                  background: bg, border: `3px solid ${bd}`, borderRadius: 18,
+                  padding: "20px 8px", fontFamily: "inherit", fontSize: 30,
+                  fontWeight: 700, color: T.ink, cursor: picked ? "default" : "pointer",
+                  boxShadow: "0 5px 0 #E0DBF7", transition: "all .15s",
+                }}>
+                {w}
+              </button>
+            );
+          })}
+        </div>
+        <button onClick={() => setView("list")}
+          style={{ marginTop: 14, fontFamily: "inherit", fontWeight: 700, fontSize: 14,
+            background: "none", border: "none", color: T.sub, cursor: "pointer" }}>
+          ← 回單字表
+        </button>
+      </div>
+    );
+
+  // ----- 挑戰結果 -----
+  if (view === "result")
+    return (
+      <div style={{ textAlign: "center", padding: "20px 0" }}>
+        <div style={{ fontSize: 60 }}>{right >= QUIZ_TOTAL - 1 ? "🏆" : "🎉"}</div>
+        <h2 style={{ color: T.ink, fontSize: 26, margin: "8px 0 4px" }}>
+          答對 {right} / {QUIZ_TOTAL} 個字!
+        </h2>
+        <p style={{ color: T.sub, fontSize: 15, margin: "4px 0 18px" }}>
+          {gotRight.size > 0
+            ? `要把這 ${gotRight.size} 個字在單字表上打勾嗎?`
+            : "沒關係,再聽一次就會記得了 💪"}
+        </p>
+        <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+          {gotRight.size > 0 && (
+            <ChunkyButton color={T.green} dark={T.greenDark} onClick={tickCorrect}>
+              ✓ 幫我打勾
+            </ChunkyButton>
+          )}
+          <ChunkyButton color={T.purple} dark={T.purpleDark} onClick={() => setView("list")}>
+            回單字表
+          </ChunkyButton>
+        </div>
+      </div>
+    );
+
+  // ----- 單字表(自我檢核)-----
+  return (
+    <div style={{ textAlign: "center" }}>
+      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>
+        學校的 High Frequency Words 檢核表。<b style={{ color: T.purple }}>點單字</b>聽發音,
+        <b style={{ color: T.purple }}>唸得出來就自己打勾</b> ✓
+      </p>
+
+      <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 12 }}>
+        {SCHOOL_WORDS.map((s, i) => {
+          const on = i === semIdx;
+          const n = schoolList(s).filter((w) => known.has(w)).length;
+          return (
+            <button key={s.key} onClick={() => { setSemIdx(i); setConfirmReset(false); }}
+              style={{
+                fontFamily: "inherit", fontWeight: 700, fontSize: 15,
+                padding: "8px 16px", borderRadius: 999, cursor: "pointer",
+                border: `3px solid ${on ? T.purpleDark : "#E8E4FA"}`,
+                background: on ? T.purple : T.card,
+                color: on ? "#fff" : T.ink,
+              }}>
+              {s.label} {n}/{schoolList(s).length}
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={{ background: T.card, borderRadius: 18, padding: "12px 14px",
+        boxShadow: "0 5px 0 #E0DBF7", marginBottom: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+          <span style={{ fontWeight: 800, color: T.ink, fontSize: 17 }}>
+            我會 {knownCount} / {words.length} 個字
+          </span>
+          <span style={{ fontSize: 13, color: T.sub, fontWeight: 700 }}>
+            {Math.round((knownCount / words.length) * 100)}%
+          </span>
+        </div>
+        <div style={{ height: 12, background: "#EFECFB", borderRadius: 999,
+          marginTop: 8, overflow: "hidden" }}>
+          <div style={{
+            width: `${(knownCount / words.length) * 100}%`, height: "100%",
+            background: allDone ? T.yellow : T.green, borderRadius: 999,
+            transition: "width .3s",
+          }} />
+        </div>
+        {allDone && (
+          <div style={{ marginTop: 8, fontSize: 16, fontWeight: 800, color: T.greenDark }}>
+            🎉 {sem.label}的字全部都會了!
+          </div>
+        )}
+      </div>
+
+      <ChunkyButton color={T.pink} dark="#D14B7D" onClick={startQuiz} style={{ width: "100%" }}>
+        🎯 來考考我({QUIZ_TOTAL} 題)
+      </ChunkyButton>
+      <p style={{ color: "#B7B2D8", fontSize: 12, margin: "8px 0 12px" }}>
+        考試會先挑<b>還沒打勾</b>的字
+      </p>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        {words.map((w) => {
+          const ok = known.has(w);
+          const swatch = SCHOOL_SWATCH[w];
+          return (
+            <div key={w}
+              style={{
+                display: "flex", alignItems: "center", gap: 4,
+                background: ok ? "#E9FBEF" : T.card,
+                border: `3px solid ${ok ? T.green : "#E8E4FA"}`,
+                borderRadius: 14, padding: "4px 4px 4px 9px",
+                boxShadow: "0 4px 0 #E0DBF7", transition: "all .15s",
+              }}>
+              <button onClick={() => speak(w)}
+                style={{
+                  flex: 1, minWidth: 0, textAlign: "left", background: "none",
+                  border: "none", fontFamily: "inherit", fontSize: 19, fontWeight: 700,
+                  color: T.ink, cursor: "pointer", padding: "9px 0",
+                  display: "flex", alignItems: "center", gap: 6,
+                }}>
+                {swatch && (
+                  <span style={{
+                    width: 13, height: 13, borderRadius: "50%", flex: "0 0 auto",
+                    background: swatch, border: "1.5px solid #C9C4E8",
+                  }} />
+                )}
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{w}</span>
+              </button>
+              <button onClick={() => toggle(w)} aria-label={`${w}:我會了`}
+                style={{
+                  width: 34, height: 34, flex: "0 0 auto", borderRadius: 10,
+                  background: ok ? T.green : "#F6F4FE",
+                  border: `2px solid ${ok ? T.greenDark : "#E0DBF7"}`,
+                  color: "#fff", fontSize: 18, fontWeight: 800, lineHeight: 1,
+                  fontFamily: "inherit", cursor: "pointer",
+                }}>
+                {ok ? "✓" : ""}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ marginTop: 16 }}>
+        {confirmReset ? (
+          <div>
+            <div style={{ color: T.sub, fontSize: 14, fontWeight: 700, marginBottom: 8 }}>
+              要清掉{sem.label}的勾勾,重新檢查一次嗎?
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+              <button onClick={clearSemester}
+                style={{ fontFamily: "inherit", fontWeight: 700, fontSize: 14, background: T.red,
+                  color: "#fff", border: "none", borderRadius: 999, padding: "9px 18px",
+                  cursor: "pointer", boxShadow: "0 3px 0 #C94F4E" }}>
+                確定清掉
+              </button>
+              <button onClick={() => setConfirmReset(false)}
+                style={{ fontFamily: "inherit", fontWeight: 700, fontSize: 14, background: "#E8E4FA",
+                  color: T.sub, border: "none", borderRadius: 999, padding: "9px 18px", cursor: "pointer" }}>
+                取消
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => setConfirmReset(true)}
+            style={{ fontFamily: "inherit", fontWeight: 700, fontSize: 13, background: "none",
+              border: "none", color: "#B7B2D8", cursor: "pointer", textDecoration: "underline" }}>
+            🔄 重新檢查{sem.label}(清掉勾勾)
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -9627,6 +9967,14 @@ const MENU_GROUPS = [
   },
   {
     subject: "abc",
+    label: "🏫 學校單字表",
+    items: [
+      { mode: "school", color: "#2D98DA", dark: "#1F6E9C", label: "📋 學校單字表",
+        tip: "就是學校那張檢核表:點字聽發音,唸得出來讓她自己打勾;考試會先挑還沒打勾的字" },
+    ],
+  },
+  {
+    subject: "abc",
     label: "🔤 常見字 Sight Words(同一套字)",
     items: [
       { mode: "sight", color: "#3FA7E0", dark: "#2B7BAB", label: "👀 認字快手",
@@ -9683,6 +10031,7 @@ export default function WordPop() {
       localStorage.removeItem(BOPO_TRACE_KEY);
       localStorage.removeItem(ZH_SIGHT_KEY);
       localStorage.removeItem(NUM_TRACE_KEY);
+      localStorage.removeItem(SCHOOL_KEY);
     } catch { /* 清不掉就算了 */ }
     setStars(0);
     setConfirmClear(false);
@@ -9943,6 +10292,7 @@ canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
         {mode === "phonics" && <PhonicsMode speak={speak} />}
         {mode === "quiz" && <QuizMode speak={speak} addStars={addStars} onExit={() => setMode("home")} />}
         {mode === "sight" && <SightMode speak={speak} addStars={addStars} />}
+        {mode === "school" && <SchoolWordsMode speak={speak} addStars={addStars} />}
         {mode === "sound" && <FirstSoundMode speak={speak} addStars={addStars} />}
         {mode === "sayit" && <SayItMode speak={speak} addStars={addStars} />}
         {mode === "write" && <WriteMode speak={speak} addStars={addStars} />}
