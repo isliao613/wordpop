@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { BOPO_STROKES } from "./bopomofoStrokes.js";
+import { t, tf, LANG, setLang } from "./i18n.js";
 
 // ---------- 單字庫(大班程度・約 200 字)----------
 const WORD_BANK = {
@@ -361,7 +362,7 @@ const SIGHT_WORDS = [
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
 // 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
-const APP_VERSION = "v1.33";
+const APP_VERSION = "v1.34";
 const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
@@ -868,9 +869,7 @@ function WordCard({ word, speak }) {
         {word.en}
       </span>
       <span style={{ fontSize: 13, color: T.sub }}>{word.zh}</span>
-      <span style={{ fontSize: 12, color: speaking ? T.purple : "#C9C4E8" }}>
-        {speaking ? "🔊 播放中…" : "🔈 點我聽"}
-      </span>
+      <span style={{ fontSize: 12, color: speaking ? T.purple : "#C9C4E8" }}>{speaking ? t("🔊 播放中…") : t("🔈 點我聽")}</span>
     </button>
   );
 }
@@ -901,7 +900,7 @@ function LearnMode({ speak }) {
               transition: "all .15s",
             }}
           >
-            {c}
+            {t(c)}
           </button>
         ))}
       </div>
@@ -1000,9 +999,7 @@ function PhonicsMode({ speak }) {
   }, [group, speak]);
   return (
     <div>
-      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>
-        共 {total} 個常見字節。點大按鈕聽字節發音,點小字聽例字 👂
-      </p>
+      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>{tf("共 {0} 個常見字節。點大按鈕聽字節發音,點小字聽例字 👂", total)}</p>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
         {PHONICS_GROUPS.map((g) => (
           <button
@@ -1021,7 +1018,7 @@ function PhonicsMode({ speak }) {
               transition: "all .15s",
             }}
           >
-            {g}
+            {t(g)}
           </button>
         ))}
       </div>
@@ -1110,17 +1107,11 @@ function QuizMode({ speak, addStars, onExit }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>{"⭐".repeat(stars)}</div>
-        <h2 style={{ color: T.ink, fontSize: 28, margin: "8px 0" }}>
-          完成挑戰!
-        </h2>
-        <p style={{ color: T.sub, fontSize: 16, margin: "4px 0 20px" }}>
-          得分 <b style={{ color: T.purple }}>{score}</b>・最長連對{" "}
-          <b style={{ color: T.pink }}>{best}</b>
+        <h2 style={{ color: T.ink, fontSize: 28, margin: "8px 0" }}>{t("完成挑戰!")}</h2>
+        <p style={{ color: T.sub, fontSize: 16, margin: "4px 0 20px" }}>{t("得分")}<b style={{ color: T.purple }}>{score}</b>{tf("・最長連對{0}", " ")}<b style={{ color: T.pink }}>{best}</b>
         </p>
         <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-          <ChunkyButton color={T.purple} dark={T.purpleDark} onClick={onExit}>
-            回主選單
-          </ChunkyButton>
+          <ChunkyButton color={T.purple} dark={T.purpleDark} onClick={onExit}>{t("回主選單")}</ChunkyButton>
           <ChunkyButton
             color={T.green}
             dark={T.greenDark}
@@ -1128,9 +1119,7 @@ function QuizMode({ speak, addStars, onExit }) {
               setRound(1); setScore(0); setStreak(0); setBest(0);
               setUsed([]); setQ(makeQuestion([])); setPicked(null); setDone(false);
             }}
-          >
-            再玩一次
-          </ChunkyButton>
+          >{t("再玩一次")}</ChunkyButton>
         </div>
       </div>
     );
@@ -1144,9 +1133,8 @@ function QuizMode({ speak, addStars, onExit }) {
           marginBottom: 16, color: T.sub, fontWeight: 700, fontSize: 14,
         }}
       >
-        <span>第 {round} / {ROUNDS} 題</span>
-        <span>
-          🔥 連對 {streak}　<span style={{ color: T.purple }}>分數 {score}</span>
+        <span>{tf("第 {0} / {1} 題", round, ROUNDS)}</span>
+        <span>{tf("🔥 連對 {0}", streak)}<span style={{ color: T.purple }}>{tf("分數 {0}", score)}</span>
         </span>
       </div>
 
@@ -1156,13 +1144,9 @@ function QuizMode({ speak, addStars, onExit }) {
           textAlign: "center", marginBottom: 16, boxShadow: "0 6px 0 #E0DBF7",
         }}
       >
-        <p style={{ color: T.sub, margin: "0 0 12px", fontSize: 15 }}>
-          仔細聽,選出正確的單字 👂
-        </p>
+        <p style={{ color: T.sub, margin: "0 0 12px", fontSize: 15 }}>{t("仔細聽,選出正確的單字 👂")}</p>
         <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={playQ}
-          style={{ color: T.ink, fontSize: 20 }}>
-          🔊 再聽一次
-        </ChunkyButton>
+          style={{ color: T.ink, fontSize: 20 }}>{t("🔊 再聽一次")}</ChunkyButton>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -1306,7 +1290,7 @@ function SightMode({ speak, addStars }) {
       }, 1100);
     } else {
       setWrongSet((s) => new Set(s).add(target));
-      setEncourage("沒關係!仔細聽,它等一下還會再出現 💪");
+      setEncourage(t("沒關係!仔細聽,它等一下還會再出現 💪"));
       speak(target, { rate: 0.7 });
       setTimeout(() => {
         // 答錯的字排到最後,等一下再考一次
@@ -1323,12 +1307,8 @@ function SightMode({ speak, addStars }) {
     const crowns = Object.values(progress).filter((s) => s >= 3).length;
     return (
       <div style={{ textAlign: "center" }}>
-        <p style={{ color: T.sub, fontSize: 14, margin: "0 0 4px" }}>
-          Sight words 是「看到就要唸得出來」的常見字。
-        </p>
-        <p style={{ color: T.ink, fontSize: 16, fontWeight: 700, margin: "0 0 14px" }}>
-          一關 5 個字,收集皇冠吧!👑 {crowns} / {SIGHT_LEVELS.length}
-        </p>
+        <p style={{ color: T.sub, fontSize: 14, margin: "0 0 4px" }}>{t("Sight words 是「看到就要唸得出來」的常見字。")}</p>
+        <p style={{ color: T.ink, fontSize: 16, fontWeight: 700, margin: "0 0 14px" }}>{tf("一關 5 個字,收集皇冠吧!👑 {0} / {1}", crowns, SIGHT_LEVELS.length)}</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
           {SIGHT_LEVELS.map((lvWords, i) => {
             const unlocked = i === 0 || (progress[i - 1] || 0) >= 1;
@@ -1357,9 +1337,7 @@ function SightMode({ speak, addStars }) {
             );
           })}
         </div>
-        <p style={{ color: "#B7B2D8", fontSize: 13, marginTop: 16 }}>
-          每一關都一定會過,答錯的字會再出現,答對就好 💜
-        </p>
+        <p style={{ color: "#B7B2D8", fontSize: 13, marginTop: 16 }}>{t("每一關都一定會過,答錯的字會再出現,答對就好 💜")}</p>
       </div>
     );
   }
@@ -1369,23 +1347,17 @@ function SightMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 60 }}>{gotStars >= 3 ? "👑" : "🎉"}</div>
-        <h2 style={{ color: T.ink, fontSize: 28, margin: "8px 0 4px" }}>
-          第 {lv + 1} 關完成!
-        </h2>
+        <h2 style={{ color: T.ink, fontSize: 28, margin: "8px 0 4px" }}>{tf("第 {0} 關完成!", lv + 1)}</h2>
         <div style={{ fontSize: 34 }}>{"⭐".repeat(gotStars)}</div>
         <p style={{ color: T.sub, fontSize: 15, margin: "6px 0 18px" }}>
           {gotStars >= 3
-            ? "全部一次答對,拿到皇冠!"
-            : "這 5 個字全部學會了,太厲害!"}
+            ? t("全部一次答對,拿到皇冠!")
+            : t("這 5 個字全部學會了,太厲害!")}
         </p>
         <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-          <ChunkyButton color={T.purple} dark={T.purpleDark} onClick={() => setView("map")}>
-            回關卡地圖
-          </ChunkyButton>
+          <ChunkyButton color={T.purple} dark={T.purpleDark} onClick={() => setView("map")}>{t("回關卡地圖")}</ChunkyButton>
           {lv + 1 < SIGHT_LEVELS.length && (
-            <ChunkyButton color={T.green} dark={T.greenDark} onClick={() => openLevel(lv + 1)}>
-              下一關 →
-            </ChunkyButton>
+            <ChunkyButton color={T.green} dark={T.greenDark} onClick={() => openLevel(lv + 1)}>{t("下一關 →")}</ChunkyButton>
           )}
         </div>
       </div>
@@ -1397,12 +1369,8 @@ function SightMode({ speak, addStars }) {
     const allHeard = heard.size >= words.length;
     return (
       <div style={{ textAlign: "center" }}>
-        <p style={{ color: T.ink, fontSize: 16, fontWeight: 700, margin: "0 0 4px" }}>
-          第 {lv + 1} 關的 5 個新朋友 👋
-        </p>
-        <p style={{ color: T.sub, fontSize: 14, margin: "0 0 14px" }}>
-          每張卡都點一下聽聽看,全部聽過就可以開始挑戰!
-        </p>
+        <p style={{ color: T.ink, fontSize: 16, fontWeight: 700, margin: "0 0 4px" }}>{tf("第 {0} 關的 5 個新朋友 👋", lv + 1)}</p>
+        <p style={{ color: T.sub, fontSize: 14, margin: "0 0 14px" }}>{t("每張卡都點一下聽聽看,全部聽過就可以開始挑戰!")}</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(90px, 1fr))", gap: 10, marginBottom: 16 }}>
           {words.map((w) => {
             const ok = heard.has(w);
@@ -1423,9 +1391,7 @@ function SightMode({ speak, addStars }) {
                 }}
               >
                 {w}
-                <div style={{ fontSize: 12, marginTop: 6, color: ok ? T.greenDark : "#C9C4E8" }}>
-                  {ok ? "✓ 聽過了" : "🔈 點我"}
-                </div>
+                <div style={{ fontSize: 12, marginTop: 6, color: ok ? T.greenDark : "#C9C4E8" }}>{ok ? t("✓ 聽過了") : t("🔈 點我")}</div>
               </button>
             );
           })}
@@ -1433,18 +1399,14 @@ function SightMode({ speak, addStars }) {
         <ChunkyButton
           color={T.pink} dark="#D14B7D" onClick={startQuiz} disabled={!allHeard}
           style={{ width: "100%" }}
-        >
-          {allHeard ? "🎈 開始挑戰!" : `再聽 ${words.length - heard.size} 張卡就能挑戰`}
-        </ChunkyButton>
+        >{allHeard ? t("🎈 開始挑戰!") : tf("再聽 {0} 張卡就能挑戰", words.length - heard.size)}</ChunkyButton>
         <button
           onClick={() => setView("map")}
           style={{
             marginTop: 12, fontFamily: "inherit", fontWeight: 700, fontSize: 14,
             background: "none", border: "none", color: T.sub, cursor: "pointer",
           }}
-        >
-          ← 回關卡地圖
-        </button>
+        >{t("← 回關卡地圖")}</button>
       </div>
     );
   }
@@ -1459,13 +1421,9 @@ function SightMode({ speak, addStars }) {
       </div>
       <div style={{ background: T.card, borderRadius: 22, padding: "20px 16px",
         textAlign: "center", marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
-        <p style={{ color: T.sub, margin: "0 0 10px", fontSize: 15 }}>
-          仔細聽,點出正確的字,氣球就會變星星!
-        </p>
+        <p style={{ color: T.sub, margin: "0 0 10px", fontSize: 15 }}>{t("仔細聽,點出正確的字,氣球就會變星星!")}</p>
         <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={() => speak(target)}
-          style={{ color: T.ink }}>
-          🔊 再聽一次
-        </ChunkyButton>
+          style={{ color: T.ink }}>{t("🔊 再聽一次")}</ChunkyButton>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: nChoices === 2 ? "1fr 1fr" : "1fr 1fr 1fr", gap: 12 }}>
         {options.map((w) => {
@@ -1636,16 +1594,12 @@ function SchoolWordsMode({ speak, addStars }) {
   if (view === "quiz")
     return (
       <div style={{ textAlign: "center" }}>
-        <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-          第 {qNo} / {QUIZ_TOTAL} 題・{sem.label}・聽聽看是哪個字?
-        </div>
+        <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{tf("第 {0} / {1} 題・{2}・聽聽看是哪個字?", qNo, QUIZ_TOTAL, t(sem.label))}</div>
         <div style={{ background: T.card, borderRadius: 22, padding: "22px 16px",
           marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
           <div style={{ fontSize: 52 }}>👂</div>
           <ChunkyButton color={T.yellow} dark={T.yellowDark} style={{ color: T.ink, marginTop: 6 }}
-            onClick={() => speak(target)}>
-            🔊 再聽一次
-          </ChunkyButton>
+            onClick={() => speak(target)}>{t("🔊 再聽一次")}</ChunkyButton>
         </div>
         <div style={{ display: "grid", gap: 12 }}>
           {options.map((w) => {
@@ -1670,9 +1624,7 @@ function SchoolWordsMode({ speak, addStars }) {
         </div>
         <button onClick={() => setView("list")}
           style={{ marginTop: 14, fontFamily: "inherit", fontWeight: 700, fontSize: 14,
-            background: "none", border: "none", color: T.sub, cursor: "pointer" }}>
-          ← 回單字表
-        </button>
+            background: "none", border: "none", color: T.sub, cursor: "pointer" }}>{t("← 回單字表")}</button>
       </div>
     );
 
@@ -1681,23 +1633,17 @@ function SchoolWordsMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "20px 0" }}>
         <div style={{ fontSize: 60 }}>{right >= QUIZ_TOTAL - 1 ? "🏆" : "🎉"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26, margin: "8px 0 4px" }}>
-          答對 {right} / {QUIZ_TOTAL} 個字!
-        </h2>
+        <h2 style={{ color: T.ink, fontSize: 26, margin: "8px 0 4px" }}>{tf("答對 {0} / {1} 個字!", right, QUIZ_TOTAL)}</h2>
         <p style={{ color: T.sub, fontSize: 15, margin: "4px 0 18px" }}>
           {gotRight.size > 0
-            ? `要把這 ${gotRight.size} 個字在單字表上打勾嗎?`
-            : "沒關係,再聽一次就會記得了 💪"}
+            ? tf("要把這 {0} 個字在單字表上打勾嗎?", gotRight.size)
+            : t("沒關係,再聽一次就會記得了 💪")}
         </p>
         <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
           {gotRight.size > 0 && (
-            <ChunkyButton color={T.green} dark={T.greenDark} onClick={tickCorrect}>
-              ✓ 幫我打勾
-            </ChunkyButton>
+            <ChunkyButton color={T.green} dark={T.greenDark} onClick={tickCorrect}>{t("✓ 幫我打勾")}</ChunkyButton>
           )}
-          <ChunkyButton color={T.purple} dark={T.purpleDark} onClick={() => setView("list")}>
-            回單字表
-          </ChunkyButton>
+          <ChunkyButton color={T.purple} dark={T.purpleDark} onClick={() => setView("list")}>{t("回單字表")}</ChunkyButton>
         </div>
       </div>
     );
@@ -1705,9 +1651,7 @@ function SchoolWordsMode({ speak, addStars }) {
   // ----- 單字表(自我檢核)-----
   return (
     <div style={{ textAlign: "center" }}>
-      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>
-        學校的 High Frequency Words 檢核表。<b style={{ color: T.purple }}>點單字</b>聽發音,
-        <b style={{ color: T.purple }}>唸得出來就自己打勾</b> ✓
+      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>{t("學校的 High Frequency Words 檢核表。")}<b style={{ color: T.purple }}>{t("點單字")}</b>{t("聽發音,")}<b style={{ color: T.purple }}>{t("唸得出來就自己打勾")}</b> ✓
       </p>
 
       <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 12 }}>
@@ -1723,7 +1667,7 @@ function SchoolWordsMode({ speak, addStars }) {
                 background: on ? T.purple : T.card,
                 color: on ? "#fff" : T.ink,
               }}>
-              {s.label} {n}/{schoolList(s).length}
+              {t(s.label)} {n}/{schoolList(s).length}
             </button>
           );
         })}
@@ -1732,9 +1676,7 @@ function SchoolWordsMode({ speak, addStars }) {
       <div style={{ background: T.card, borderRadius: 18, padding: "12px 14px",
         boxShadow: "0 5px 0 #E0DBF7", marginBottom: 12 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-          <span style={{ fontWeight: 800, color: T.ink, fontSize: 17 }}>
-            我會 {knownCount} / {words.length} 個字
-          </span>
+          <span style={{ fontWeight: 800, color: T.ink, fontSize: 17 }}>{tf("我會 {0} / {1} 個字", knownCount, words.length)}</span>
           <span style={{ fontSize: 13, color: T.sub, fontWeight: 700 }}>
             {Math.round((knownCount / words.length) * 100)}%
           </span>
@@ -1748,18 +1690,12 @@ function SchoolWordsMode({ speak, addStars }) {
           }} />
         </div>
         {allDone && (
-          <div style={{ marginTop: 8, fontSize: 16, fontWeight: 800, color: T.greenDark }}>
-            🎉 {sem.label}的字全部都會了!
-          </div>
+          <div style={{ marginTop: 8, fontSize: 16, fontWeight: 800, color: T.greenDark }}>{tf("🎉 {0}的字全部都會了!", t(sem.label))}</div>
         )}
       </div>
 
-      <ChunkyButton color={T.pink} dark="#D14B7D" onClick={startQuiz} style={{ width: "100%" }}>
-        🎯 來考考我({QUIZ_TOTAL} 題)
-      </ChunkyButton>
-      <p style={{ color: "#B7B2D8", fontSize: 12, margin: "8px 0 12px" }}>
-        考試會先挑<b>還沒打勾</b>的字
-      </p>
+      <ChunkyButton color={T.pink} dark="#D14B7D" onClick={startQuiz} style={{ width: "100%" }}>{tf("🎯 來考考我({0} 題)", QUIZ_TOTAL)}</ChunkyButton>
+      <p style={{ color: "#B7B2D8", fontSize: 12, margin: "8px 0 12px" }}>{t("考試會先挑")}<b>{t("還沒打勾")}</b>{t("的字")}</p>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
         {words.map((w) => {
@@ -1789,7 +1725,7 @@ function SchoolWordsMode({ speak, addStars }) {
                 )}
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{w}</span>
               </button>
-              <button onClick={() => toggle(w)} aria-label={`${w}:我會了`}
+              <button onClick={() => toggle(w)} aria-label={tf("{0}:我會了", w)}
                 style={{
                   width: 34, height: 34, flex: "0 0 auto", borderRadius: 10,
                   background: ok ? T.green : "#F6F4FE",
@@ -1807,29 +1743,21 @@ function SchoolWordsMode({ speak, addStars }) {
       <div style={{ marginTop: 16 }}>
         {confirmReset ? (
           <div>
-            <div style={{ color: T.sub, fontSize: 14, fontWeight: 700, marginBottom: 8 }}>
-              要清掉{sem.label}的勾勾,重新檢查一次嗎?
-            </div>
+            <div style={{ color: T.sub, fontSize: 14, fontWeight: 700, marginBottom: 8 }}>{tf("要清掉{0}的勾勾,重新檢查一次嗎?", t(sem.label))}</div>
             <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
               <button onClick={clearSemester}
                 style={{ fontFamily: "inherit", fontWeight: 700, fontSize: 14, background: T.red,
                   color: "#fff", border: "none", borderRadius: 999, padding: "9px 18px",
-                  cursor: "pointer", boxShadow: "0 3px 0 #C94F4E" }}>
-                確定清掉
-              </button>
+                  cursor: "pointer", boxShadow: "0 3px 0 #C94F4E" }}>{t("確定清掉")}</button>
               <button onClick={() => setConfirmReset(false)}
                 style={{ fontFamily: "inherit", fontWeight: 700, fontSize: 14, background: "#E8E4FA",
-                  color: T.sub, border: "none", borderRadius: 999, padding: "9px 18px", cursor: "pointer" }}>
-                取消
-              </button>
+                  color: T.sub, border: "none", borderRadius: 999, padding: "9px 18px", cursor: "pointer" }}>{t("取消")}</button>
             </div>
           </div>
         ) : (
           <button onClick={() => setConfirmReset(true)}
             style={{ fontFamily: "inherit", fontWeight: 700, fontSize: 13, background: "none",
-              border: "none", color: "#B7B2D8", cursor: "pointer", textDecoration: "underline" }}>
-            🔄 重新檢查{sem.label}(清掉勾勾)
-          </button>
+              border: "none", color: "#B7B2D8", cursor: "pointer", textDecoration: "underline" }}>{tf("🔄 重新檢查{0}(清掉勾勾)", t(sem.label))}</button>
         )}
       </div>
     </div>
@@ -1966,9 +1894,7 @@ function SchoolSayMode({ speak, addStars }) {
 
   return (
     <div style={{ textAlign: "center" }}>
-      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>
-        看著字<b style={{ color: T.purple }}>大聲唸出來</b>,唸對得 ⭐⭐,還會自動在單字表上打勾!
-      </p>
+      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>{t("看著字")}<b style={{ color: T.purple }}>{t("大聲唸出來")}</b>{t(",唸對得 ⭐⭐,還會自動在單字表上打勾!")}</p>
 
       <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 12 }}>
         {SCHOOL_WORDS.map((s, i) => {
@@ -1982,15 +1908,13 @@ function SchoolSayMode({ speak, addStars }) {
                 background: on ? T.purple : T.card,
                 color: on ? "#fff" : T.ink,
               }}>
-              {s.label}
+              {t(s.label)}
             </button>
           );
         })}
       </div>
 
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 13, marginBottom: 10 }}>
-        第 {idx + 1} / {queue.length} 個・這學期已會 {knownCount} / {words.length}・本次唸對 {wins} 個
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 13, marginBottom: 10 }}>{tf("第 {0} / {1} 個・這學期已會 {2} / {3}・本次唸對 {4} 個", idx + 1, queue.length, knownCount, words.length, wins)}</div>
 
       <div style={{ background: T.card, borderRadius: 24, padding: "26px 16px",
         boxShadow: "0 6px 0 #E0DBF7", marginBottom: 14 }}>
@@ -2002,63 +1926,43 @@ function SchoolSayMode({ speak, addStars }) {
           <span style={{ fontSize: 46, fontWeight: 800, color: T.ink }}>{word}</span>
         </div>
         {known.has(word) && (
-          <div style={{ fontSize: 13, color: T.greenDark, fontWeight: 700, marginTop: 2 }}>
-            ✓ 單字表上已經打勾了
-          </div>
+          <div style={{ fontSize: 13, color: T.greenDark, fontWeight: 700, marginTop: 2 }}>{t("✓ 單字表上已經打勾了")}</div>
         )}
 
         <div style={{ display: "flex", gap: 10, justifyContent: "center",
           flexWrap: "wrap", marginTop: 14 }}>
           <ChunkyButton color={T.yellow} dark={T.yellowDark} style={{ color: T.ink }}
-            onClick={() => speak(word)} disabled={status === "listening"}>
-            🔊 先聽一次
-          </ChunkyButton>
+            onClick={() => speak(word)} disabled={status === "listening"}>{t("🔊 先聽一次")}</ChunkyButton>
           {SR ? (
             <ChunkyButton
               color={status === "listening" ? T.red : T.pink}
               dark={status === "listening" ? "#C94F4E" : "#D14B7D"}
-              onClick={listen} disabled={status === "listening"}>
-              {status === "listening" ? "🎤 聽你說…" : "🎤 換我唸!"}
-            </ChunkyButton>
+              onClick={listen} disabled={status === "listening"}>{status === "listening" ? t("🎤 聽你說…") : t("🎤 換我唸!")}</ChunkyButton>
           ) : (
             <ChunkyButton color={T.green} dark={T.greenDark}
-              onClick={() => { setStatus("correct"); setWins((n) => n + 1); addStars(1); markKnown(word); }}>
-              👍 她唸對了(家長按)
-            </ChunkyButton>
+              onClick={() => { setStatus("correct"); setWins((n) => n + 1); addStars(1); markKnown(word); }}>{tf("👍 她唸對了(家長按)")}</ChunkyButton>
           )}
         </div>
 
         {status === "listening" && (
           <div style={{ marginTop: 14, fontSize: 17, color: T.pink, fontWeight: 700,
-            animation: "wp-pulse 1s ease-in-out infinite" }}>
-            🎙️ 我在聽,大聲唸出來!{heard && ` 「${heard}」`}
-          </div>
+            animation: "wp-pulse 1s ease-in-out infinite" }}>{tf("🎙️ 我在聽,大聲唸出來!{0}", heard && ` 「${heard}」`)}</div>
         )}
         {status === "correct" && (
-          <div style={{ marginTop: 14, fontSize: 20, color: T.greenDark, fontWeight: 700 }}>
-            🎉 唸對了!+2 ⭐
-          </div>
+          <div style={{ marginTop: 14, fontSize: 20, color: T.greenDark, fontWeight: 700 }}>{t("🎉 唸對了!+2 ⭐")}</div>
         )}
         {status === "tryagain" && (
-          <div style={{ marginTop: 14, fontSize: 15, color: T.sub }}>
-            {heard ? `我聽到「${heard}」,` : ""}再試一次,先按「先聽一次」再慢慢唸 💪
-          </div>
+          <div style={{ marginTop: 14, fontSize: 15, color: T.sub }}>{tf("{0}再試一次,先按「先聽一次」再慢慢唸 💪", heard ? tf("我聽到「{0}」,", heard) : "")}</div>
         )}
       </div>
 
       <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-        <ChunkyButton color="#B7B2D8" dark="#9A95BF" onClick={() => goto(idx - 1)}>
-          ← 上一個
-        </ChunkyButton>
-        <ChunkyButton color={T.purple} dark={T.purpleDark} onClick={() => goto(idx + 1)}>
-          下一個 →
-        </ChunkyButton>
+        <ChunkyButton color="#B7B2D8" dark="#9A95BF" onClick={() => goto(idx - 1)}>{t("← 上一個")}</ChunkyButton>
+        <ChunkyButton color={T.purple} dark={T.purpleDark} onClick={() => goto(idx + 1)}>{t("下一個 →")}</ChunkyButton>
       </div>
 
       {!SR && (
-        <p style={{ color: "#B7B2D8", fontSize: 12, marginTop: 14 }}>
-          此瀏覽器不支援語音辨識,改由家長確認模式(建議用 Chrome)
-        </p>
+        <p style={{ color: "#B7B2D8", fontSize: 12, marginTop: 14 }}>{tf("此瀏覽器不支援語音辨識,改由家長確認模式(建議用 Chrome)")}</p>
       )}
     </div>
   );
@@ -2134,12 +2038,8 @@ function MatchMode({ speak, addStars }) {
     const crowns = Object.values(progress).filter((s) => s >= 3).length;
     return (
       <div style={{ textAlign: "center" }}>
-        <p style={{ color: T.sub, fontSize: 14, margin: "0 0 4px" }}>
-          跟認字快手同一套字!翻牌找到兩個一樣的字配成對。
-        </p>
-        <p style={{ color: T.ink, fontSize: 16, fontWeight: 700, margin: "0 0 14px" }}>
-          記性越好星星越多!👑 {crowns} / {SIGHT_LEVELS.length}
-        </p>
+        <p style={{ color: T.sub, fontSize: 14, margin: "0 0 4px" }}>{t("跟認字快手同一套字!翻牌找到兩個一樣的字配成對。")}</p>
+        <p style={{ color: T.ink, fontSize: 16, fontWeight: 700, margin: "0 0 14px" }}>{tf("記性越好星星越多!👑 {0} / {1}", crowns, SIGHT_LEVELS.length)}</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
           {SIGHT_LEVELS.map((_, i) => {
             const unlocked = i === 0 || (progress[i - 1] || 0) >= 1;
@@ -2168,9 +2068,7 @@ function MatchMode({ speak, addStars }) {
             );
           })}
         </div>
-        <p style={{ color: "#B7B2D8", fontSize: 13, marginTop: 16 }}>
-          翻開的每張卡都會唸給你聽,慢慢找沒關係 💜
-        </p>
+        <p style={{ color: "#B7B2D8", fontSize: 13, marginTop: 16 }}>{t("翻開的每張卡都會唸給你聽,慢慢找沒關係 💜")}</p>
       </div>
     );
   }
@@ -2180,21 +2078,15 @@ function MatchMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 60 }}>{gotStars >= 3 ? "👑" : "🎉"}</div>
-        <h2 style={{ color: T.ink, fontSize: 28, margin: "8px 0 4px" }}>
-          第 {lv + 1} 關配對完成!
-        </h2>
+        <h2 style={{ color: T.ink, fontSize: 28, margin: "8px 0 4px" }}>{tf("第 {0} 關配對完成!", lv + 1)}</h2>
         <div style={{ fontSize: 34 }}>{"⭐".repeat(gotStars)}</div>
         <p style={{ color: T.sub, fontSize: 15, margin: "6px 0 18px" }}>
-          {gotStars >= 3 ? "記性太好了,拿到皇冠!" : "5 對全部找到,好厲害!"}
+          {gotStars >= 3 ? t("記性太好了,拿到皇冠!") : t("5 對全部找到,好厲害!")}
         </p>
         <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-          <ChunkyButton color={T.purple} dark={T.purpleDark} onClick={() => setView("map")}>
-            回關卡地圖
-          </ChunkyButton>
+          <ChunkyButton color={T.purple} dark={T.purpleDark} onClick={() => setView("map")}>{t("回關卡地圖")}</ChunkyButton>
           {lv + 1 < SIGHT_LEVELS.length && (
-            <ChunkyButton color={T.green} dark={T.greenDark} onClick={() => openLevel(lv + 1)}>
-              下一關 →
-            </ChunkyButton>
+            <ChunkyButton color={T.green} dark={T.greenDark} onClick={() => openLevel(lv + 1)}>{t("下一關 →")}</ChunkyButton>
           )}
         </div>
       </div>
@@ -2206,11 +2098,8 @@ function MatchMode({ speak, addStars }) {
     <div style={{ textAlign: "center" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
         color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-        <span>第 {lv + 1} 關</span>
-        <span>
-          找到 {matched.size} / {words.length} 對
-          {"⭐".repeat(matched.size)}
-        </span>
+        <span>{tf("第 {0} 關", lv + 1)}</span>
+        <span>{tf("找到 {0} / {1} 對 {2}", matched.size, words.length, "⭐".repeat(matched.size))}</span>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
         {cards.map((c, i) => {
@@ -2240,18 +2129,14 @@ function MatchMode({ speak, addStars }) {
           );
         })}
       </div>
-      <p style={{ color: "#B7B2D8", fontSize: 13, marginTop: 14 }}>
-        點卡片翻開,找到兩張一樣的字!
-      </p>
+      <p style={{ color: "#B7B2D8", fontSize: 13, marginTop: 14 }}>{t("點卡片翻開,找到兩張一樣的字!")}</p>
       <button
         onClick={() => setView("map")}
         style={{
           marginTop: 6, fontFamily: "inherit", fontWeight: 700, fontSize: 14,
           background: "none", border: "none", color: T.sub, cursor: "pointer",
         }}
-      >
-        ← 回關卡地圖
-      </button>
+      >{t("← 回關卡地圖")}</button>
     </div>
   );
 }
@@ -2320,9 +2205,7 @@ function SpellMode({ speak, addStars }) {
 
   return (
     <div style={{ textAlign: "center" }}>
-      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>
-        照順序點字母磚,把單字拼出來!拼好一個 +2 ⭐,已完成 {wins} 個
-      </p>
+      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>{tf("照順序點字母磚,把單字拼出來!拼好一個 +2 ⭐,已完成 {0} 個", wins)}</p>
       <div style={{ background: T.card, borderRadius: 24, padding: "22px 16px",
         boxShadow: "0 6px 0 #E0DBF7", marginBottom: 14 }}>
         <div style={{ fontSize: 56 }}>{word.emoji}</div>
@@ -2351,9 +2234,7 @@ function SpellMode({ speak, addStars }) {
           })}
         </div>
         {doneWord && (
-          <div style={{ marginTop: 10, fontSize: 20, color: T.greenDark, fontWeight: 700 }}>
-            🎉 拼出 {target} 了!+2 ⭐
-          </div>
+          <div style={{ marginTop: 10, fontSize: 20, color: T.greenDark, fontWeight: 700 }}>{tf("🎉 拼出 {0} 了!+2 ⭐", target)}</div>
         )}
       </div>
       {/* 字母磚 */}
@@ -2384,14 +2265,10 @@ function SpellMode({ speak, addStars }) {
         })}
       </div>
       {doneWord ? (
-        <ChunkyButton color={T.green} dark={T.greenDark} onClick={next}>
-          下一個字 →
-        </ChunkyButton>
+        <ChunkyButton color={T.green} dark={T.greenDark} onClick={next}>{t("下一個字 →")}</ChunkyButton>
       ) : (
         <ChunkyButton color={T.yellow} dark={T.yellowDark}
-          onClick={() => speak(target)} style={{ color: T.ink }}>
-          🔊 再聽一次
-        </ChunkyButton>
+          onClick={() => speak(target)} style={{ color: T.ink }}>{t("🔊 再聽一次")}</ChunkyButton>
       )}
     </div>
   );
@@ -2446,11 +2323,11 @@ function RhymeMode({ speak, addStars }) {
     if (ok) {
       setRight((r) => r + 1);
       addStars(1);
-      setFeedback(`🎉 ${q.target} 和 ${w} 都是 -${q.s} 結尾,押韻!`);
+      setFeedback(tf("🎉 {0} 和 {1} 都是 -{2} 結尾,押韻!", q.target, w, q.s));
       // 兩個字各自用真人音檔連著唸
       speak(q.target, { rate: 0.9, onEnd: () => speak(w, { rate: 0.9 }) });
     } else {
-      setFeedback(`沒關係!${q.target} 的好朋友是 ${q.correct},聽聽看 👂`);
+      setFeedback(tf("沒關係!{0} 的好朋友是 {1},聽聽看 👂", q.target, q.correct));
       speak(q.target, { rate: 0.75, onEnd: () => speak(q.correct, { rate: 0.75 }) });
     }
     setTimeout(() => {
@@ -2468,28 +2345,22 @@ function RhymeMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "🚂"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>押韻列車載到 {right} / {TOTAL} 位乘客!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("押韻列車載到 {0} / {1} 位乘客!", right, TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setRoundNo(1); setRight(0); setQ(makeRhymeQ()); setPicked(null); setFeedback(""); setDone(false); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeRhymeQ()); setPicked(null); setFeedback(""); setDone(false); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-        第 {roundNo} / {TOTAL} 題・哪個字跟它「結尾聲音一樣」?
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{tf("第 {0} / {1} 題・哪個字跟它「結尾聲音一樣」?", roundNo, TOTAL)}</div>
       <div style={{ background: T.card, borderRadius: 22, padding: "20px 16px",
         marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
         <div style={{ marginBottom: 8 }}>
           <RhymeWord word={q.target} s={q.s} highlight size={40} />
         </div>
         <ChunkyButton color={T.yellow} dark={T.yellowDark}
-          onClick={() => speak(q.target, { rate: 0.85 })} style={{ color: T.ink }}>
-          🔊 再聽一次
-        </ChunkyButton>
+          onClick={() => speak(q.target, { rate: 0.85 })} style={{ color: T.ink }}>{t("🔊 再聽一次")}</ChunkyButton>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         {q.options.map((w) => {
@@ -2511,9 +2382,7 @@ function RhymeMode({ speak, addStars }) {
               <span
                 onClick={(e) => { e.stopPropagation(); speak(w, { rate: 0.85 }); }}
                 style={{ fontSize: 14, color: T.sub, fontWeight: 700 }}
-              >
-                🔈 聽聽看
-              </span>
+              >{t("🔈 聽聽看")}</span>
             </button>
           );
         })}
@@ -2578,27 +2447,21 @@ function CaseMatchMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "🔠"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>配對成功 {right} / {TOTAL} 次!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("配對成功 {0} / {1} 次!", right, TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setRoundNo(1); setRight(0); setQ(makeCaseQ()); setPicked(null); setDone(false); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeCaseQ()); setPicked(null); setDone(false); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-        第 {roundNo} / {TOTAL} 題・大寫小寫是一家人,找出它的家人!
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{tf("第 {0} / {1} 題・大寫小寫是一家人,找出它的家人!", roundNo, TOTAL)}</div>
       <div style={{ background: T.card, borderRadius: 22, padding: "18px 16px",
         marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
         <div style={{ fontSize: 72, fontWeight: 700, color: T.purple, lineHeight: 1.1 }}>
           {shown}
         </div>
-        <div style={{ color: T.sub, fontSize: 15, fontWeight: 700 }}>
-          {q.dir === "u2l" ? "它的小寫是哪一個?" : "它的大寫是哪一個?"}
-        </div>
+        <div style={{ color: T.sub, fontSize: 15, fontWeight: 700 }}>{q.dir === "u2l" ? t("它的小寫是哪一個?") : t("它的大寫是哪一個?")}</div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         {q.options.map((ch) => {
@@ -2622,9 +2485,7 @@ function CaseMatchMode({ speak, addStars }) {
         })}
       </div>
       {picked && picked !== q.L && (
-        <div style={{ marginTop: 14, fontSize: 15, color: T.sub, fontWeight: 700 }}>
-          沒關係!{shown} 的家人是 {optCase(q.L)},看看它們長得像不像 👀
-        </div>
+        <div style={{ marginTop: 14, fontSize: 15, color: T.sub, fontWeight: 700 }}>{tf("沒關係!{0} 的家人是 {1},看看它們長得像不像 👀", shown, optCase(q.L))}</div>
       )}
     </div>
   );
@@ -2675,19 +2536,15 @@ function EndSoundMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "🦶"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>尾音破案 {right} / {TOTAL} 次!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("尾音破案 {0} / {1} 次!", right, TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setRoundNo(1); setRight(0); setQ(makeEndSoundQ()); setPicked(null); setDone(false); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeEndSoundQ()); setPicked(null); setDone(false); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   return (
     <div>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 14 }}>
-        第 {roundNo} / {TOTAL} 題・這個字的「結尾字母」是哪一個?🦶
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 14 }}>{tf("第 {0} / {1} 題・這個字的「結尾字母」是哪一個?🦶", roundNo, TOTAL)}</div>
       <div style={{ background: T.card, borderRadius: 22, padding: "22px 16px",
         textAlign: "center", marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
         <div style={{ fontSize: 60 }}>{q.ans.emoji}</div>
@@ -2695,9 +2552,7 @@ function EndSoundMode({ speak, addStars }) {
           {picked ? q.ans.en : q.ans.en.slice(0, -1) + "_"}
         </div>
         <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={() => speak(q.ans.en)}
-          style={{ color: T.ink }}>
-          🔊 再聽一次
-        </ChunkyButton>
+          style={{ color: T.ink }}>{t("🔊 再聽一次")}</ChunkyButton>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         {q.options.map((L) => {
@@ -2764,19 +2619,15 @@ function LetterHuntMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "🔎"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>獵到 {right} / {TOTAL} 個字母!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("獵到 {0} / {1} 個字母!", right, TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setRoundNo(1); setRight(0); setQ(makeHuntQ()); setPicked(null); setDone(false); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeHuntQ()); setPicked(null); setDone(false); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-        第 {roundNo} / {TOTAL} 題・仔細聽,把唸到的字母找出來!
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{tf("第 {0} / {1} 題・仔細聽,把唸到的字母找出來!", roundNo, TOTAL)}</div>
       <div style={{ background: T.card, borderRadius: 22, padding: "16px",
         marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
         {picked && (
@@ -2785,9 +2636,7 @@ function LetterHuntMode({ speak, addStars }) {
           </div>
         )}
         <ChunkyButton color={T.yellow} dark={T.yellowDark}
-          onClick={() => speak(q.target + ".", { rate: 0.8 })} style={{ color: T.ink }}>
-          🔊 再聽一次
-        </ChunkyButton>
+          onClick={() => speak(q.target + ".", { rate: 0.8 })} style={{ color: T.ink }}>{t("🔊 再聽一次")}</ChunkyButton>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         {q.options.map((ch) => {
@@ -2866,20 +2715,16 @@ function MissingMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "🧠"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>找到 {right} / {TOTAL} 個失蹤的朋友!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("找到 {0} / {1} 個失蹤的朋友!", right, TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setRoundNo(1); setRight(0); setQ(makeMissingQ(3)); setPhase("memorize"); setPicked(null); setDone(false); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeMissingQ(3)); setPhase("memorize"); setPicked(null); setDone(false); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   if (phase === "memorize")
     return (
       <div style={{ textAlign: "center" }}>
-        <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-          第 {roundNo} / {TOTAL} 題・記住它們!等一下有一個會躲起來 👀
-        </div>
+        <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{tf("第 {0} / {1} 題・記住它們!等一下有一個會躲起來 👀", roundNo, TOTAL)}</div>
         <div style={{ display: "grid", gridTemplateColumns: `repeat(${q.items.length}, 1fr)`, gap: 10, marginBottom: 16 }}>
           {q.items.map((w) => (
             <button key={w.en} onClick={() => speak(w.en)}
@@ -2894,18 +2739,14 @@ function MissingMode({ speak, addStars }) {
           ))}
         </div>
         <ChunkyButton color={T.pink} dark="#D14B7D" onClick={() => setPhase("guess")}
-          style={{ width: "100%" }}>
-          👌 我記好了!
-        </ChunkyButton>
+          style={{ width: "100%" }}>{t("👌 我記好了!")}</ChunkyButton>
       </div>
     );
 
   const remaining = q.items.filter((w) => w.en !== q.missing.en);
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-        第 {roundNo} / {TOTAL} 題・有一個躲起來了,是誰呢?
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{tf("第 {0} / {1} 題・有一個躲起來了,是誰呢?", roundNo, TOTAL)}</div>
       <div style={{ background: T.card, borderRadius: 22, padding: "18px 16px",
         marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
         <div style={{ display: "flex", gap: 14, justifyContent: "center", fontSize: 44 }}>
@@ -3003,28 +2844,22 @@ function OppositeMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "↔️"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>配對 {right} / {TOTAL} 組相反詞!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("配對 {0} / {1} 組相反詞!", right, TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setRoundNo(1); setRight(0); setQ(makeOppositeQ()); setPicked(null); setDone(false); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeOppositeQ()); setPicked(null); setDone(false); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-        第 {roundNo} / {TOTAL} 題・它的「相反」是哪一個?
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{tf("第 {0} / {1} 題・它的「相反」是哪一個?", roundNo, TOTAL)}</div>
       <div style={{ background: T.card, borderRadius: 22, padding: "18px 16px",
         marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
         <div style={{ fontSize: 56 }}>{q.shown.emoji}</div>
         <div style={{ fontSize: 26, fontWeight: 700, color: T.ink }}>{q.shown.en}</div>
         <div style={{ fontSize: 14, color: T.sub, marginBottom: 10 }}>{q.shown.zh}</div>
         <ChunkyButton color={T.yellow} dark={T.yellowDark}
-          onClick={() => speak(q.shown.en, { rate: 0.85 })} style={{ color: T.ink }}>
-          🔊 再聽一次
-        </ChunkyButton>
+          onClick={() => speak(q.shown.en, { rate: 0.85 })} style={{ color: T.ink }}>{t("🔊 再聽一次")}</ChunkyButton>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         {q.options.map((w) => {
@@ -3101,24 +2936,18 @@ function ListenDoMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "🎧"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>聽懂了 {right} / {TOTAL} 個指令!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("聽懂了 {0} / {1} 個指令!", right, TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setRoundNo(1); setRight(0); setQ(makeListenQ()); setPicked(null); setDone(false); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeListenQ()); setPicked(null); setDone(false); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-        第 {roundNo} / {TOTAL} 題・仔細聽指令,點出正確的圖!
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{tf("第 {0} / {1} 題・仔細聽指令,點出正確的圖!", roundNo, TOTAL)}</div>
       <div style={{ background: T.card, borderRadius: 22, padding: "18px 16px",
         marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
-        <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={say} style={{ color: T.ink }}>
-          🔊 再聽一次
-        </ChunkyButton>
+        <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={say} style={{ color: T.ink }}>{t("🔊 再聽一次")}</ChunkyButton>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         {q.options.map((w) => {
@@ -3200,19 +3029,15 @@ function CountMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "🔢"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>數對了 {right} / {TOTAL} 次!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("數對了 {0} / {1} 次!", right, TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setRoundNo(1); setRight(0); setQ(makeCountQ()); setPicked(null); setDone(false); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeCountQ()); setPicked(null); setDone(false); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-        第 {roundNo} / {TOTAL} 題・聽數量,點出正確的那一堆!
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{tf("第 {0} / {1} 題・聽數量,點出正確的那一堆!", roundNo, TOTAL)}</div>
       <div style={{ background: T.card, borderRadius: 22, padding: "16px",
         marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
         {picked !== null && (
@@ -3220,9 +3045,7 @@ function CountMode({ speak, addStars }) {
             {q.n} · {phrase}
           </div>
         )}
-        <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={say} style={{ color: T.ink }}>
-          🔊 再聽一次
-        </ChunkyButton>
+        <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={say} style={{ color: T.ink }}>{t("🔊 再聽一次")}</ChunkyButton>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         {q.options.map((k) => {
@@ -3302,31 +3125,23 @@ function YesNoMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "❓"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>答對 {right} / {TOTAL} 題!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("答對 {0} / {1} 題!", right, TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setRoundNo(1); setRight(0); setQ(makeYesNoQ()); setPicked(null); setDone(false); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeYesNoQ()); setPicked(null); setDone(false); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   const correctAns = q.isYes ? "yes" : "no";
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-        第 {roundNo} / {TOTAL} 題・聽問題,它「是不是」呢?
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{tf("第 {0} / {1} 題・聽問題,它「是不是」呢?", roundNo, TOTAL)}</div>
       <div style={{ background: T.card, borderRadius: 22, padding: "20px 16px",
         marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
         <div style={{ fontSize: 72 }}>{q.item.emoji}</div>
         {picked && (
-          <div style={{ fontSize: 18, fontWeight: 700, color: T.ink, margin: "4px 0 8px" }}>
-            {q.item.en}(問的是 {q.asked.en})
-          </div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: T.ink, margin: "4px 0 8px" }}>{tf("{0}(問的是 {1})", q.item.en, q.asked.en)}</div>
         )}
-        <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={say} style={{ color: T.ink }}>
-          🔊 再聽一次
-        </ChunkyButton>
+        <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={say} style={{ color: T.ink }}>{t("🔊 再聽一次")}</ChunkyButton>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         {[["yes", "✅ Yes!"], ["no", "❌ No!"]].map(([v, label]) => {
@@ -3422,27 +3237,21 @@ function ColorGameMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "🎨"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>塗對 {right} / {TOTAL} 個顏色!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("塗對 {0} / {1} 個顏色!", right, TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setRoundNo(1); setRight(0); setQ(makeColorQ()); setPicked(null); setDone(false); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeColorQ()); setPicked(null); setDone(false); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   const filled = picked ? q.color.css : null;
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-        第 {roundNo} / {TOTAL} 題・聽聽要塗什麼顏色!({q.shape.zh})
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{tf("第 {0} / {1} 題・聽聽要塗什麼顏色!({2})", roundNo, TOTAL, q.shape.zh)}</div>
       <div style={{ background: T.card, borderRadius: 22, padding: "20px 16px",
         marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
         <ShapeView shape={q.shape.en} fill={filled} />
         <div style={{ marginTop: 12 }}>
-          <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={say} style={{ color: T.ink }}>
-            🔊 再聽一次
-          </ChunkyButton>
+          <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={say} style={{ color: T.ink }}>{t("🔊 再聽一次")}</ChunkyButton>
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10 }}>
@@ -3536,18 +3345,14 @@ function SortMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>🧺</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>全部整理好了!+{right} ⭐</h2>
-        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }} onClick={restart}>
-          再整理一籃
-        </ChunkyButton>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("全部整理好了!+{0} ⭐", right)}</h2>
+        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }} onClick={restart}>{t("再整理一籃")}</ChunkyButton>
       </div>
     );
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-        第 {idx + 1} / {round.items.length} 個・它是哪一類?點對的籃子!
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{tf("第 {0} / {1} 個・它是哪一類?點對的籃子!", idx + 1, round.items.length)}</div>
       <div style={{ background: T.card, borderRadius: 22, padding: "16px",
         marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
         <div style={{ fontSize: 64 }}>{item.emoji}</div>
@@ -3624,7 +3429,7 @@ function BubbleMode({ speak, addStars }) {
         else setRound(makeBubbleRound());
       }, 700);
     } else {
-      setCheer(`再聽聽看,要找的是哪個泡泡?🫧`);
+      setCheer(tf("再聽聽看,要找的是哪個泡泡?🫧"));
       say();
     }
   };
@@ -3633,19 +3438,15 @@ function BubbleMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>🫧✨</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>戳破了 {TOTAL} 個泡泡!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("戳破了 {0} 個泡泡!", TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setPops(0); setDone(false); setRound(makeBubbleRound()); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setPops(0); setDone(false); setRound(makeBubbleRound()); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 10 }}>
-        聽聲音,戳破正確的泡泡!{pops} / {TOTAL} 🫧
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 10 }}>{tf("聽聲音,戳破正確的泡泡!{0} / {1} 🫧", pops, TOTAL)}</div>
       <div
         style={{
           position: "relative", height: 330, overflow: "hidden",
@@ -3683,9 +3484,7 @@ function BubbleMode({ speak, addStars }) {
           </button>
         ))}
       </div>
-      <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={say} style={{ color: T.ink }}>
-        🔊 再聽一次
-      </ChunkyButton>
+      <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={say} style={{ color: T.ink }}>{t("🔊 再聽一次")}</ChunkyButton>
       {cheer && (
         <div style={{ marginTop: 10, fontSize: 15, color: T.sub, fontWeight: 700 }}>{cheer}</div>
       )}
@@ -3809,9 +3608,7 @@ function StoryMode({ speak, addStars }) {
 
   return (
     <div style={{ textAlign: "center" }}>
-      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 10px" }}>
-        第 {si + 1} / {STORIES.length} 個小故事・每句都點一下聽,聽完回答問題!
-      </p>
+      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 10px" }}>{tf("第 {0} / {1} 個小故事・每句都點一下聽,聽完回答問題!", si + 1, STORIES.length)}</p>
       <h2 style={{ color: T.ink, fontSize: 22, margin: "0 0 12px" }}>
         {story.emoji} {story.title}
       </h2>
@@ -3876,18 +3673,14 @@ function StoryMode({ speak, addStars }) {
             })}
           </div>
           {celebrate && (
-            <div style={{ marginTop: 12, fontSize: 18, color: T.greenDark, fontWeight: 700 }}>
-              🎉 答對了!+2 ⭐
-            </div>
+            <div style={{ marginTop: 12, fontSize: 18, color: T.greenDark, fontWeight: 700 }}>{t("🎉 答對了!+2 ⭐")}</div>
           )}
         </div>
       )}
 
       {celebrate && (
         <ChunkyButton color={T.green} dark={T.greenDark}
-          onClick={() => goStory((si + 1) % STORIES.length)}>
-          下一個故事 →
-        </ChunkyButton>
+          onClick={() => goStory((si + 1) % STORIES.length)}>{t("下一個故事 →")}</ChunkyButton>
       )}
     </div>
   );
@@ -3938,19 +3731,15 @@ function AlphabetOrderMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "🔤"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>接對 {right} / {TOTAL} 個字母!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("接對 {0} / {1} 個字母!", right, TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-        第 {roundNo} / {TOTAL} 題・接下來是哪個字母?
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{tf("第 {0} / {1} 題・接下來是哪個字母?", roundNo, TOTAL)}</div>
       <div style={{ background: T.card, borderRadius: 22, padding: "22px 16px",
         marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
         <div style={{ fontSize: 46, fontWeight: 700, color: T.purple, letterSpacing: 8 }}>
@@ -4019,19 +3808,15 @@ function NumberOrderMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "🔢"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>接對 {right} / {TOTAL} 個數字!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("接對 {0} / {1} 個數字!", right, TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-        第 {roundNo} / {TOTAL} 題・接下來是哪個數字?
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{tf("第 {0} / {1} 題・接下來是哪個數字?", roundNo, TOTAL)}</div>
       <div style={{ background: T.card, borderRadius: 22, padding: "22px 16px",
         marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
         <div style={{ fontSize: 46, fontWeight: 700, color: T.purple, letterSpacing: 6 }}>
@@ -4102,19 +3887,15 @@ function AddMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "➕"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>算對 {right} / {TOTAL} 題!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("算對 {0} / {1} 題!", right, TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-        第 {roundNo} / {TOTAL} 題・數數看,一共有幾個?
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{tf("第 {0} / {1} 題・數數看,一共有幾個?", roundNo, TOTAL)}</div>
       <div style={{ background: T.card, borderRadius: 22, padding: "20px 12px",
         marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, flexWrap: "wrap" }}>
@@ -4200,19 +3981,15 @@ function SyllableMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "👏"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>拍對 {right} / {TOTAL} 個字!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("拍對 {0} / {1} 個字!", right, TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-        第 {roundNo} / {TOTAL} 題・唸唸看,這個字要拍幾下?👏
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{tf("第 {0} / {1} 題・唸唸看,這個字要拍幾下?👏", roundNo, TOTAL)}</div>
       <div style={{ background: T.card, borderRadius: 22, padding: "18px 16px",
         marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
         <div style={{ fontSize: 60 }}>{q.w.emoji}</div>
@@ -4222,9 +3999,7 @@ function SyllableMode({ speak, addStars }) {
         )}
         <div style={{ marginTop: 8 }}>
           <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={() => speak(q.w.en, { rate: 0.7 })}
-            style={{ color: T.ink }}>
-            🔊 慢慢唸
-          </ChunkyButton>
+            style={{ color: T.ink }}>{t("🔊 慢慢唸")}</ChunkyButton>
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
@@ -4301,19 +4076,15 @@ function MiddleSoundMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "🅰️"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>找對 {right} / {TOTAL} 個中間音!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("找對 {0} / {1} 個中間音!", right, TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-        第 {roundNo} / {TOTAL} 題・中間少了一個音,是哪個母音?
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{tf("第 {0} / {1} 題・中間少了一個音,是哪個母音?", roundNo, TOTAL)}</div>
       <div style={{ background: T.card, borderRadius: 22, padding: "18px 16px",
         marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
         <div style={{ fontSize: 60 }}>{q.w.emoji}</div>
@@ -4321,9 +4092,7 @@ function MiddleSoundMode({ speak, addStars }) {
           {q.w.en[0]}<span style={{ color: picked ? T.greenDark : "#C9C4E8" }}>{picked ? q.v : "_"}</span>{q.w.en[2]}
         </div>
         <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={() => speak(q.w.en, { rate: 0.7 })}
-          style={{ color: T.ink }}>
-          🔊 再聽一次
-        </ChunkyButton>
+          style={{ color: T.ink }}>{t("🔊 再聽一次")}</ChunkyButton>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         {q.options.map((v) => {
@@ -4397,19 +4166,15 @@ function BlendMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "📖"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>拼讀 {right} / {TOTAL} 個字!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("拼讀 {0} / {1} 個字!", right, TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-        第 {roundNo} / {TOTAL} 題・把音拼起來,是哪張圖?🚂
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{tf("第 {0} / {1} 題・把音拼起來,是哪張圖?🚂", roundNo, TOTAL)}</div>
       <div style={{ background: T.card, borderRadius: 22, padding: "20px 16px",
         marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
         <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 12 }}>
@@ -4422,9 +4187,7 @@ function BlendMode({ speak, addStars }) {
             }}>{ch}</span>
           ))}
         </div>
-        <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={playBlend} style={{ color: T.ink }}>
-          🔊 再拼一次
-        </ChunkyButton>
+        <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={playBlend} style={{ color: T.ink }}>{t("🔊 再拼一次")}</ChunkyButton>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         {q.options.map((w) => {
@@ -4488,26 +4251,22 @@ function UpperLowerMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "🔠"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>答對 {right} / {TOTAL} 題!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("答對 {0} / {1} 題!", right, TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   const correct = q.upper ? "upper" : "lower";
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-        第 {roundNo} / {TOTAL} 題・這是大寫還是小寫?
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{tf("第 {0} / {1} 題・這是大寫還是小寫?", roundNo, TOTAL)}</div>
       <div style={{ background: T.card, borderRadius: 22, padding: "18px 16px",
         marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
         <div style={{ fontSize: 90, fontWeight: 700, color: T.purple, lineHeight: 1.1 }}>{shown}</div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        {[["upper", "🔠 大寫 ABC"], ["lower", "🔡 小寫 abc"]].map(([v, label]) => {
+        {[["upper", t("🔠 大寫 ABC")], ["lower", t("🔡 小寫 abc")]].map(([v, label]) => {
           const dim = picked && v !== correct;
           return (
             <ChunkyButton key={v} color={v === "upper" ? T.purple : T.pink}
@@ -4577,25 +4336,19 @@ function PrepositionMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "🧭"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>找對 {right} / {TOTAL} 個位置!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("找對 {0} / {1} 個位置!", right, TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-        第 {roundNo} / {TOTAL} 題・聽聽看,球在盒子的哪裡?
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{tf("第 {0} / {1} 題・聽聽看,球在盒子的哪裡?", roundNo, TOTAL)}</div>
       <div style={{ background: T.card, borderRadius: 22, padding: "16px",
         marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
         <ChunkyButton color={T.yellow} dark={T.yellowDark}
-          onClick={() => speak(`The ball is ${q.target.en} the box.`, { rate: 0.85 })} style={{ color: T.ink }}>
-          🔊 再聽一次
-        </ChunkyButton>
+          onClick={() => speak(`The ball is ${q.target.en} the box.`, { rate: 0.85 })} style={{ color: T.ink }}>{t("🔊 再聽一次")}</ChunkyButton>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         {q.options.map((p) => {
@@ -4690,19 +4443,15 @@ function SequenceMemoryMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>{right >= 5 ? "🏆" : "🧠"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>記對 {right} / {TOTAL} 組順序!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("記對 {0} / {1} 組順序!", right, TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setRoundNo(1); setRight(0); startRound(1); setDone(false); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setRoundNo(1); setRight(0); startRound(1); setDone(false); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-        第 {roundNo} / {TOTAL} 組・{phase === "input" ? "照剛剛的順序點出來!" : "記住亮起來的順序 👀"}
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{tf("第 {0} / {1} 組・{2}", roundNo, TOTAL, phase === "input" ? t("照剛剛的順序點出來!") : t("記住亮起來的順序 👀"))}</div>
       {/* 播放中:顯示序列亮燈 */}
       {phase !== "input" && (
         <div style={{ background: T.card, borderRadius: 22, padding: "24px 12px",
@@ -4799,28 +4548,22 @@ function SizeOrderMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>{right >= 5 ? "🏆" : "📏"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>排對 {right} / {TOTAL} 組!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("排對 {0} / {1} 組!", right, TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setProgress(0); setCleared(false); setDone(false); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setProgress(0); setCleared(false); setDone(false); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 6 }}>
-        第 {roundNo} / {TOTAL} 組・從「最小」開始,由小到大點!
-      </div>
-      <div style={{ fontSize: 20, marginBottom: 12, color: T.purple, fontWeight: 700 }}>
-        🐜 小 →→→ 大 🐘
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 6 }}>{tf("第 {0} / {1} 組・從「最小」開始,由小到大點!", roundNo, TOTAL)}</div>
+      <div style={{ fontSize: 20, marginBottom: 12, color: T.purple, fontWeight: 700 }}>{t("🐜 小 →→→ 大 🐘")}</div>
       {/* 已排好的 */}
       <div style={{ minHeight: 70, display: "flex", gap: 10, justifyContent: "center", alignItems: "center", marginBottom: 8 }}>
         {q.order.slice(0, progress).map((it, i) => (
           <span key={it.en} style={{ fontSize: 30 + i * 12 }}>{it.emoji}</span>
         ))}
-        {progress < q.order.length && <span style={{ fontSize: 26, color: "#C9C4E8" }}>👉 點第 {progress + 1} 小的</span>}
+        {progress < q.order.length && <span style={{ fontSize: 26, color: "#C9C4E8" }}>{tf("👉 點第 {0} 小的", progress + 1)}</span>}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         {q.display.map((it) => {
@@ -4893,8 +4636,12 @@ const BOPOMOFO = [
 const BOPO_SYMBOLS = BOPOMOFO.map((b) => b.s);
 const BOPO_FIRST = BOPOMOFO.filter((b) => b.first); // 例詞真的以該注音開頭的,用於猜首音
 
-// 中文語音捷徑
-const zh = (speak, text, opts = {}) => speak(text, { lang: "zh-TW", rate: 0.85, ...opts });
+// 中文語音捷徑:字串裡還有中文就用中文聲音唸,已經翻成英文的就走英文發音管道
+const HAS_CJK = /[\u4e00-\u9fff\u3105-\u312f]/;
+const zh = (speak, text, opts = {}) =>
+  HAS_CJK.test(String(text))
+    ? speak(text, { lang: "zh-TW", rate: 0.85, ...opts })
+    : speak(text, { rate: 0.9, ...opts });
 
 // ---------- ㄅㄆㄇ 接接看(注音順序)----------
 function BopoOrderMode({ speak, addStars }) {
@@ -4915,7 +4662,7 @@ function BopoOrderMode({ speak, addStars }) {
   const say = useCallback(() => {
     const a = BOPOMOFO.find((b) => b.s === q.shown[0]);
     const b2 = BOPOMOFO.find((b) => b.s === q.shown[1]);
-    zh(speak, `${a.sound}、${b2.sound}、然後呢?`);
+    zh(speak, tf("{0}、{1}、然後呢?", a.sound, b2.sound));
   }, [q, speak]);
   useEffect(() => {
     const t = setTimeout(say, 400);
@@ -4926,8 +4673,8 @@ function BopoOrderMode({ speak, addStars }) {
     if (picked) return;
     setPicked(s);
     const ok = s === q.target.s;
-    if (ok) { setRight((r) => r + 1); addStars(1); zh(speak, `${q.target.sound}!答對了`, { rate: 0.9 }); }
-    else zh(speak, `是 ${q.target.sound}`, { rate: 0.8 });
+    if (ok) { setRight((r) => r + 1); addStars(1); zh(speak, tf("{0}!答對了", q.target.sound), { rate: 0.9 }); }
+    else zh(speak, tf("是 {0}", q.target.sound), { rate: 0.8 });
     setTimeout(() => {
       if (roundNo >= TOTAL) setDone(true);
       else { setRoundNo((r) => r + 1); setQ(makeQ()); setPicked(null); }
@@ -4937,29 +4684,23 @@ function BopoOrderMode({ speak, addStars }) {
   if (done)
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
-        <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "ㄅ"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>接對 {right} / {TOTAL} 個注音!</h2>
+        <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : t("ㄅ")}</div>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("接對 {0} / {1} 個注音!", right, TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-        第 {roundNo} / {TOTAL} 題・接下來是哪個注音?
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{tf("第 {0} / {1} 題・接下來是哪個注音?", roundNo, TOTAL)}</div>
       <div style={{ background: T.card, borderRadius: 22, padding: "22px 16px",
         marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
         <div style={{ fontSize: 48, fontWeight: 700, color: T.purple, letterSpacing: 10 }}>
           {q.shown[0]} {q.shown[1]} <span style={{ color: "#C9C4E8" }}>?</span>
         </div>
         <div style={{ marginTop: 10 }}>
-          <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={say} style={{ color: T.ink }}>
-            🔊 再聽一次
-          </ChunkyButton>
+          <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={say} style={{ color: T.ink }}>{t("🔊 再聽一次")}</ChunkyButton>
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
@@ -5012,8 +4753,8 @@ function BopoHuntMode({ speak, addStars }) {
     if (picked) return;
     setPicked(s);
     const ok = s === q.ans.s;
-    if (ok) { setRight((r) => r + 1); addStars(1); zh(speak, `${q.ans.sound}!${q.ans.word}!答對了`, { rate: 0.9 }); }
-    else zh(speak, `${q.ans.word},是 ${q.ans.sound}`, { rate: 0.8 });
+    if (ok) { setRight((r) => r + 1); addStars(1); zh(speak, tf("{0}!{1}!答對了", q.ans.sound, q.ans.word), { rate: 0.9 }); }
+    else zh(speak, tf("{0},是 {1}", q.ans.word, q.ans.sound), { rate: 0.8 });
     setTimeout(() => {
       if (roundNo >= TOTAL) setDone(true);
       else { setRoundNo((r) => r + 1); setQ(makeQ()); setPicked(null); }
@@ -5024,19 +4765,15 @@ function BopoHuntMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "🔍"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>找對 {right} / {TOTAL} 個注音!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("找對 {0} / {1} 個注音!", right, TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-        第 {roundNo} / {TOTAL} 題・這個詞的第一個音是哪個注音?
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{tf("第 {0} / {1} 題・這個詞的第一個音是哪個注音?", roundNo, TOTAL)}</div>
       <div style={{ background: T.card, borderRadius: 22, padding: "18px 16px",
         marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
         <div style={{ fontSize: 64 }}>{q.ans.emoji}</div>
@@ -5045,9 +4782,7 @@ function BopoHuntMode({ speak, addStars }) {
             <span><span style={{ color: T.greenDark }}>{q.ans.s}</span> · {q.ans.word}</span>
           ) : q.ans.word}
         </div>
-        <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={say} style={{ color: T.ink }}>
-          🔊 再聽一次
-        </ChunkyButton>
+        <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={say} style={{ color: T.ink }}>{t("🔊 再聽一次")}</ChunkyButton>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         {q.options.map((s) => {
@@ -5098,8 +4833,8 @@ function BopoMatchMode({ speak, addStars }) {
     if (picked) return;
     setPicked(b.s);
     const ok = b.s === q.ans.s;
-    if (ok) { setRight((r) => r + 1); addStars(1); zh(speak, `${q.ans.word}!答對了`, { rate: 0.9 }); }
-    else zh(speak, `${q.ans.sound},是${q.ans.word}`, { rate: 0.8 });
+    if (ok) { setRight((r) => r + 1); addStars(1); zh(speak, tf("{0}!答對了", q.ans.word), { rate: 0.9 }); }
+    else zh(speak, tf("{0},是{1}", q.ans.sound, q.ans.word), { rate: 0.8 });
     setTimeout(() => {
       if (roundNo >= TOTAL) setDone(true);
       else { setRoundNo((r) => r + 1); setQ(makeQ()); setPicked(null); }
@@ -5110,27 +4845,21 @@ function BopoMatchMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "🧩"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>配對 {right} / {TOTAL} 次!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("配對 {0} / {1} 次!", right, TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-        第 {roundNo} / {TOTAL} 題・哪一張圖是這個注音開頭的?
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{tf("第 {0} / {1} 題・哪一張圖是這個注音開頭的?", roundNo, TOTAL)}</div>
       <div style={{ background: T.card, borderRadius: 22, padding: "16px",
         marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
         <div style={{ fontSize: 82, fontWeight: 700, color: T.purple, lineHeight: 1.1 }}>
           {q.ans.s}
         </div>
-        <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={say} style={{ color: T.ink }}>
-          🔊 再聽一次
-        </ChunkyButton>
+        <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={say} style={{ color: T.ink }}>{t("🔊 再聽一次")}</ChunkyButton>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         {q.options.map((b) => {
@@ -5219,9 +4948,7 @@ function BopoLearnMode({ speak }) {
   const list = BOPOMOFO.slice(sec.range[0], sec.range[1]);
   return (
     <div style={{ textAlign: "center" }}>
-      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>
-        點一下就唸給你聽:先唸注音,再唸例詞 🔊
-      </p>
+      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>{t("點一下就唸給你聽:先唸注音,再唸例詞 🔊")}</p>
       <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 14 }}>
         {BOPO_SECTIONS.map((x) => (
           <button key={x.key} onClick={() => setSec(x)}
@@ -5231,7 +4958,7 @@ function BopoLearnMode({ speak }) {
               background: sec.key === x.key ? T.purple : "#E8E4FA",
               color: sec.key === x.key ? "#fff" : T.sub, transition: "all .15s",
             }}>
-            {x.label}
+            {t(x.label)}
           </button>
         ))}
       </div>
@@ -5291,8 +5018,8 @@ function BopoBlendMode({ speak, addStars }) {
     if (picked) return;
     setPicked(o.word);
     const ok = o.word === q.ans.word;
-    if (ok) { setRight((r) => r + 1); addStars(1); zh(speak, `${q.ans.word}!答對了`, { rate: 0.9 }); }
-    else zh(speak, `是${q.ans.word}`, { rate: 0.8 });
+    if (ok) { setRight((r) => r + 1); addStars(1); zh(speak, tf("{0}!答對了", q.ans.word), { rate: 0.9 }); }
+    else zh(speak, tf("是{0}", q.ans.word), { rate: 0.8 });
     setTimeout(() => {
       if (roundNo >= TOTAL) setDone(true);
       else { setRoundNo((r) => r + 1); setQ(makeQ()); setPicked(null); }
@@ -5303,19 +5030,15 @@ function BopoBlendMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "🚂"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>拼對 {right} / {TOTAL} 個字!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("拼對 {0} / {1} 個字!", right, TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-        第 {roundNo} / {TOTAL} 題・把兩個注音拼起來,是哪張圖?🚂
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{tf("第 {0} / {1} 題・把兩個注音拼起來,是哪張圖?🚂", roundNo, TOTAL)}</div>
       <div style={{ background: T.card, borderRadius: 22, padding: "20px 16px",
         marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
         <div style={{ display: "flex", gap: 10, justifyContent: "center", alignItems: "center", marginBottom: 12 }}>
@@ -5332,9 +5055,7 @@ function BopoBlendMode({ speak, addStars }) {
             {lit >= q.ans.parts.length ? q.ans.zhu : "?"}
           </span>
         </div>
-        <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={playBlend} style={{ color: T.ink }}>
-          🔊 再拼一次
-        </ChunkyButton>
+        <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={playBlend} style={{ color: T.ink }}>{t("🔊 再拼一次")}</ChunkyButton>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         {q.options.map((o) => {
@@ -5384,7 +5105,7 @@ function BopoToneMode({ speak, addStars }) {
     setPicked(t);
     const ok = t === q.tone;
     if (ok) { setRight((r) => r + 1); addStars(1); zh(speak, `${q.word}!${TONE_NAMES[q.tone - 1]}`, { rate: 0.9 }); }
-    else zh(speak, `${q.word},是${TONE_NAMES[q.tone - 1]}`, { rate: 0.8 });
+    else zh(speak, tf("{0},是{1}", q.word, TONE_NAMES[q.tone - 1]), { rate: 0.8 });
     setTimeout(() => {
       if (roundNo >= TOTAL) setDone(true);
       else { setRoundNo((r) => r + 1); setQ(makeQ()); setPicked(null); }
@@ -5395,19 +5116,15 @@ function BopoToneMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "🎵"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>聽對 {right} / {TOTAL} 個聲調!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("聽對 {0} / {1} 個聲調!", right, TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setPicked(null); setDone(false); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-        第 {roundNo} / {TOTAL} 題・這個字是第幾聲?🎵
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{tf("第 {0} / {1} 題・這個字是第幾聲?🎵", roundNo, TOTAL)}</div>
       <div style={{ background: T.card, borderRadius: 22, padding: "18px 16px",
         marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
         <div style={{ fontSize: 60 }}>{q.emoji}</div>
@@ -5415,9 +5132,7 @@ function BopoToneMode({ speak, addStars }) {
         <div style={{ fontSize: 22, fontWeight: 700, color: picked ? T.greenDark : "#C9C4E8", marginBottom: 10 }}>
           {picked ? q.zhu + (q.tone > 1 ? TONE_MARKS[q.tone - 1] : "") : q.zhu + " ?"}
         </div>
-        <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={say} style={{ color: T.ink }}>
-          🔊 再聽一次
-        </ChunkyButton>
+        <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={say} style={{ color: T.ink }}>{t("🔊 再聽一次")}</ChunkyButton>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10 }}>
         {[1, 2, 3, 4].map((t) => {
@@ -5473,14 +5188,14 @@ function BopoBubbleMode({ speak, addStars }) {
     if (popping) return;
     if (b.s === round.target.s) {
       setPopping(b.s); setCheer(""); addStars(1);
-      zh(speak, `${b.sound}!答對了`, { rate: 0.95 });
+      zh(speak, tf("{0}!答對了", b.sound), { rate: 0.95 });
       const np = pops + 1;
       setTimeout(() => {
         setPopping(null); setPops(np);
         if (np >= TOTAL) setDone(true); else setRound(makeRound());
       }, 800);
     } else {
-      setCheer("再聽聽看,是哪一個注音?🫧");
+      setCheer(t("再聽聽看,是哪一個注音?🫧"));
       say();
     }
   };
@@ -5489,19 +5204,15 @@ function BopoBubbleMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>🫧✨</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>戳破了 {TOTAL} 個泡泡!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("戳破了 {0} 個泡泡!", TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setPops(0); setDone(false); setRound(makeRound()); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setPops(0); setDone(false); setRound(makeRound()); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 10 }}>
-        聽聲音,戳破正確的注音泡泡!{pops} / {TOTAL} 🫧
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 10 }}>{tf("聽聲音,戳破正確的注音泡泡!{0} / {1} 🫧", pops, TOTAL)}</div>
       <div style={{
         position: "relative", height: 330, overflow: "hidden",
         background: "linear-gradient(#EAF6FF, #F6FBFF)",
@@ -5530,9 +5241,7 @@ function BopoBubbleMode({ speak, addStars }) {
           </button>
         ))}
       </div>
-      <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={say} style={{ color: T.ink }}>
-        🔊 再聽一次
-      </ChunkyButton>
+      <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={say} style={{ color: T.ink }}>{t("🔊 再聽一次")}</ChunkyButton>
       {cheer && (
         <div style={{ marginTop: 10, fontSize: 15, color: T.sub, fontWeight: 700 }}>{cheer}</div>
       )}
@@ -5563,7 +5272,7 @@ function BopoPairsMode({ speak, addStars }) {
       setMatched(nm); setOpen([]); addStars(1);
       if (nm.size === 5) {
         addStars(2);
-        zh(speak, "全部配對完成!好棒", { rate: 0.9 });
+        zh(speak, t("全部配對完成!好棒"), { rate: 0.9 });
         setTimeout(() => setDone(true), 900);
       }
     } else {
@@ -5581,11 +5290,9 @@ function BopoPairsMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 60 }}>{misses <= 3 ? "👑" : "🎉"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>5 對注音全部找到!</h2>
-        <p style={{ color: T.sub, fontSize: 15 }}>失誤 {misses} 次</p>
-        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 10 }} onClick={restart}>
-          再玩一次
-        </ChunkyButton>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{t("5 對注音全部找到!")}</h2>
+        <p style={{ color: T.sub, fontSize: 15 }}>{tf("失誤 {0} 次", misses)}</p>
+        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 10 }} onClick={restart}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
@@ -5593,8 +5300,8 @@ function BopoPairsMode({ speak, addStars }) {
     <div style={{ textAlign: "center" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
         color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-        <span>翻牌找一樣的注音</span>
-        <span>找到 {matched.size} / 5 對{"⭐".repeat(matched.size)}</span>
+        <span>{t("翻牌找一樣的注音")}</span>
+        <span>{tf("找到 {0} / 5 對{1}", matched.size, "⭐".repeat(matched.size))}</span>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
         {cards.map((c, i) => {
@@ -5617,9 +5324,7 @@ function BopoPairsMode({ speak, addStars }) {
           );
         })}
       </div>
-      <p style={{ color: "#B7B2D8", fontSize: 13, marginTop: 14 }}>
-        點卡片翻開,找到兩張一樣的注音!
-      </p>
+      <p style={{ color: "#B7B2D8", fontSize: 13, marginTop: 14 }}>{t("點卡片翻開,找到兩張一樣的注音!")}</p>
     </div>
   );
 }
@@ -5663,7 +5368,7 @@ function BopoSayMode({ speak, addStars }) {
         if (settled) return;
         settled = true; stopListening(); setStatus("correct");
         setWins((n) => n + 1); addStars(2);
-        zh(speak, "好棒!唸得很好", { rate: 0.95 });
+        zh(speak, t("好棒!唸得很好"), { rate: 0.95 });
       };
       const giveUp = () => {
         if (settled) return;
@@ -5695,45 +5400,33 @@ function BopoSayMode({ speak, addStars }) {
 
   return (
     <div style={{ textAlign: "center" }}>
-      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>
-        大聲唸出這個字,唸對得 ⭐⭐!已成功 {wins} 次
-      </p>
+      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>{tf("大聲唸出這個字,唸對得 ⭐⭐!已成功 {0} 次", wins)}</p>
       <div style={{ background: T.card, borderRadius: 24, padding: "26px 16px",
         boxShadow: "0 6px 0 #E0DBF7", marginBottom: 14 }}>
         <div style={{ fontSize: 64 }}>{item.emoji}</div>
         <div style={{ fontSize: 34, fontWeight: 700, color: T.ink }}>{item.word}</div>
         <div style={{ fontSize: 22, fontWeight: 700, color: T.purple, marginBottom: 12 }}>{item.zhu}</div>
         <ChunkyButton color={T.yellow} dark={T.yellowDark}
-          onClick={() => zh(speak, item.word, { rate: 0.8 })} style={{ color: T.ink }}>
-          🔊 先聽一次
-        </ChunkyButton>
+          onClick={() => zh(speak, item.word, { rate: 0.8 })} style={{ color: T.ink }}>{t("🔊 先聽一次")}</ChunkyButton>
       </div>
 
       {!SR ? (
-        <p style={{ color: T.sub, fontSize: 15 }}>
-          這個瀏覽器不支援語音辨識,建議用 Chrome 或 Safari 😊
-        </p>
+        <p style={{ color: T.sub, fontSize: 15 }}>{t("這個瀏覽器不支援語音辨識,建議用 Chrome 或 Safari 😊")}</p>
       ) : status === "correct" ? (
         <div>
-          <div style={{ fontSize: 22, color: T.greenDark, fontWeight: 700, marginBottom: 10 }}>
-            🎉 唸得真好!+2 ⭐
-          </div>
-          <ChunkyButton color={T.green} dark={T.greenDark} onClick={next}>下一個字 →</ChunkyButton>
+          <div style={{ fontSize: 22, color: T.greenDark, fontWeight: 700, marginBottom: 10 }}>{t("🎉 唸得真好!+2 ⭐")}</div>
+          <ChunkyButton color={T.green} dark={T.greenDark} onClick={next}>{t("下一個字 →")}</ChunkyButton>
         </div>
       ) : (
         <div>
           <ChunkyButton color={status === "listening" ? T.pink : "#F0932B"}
             dark={status === "listening" ? "#D14B7D" : "#C4731A"}
-            onClick={listen} style={{ fontSize: 20, width: "100%" }}>
-            {status === "listening" ? "🎙️ 我在聽,大聲唸出來!" : "🎤 換我唸唸看"}
-          </ChunkyButton>
+            onClick={listen} style={{ fontSize: 20, width: "100%" }}>{status === "listening" ? t("🎙️ 我在聽,大聲唸出來!") : t("🎤 換我唸唸看")}</ChunkyButton>
           {heard && (
-            <div style={{ marginTop: 10, fontSize: 14, color: T.sub }}>聽到:{heard}</div>
+            <div style={{ marginTop: 10, fontSize: 14, color: T.sub }}>{tf("聽到:{0}", heard)}</div>
           )}
           {status === "tryagain" && (
-            <div style={{ marginTop: 10, fontSize: 15, color: T.sub, fontWeight: 700 }}>
-              沒關係,再試一次!先按「先聽一次」聽清楚 💪
-            </div>
+            <div style={{ marginTop: 10, fontSize: 15, color: T.sub, fontWeight: 700 }}>{t("沒關係,再試一次!先按「先聽一次」聽清楚 💪")}</div>
           )}
         </div>
       )}
@@ -5844,7 +5537,7 @@ function PickQuiz({
   speak, addStars, TOTAL = 8, hint, makeQ, say,
   options, keyOf, isRight, renderPrompt, renderOption,
   onRight, onWrong, cols = 3, delay = 1800,
-  doneIcon = "🏆", doneLabel = (r, t) => `答對 ${r} / ${t} 題!`,
+  doneIcon = "🏆", doneLabel = (r, t) => tf("答對 {0} / {1} 題!", r, t),
 }) {
   const [roundNo, setRoundNo] = useState(1);
   const [right, setRight] = useState(0);
@@ -5882,24 +5575,18 @@ function PickQuiz({
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>{right >= TOTAL - 1 ? "🏆" : doneIcon}</div>
         <h2 style={{ color: T.ink, fontSize: 26 }}>{doneLabel(right, TOTAL)}</h2>
-        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }} onClick={restart}>
-          再玩一次
-        </ChunkyButton>
+        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }} onClick={restart}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-        第 {roundNo} / {TOTAL} 題・{hint}
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{tf("第 {0} / {1} 題・{2}", roundNo, TOTAL, hint)}</div>
       <div style={{ background: T.card, borderRadius: 22, padding: "18px 16px",
         marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
         {renderPrompt(q, picked)}
         <div style={{ marginTop: 10 }}>
-          <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={sayQ} style={{ color: T.ink }}>
-            🔊 再聽一次
-          </ChunkyButton>
+          <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={sayQ} style={{ color: T.ink }}>{t("🔊 再聽一次")}</ChunkyButton>
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 12 }}>
@@ -5972,20 +5659,20 @@ function ZhFamilyMode({ speak, addStars }) {
     return { f: g.f, ans, opts: shuffle([ans, ...others]) };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} doneIcon="👨‍👩‍👧" hint="哪一個字的韻母是它?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="👨‍👩‍👧" hint={t("哪一個字的韻母是它?")}
       makeQ={makeQ}
-      say={(q) => zh(speak, `找出韻母是 ${BOPO_SOUND[q.f]} 的字`, { rate: 0.8 })}
+      say={(q) => zh(speak, tf("找出韻母是 {0} 的字", BOPO_SOUND[q.f]), { rate: 0.8 })}
       options={(q) => q.opts} keyOf={(o) => o.w}
       isRight={(o, q) => finalOf(o.zhu) === q.f}
       renderPrompt={(q) => (
         <>
           <div style={{ fontSize: 64, fontWeight: 800, color: T.purple }}>{q.f}</div>
-          <div style={{ fontSize: 14, color: T.sub, fontWeight: 700 }}>韻母家族</div>
+          <div style={{ fontSize: 14, color: T.sub, fontWeight: 700 }}>{t("韻母家族")}</div>
         </>
       )}
       renderOption={optEmojiWord}
-      onRight={(q, o) => zh(speak, `對!${o.w},韻母是 ${BOPO_SOUND[q.f]}`, { rate: 0.85 })}
-      onWrong={(q) => zh(speak, `答案是 ${q.ans.w}`, { rate: 0.8 })}
+      onRight={(q, o) => zh(speak, tf("對!{0},韻母是 {1}", o.w, BOPO_SOUND[q.f]), { rate: 0.85 })}
+      onWrong={(q) => zh(speak, tf("答案是 {0}", q.ans.w), { rate: 0.8 })}
     />
   );
 }
@@ -5998,7 +5685,7 @@ function ZhListenQuizMode({ speak, addStars }) {
     return { ans, opts: shuffle([ans, ...others]) };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} doneIcon="👂" hint="聽聽看,是哪一個?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="👂" hint={t("聽聽看,是哪一個?")}
       makeQ={makeQ}
       say={(q) => zh(speak, q.ans.w, { rate: 0.8 })}
       options={(q) => q.opts} keyOf={(o) => o.w}
@@ -6012,8 +5699,8 @@ function ZhListenQuizMode({ speak, addStars }) {
         </>
       )}
       renderOption={optEmojiWord}
-      onRight={(q) => zh(speak, `對!${q.ans.w}`, { rate: 0.9 })}
-      onWrong={(q) => zh(speak, `這是 ${q.ans.w}`, { rate: 0.8 })}
+      onRight={(q) => zh(speak, tf("對!{0}", q.ans.w), { rate: 0.9 })}
+      onWrong={(q) => zh(speak, tf("這是 {0}", q.ans.w), { rate: 0.8 })}
     />
   );
 }
@@ -6027,7 +5714,7 @@ function ZhEndSoundMode({ speak, addStars }) {
     return { ans, f, opts: shuffle([f, ...others]) };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} doneIcon="🔎" hint="這個字的韻母(最後的音)是哪個?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🔎" hint={t("這個字的韻母(最後的音)是哪個?")}
       makeQ={makeQ}
       say={(q) => zh(speak, q.ans.w, { rate: 0.7 })}
       options={(q) => q.opts} keyOf={(o) => o}
@@ -6046,8 +5733,8 @@ function ZhEndSoundMode({ speak, addStars }) {
           {picked && <div style={{ fontSize: 13, color: T.sub }}>{BOPO_SOUND[o]}</div>}
         </>
       )}
-      onRight={(q) => zh(speak, `對!${q.ans.w} 的韻母是 ${BOPO_SOUND[q.f]}`, { rate: 0.85 })}
-      onWrong={(q) => zh(speak, `${q.ans.w},韻母是 ${BOPO_SOUND[q.f]}`, { rate: 0.8 })}
+      onRight={(q) => zh(speak, tf("對!{0} 的韻母是 {1}", q.ans.w, BOPO_SOUND[q.f]), { rate: 0.85 })}
+      onWrong={(q) => zh(speak, tf("{0},韻母是 {1}", q.ans.w, BOPO_SOUND[q.f]), { rate: 0.8 })}
     />
   );
 }
@@ -6062,23 +5749,21 @@ function ZhRhymeMode({ speak, addStars }) {
     return { cue, ans, f: g.f, opts: shuffle([ans, ...others]) };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} doneIcon="🚂" hint="哪一個和它押韻?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🚂" hint={t("哪一個和它押韻?")}
       makeQ={makeQ}
-      say={(q) => zh(speak, `${q.cue.w},哪一個和 ${q.cue.w} 押韻?`, { rate: 0.8 })}
+      say={(q) => zh(speak, tf("{0},哪一個和 {1} 押韻?", q.cue.w, q.cue.w), { rate: 0.8 })}
       options={(q) => q.opts} keyOf={(o) => o.w}
       isRight={(o, q) => finalOf(o.zhu) === q.f}
       renderPrompt={(q, picked) => (
         <>
           <div style={{ fontSize: 56 }}>{q.cue.e}</div>
           <div style={{ fontSize: 26, fontWeight: 800, color: T.ink }}>{q.cue.w}</div>
-          <div style={{ fontSize: 15, color: picked ? T.greenDark : T.sub, fontWeight: 700 }}>
-            {picked ? `韻母 ${q.f}` : q.cue.zhu}
-          </div>
+          <div style={{ fontSize: 15, color: picked ? T.greenDark : T.sub, fontWeight: 700 }}>{picked ? tf("韻母 {0}", q.f) : q.cue.zhu}</div>
         </>
       )}
       renderOption={optEmojiWord}
-      onRight={(q, o) => zh(speak, `${q.cue.w}、${o.w},押韻!`, { rate: 0.85 })}
-      onWrong={(q) => zh(speak, `${q.cue.w} 和 ${q.ans.w} 押韻`, { rate: 0.8 })}
+      onRight={(q, o) => zh(speak, tf("{0}、{1},押韻!", q.cue.w, o.w), { rate: 0.85 })}
+      onWrong={(q) => zh(speak, tf("{0} 和 {1} 押韻", q.cue.w, q.ans.w), { rate: 0.8 })}
     />
   );
 }
@@ -6092,7 +5777,7 @@ function ZhListenDoMode({ speak, addStars }) {
     return { ans, verb: pickOne(ZH_ORDERS), opts: shuffle([ans, ...others]) };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} doneIcon="👉" hint="聽指令,點出正確的圖"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="👉" hint={t("聽指令,點出正確的圖")}
       makeQ={makeQ}
       say={(q) => zh(speak, `${q.verb} ${q.ans.w}`, { rate: 0.8 })}
       options={(q) => q.opts} keyOf={(o) => o.w}
@@ -6100,9 +5785,7 @@ function ZhListenDoMode({ speak, addStars }) {
       renderPrompt={(q, picked) => (
         <>
           <div style={{ fontSize: 52 }}>👉</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: picked ? T.greenDark : "#CFC9EE" }}>
-            {picked ? `${q.verb} ${q.ans.w}` : "聽聽看老師說什麼"}
-          </div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: picked ? T.greenDark : "#CFC9EE" }}>{picked ? `${q.verb} ${q.ans.w}` : t("聽聽看老師說什麼")}</div>
         </>
       )}
       renderOption={(o, _q, picked) => (
@@ -6111,8 +5794,8 @@ function ZhListenDoMode({ speak, addStars }) {
           {picked && <div style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>{o.w}</div>}
         </>
       )}
-      onRight={() => zh(speak, "答對了!", { rate: 0.95 })}
-      onWrong={(q) => zh(speak, `這個才是 ${q.ans.w}`, { rate: 0.8 })}
+      onRight={() => zh(speak, t("答對了!"), { rate: 0.95 })}
+      onWrong={(q) => zh(speak, tf("這個才是 {0}", q.ans.w), { rate: 0.8 })}
     />
   );
 }
@@ -6126,31 +5809,25 @@ function ZhYesNoMode({ speak, addStars }) {
     return { item, claim, same };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} cols={2} doneIcon="✅" hint="聽問題,回答是或不是"
+    <PickQuiz speak={speak} addStars={addStars} cols={2} doneIcon="✅" hint={t("聽問題,回答是或不是")}
       makeQ={makeQ}
-      say={(q) => zh(speak, `這是 ${q.claim.w} 嗎?`, { rate: 0.8 })}
+      say={(q) => zh(speak, tf("這是 {0} 嗎?", q.claim.w), { rate: 0.8 })}
       options={() => ["yes", "no"]} keyOf={(o) => o}
       isRight={(o, q) => (o === "yes") === q.same}
       renderPrompt={(q, picked) => (
         <>
           <div style={{ fontSize: 64 }}>{q.item.e}</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: T.ink }}>
-            這是 {q.claim.w} 嗎?
-          </div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: T.ink }}>{tf("這是 {0} 嗎?", q.claim.w)}</div>
           {picked && (
-            <div style={{ fontSize: 14, color: T.greenDark, fontWeight: 700 }}>
-              這是 {q.item.w}
-            </div>
+            <div style={{ fontSize: 14, color: T.greenDark, fontWeight: 700 }}>{tf("這是 {0}", q.item.w)}</div>
           )}
         </>
       )}
       renderOption={(o) => (
-        <div style={{ fontSize: 22, fontWeight: 800, color: T.ink }}>
-          {o === "yes" ? "⭕ 是" : "❌ 不是"}
-        </div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: T.ink }}>{o === "yes" ? t("⭕ 是") : t("❌ 不是")}</div>
       )}
-      onRight={() => zh(speak, "答對了!", { rate: 0.95 })}
-      onWrong={(q) => zh(speak, `這是 ${q.item.w}`, { rate: 0.8 })}
+      onRight={() => zh(speak, t("答對了!"), { rate: 0.95 })}
+      onWrong={(q) => zh(speak, tf("這是 {0}", q.item.w), { rate: 0.8 })}
     />
   );
 }
@@ -6165,15 +5842,15 @@ function ZhCountMode({ speak, addStars }) {
     return { item, n, opts: shuffle([...set]) };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} doneIcon="🧺" hint="數數看,有幾個?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🧺" hint={t("數數看,有幾個?")}
       makeQ={makeQ}
-      say={(q) => zh(speak, `這裡有幾個 ${q.item.w}?`, { rate: 0.8 })}
+      say={(q) => zh(speak, tf("這裡有幾個 {0}?", q.item.w), { rate: 0.8 })}
       options={(q) => q.opts} keyOf={(o) => String(o)}
       isRight={(o, q) => o === q.n}
       renderPrompt={(q) => (
         <>
           <div style={{ fontSize: 34, lineHeight: 1.35 }}>{q.item.e.repeat(q.n)}</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: T.ink }}>有幾個 {q.item.w}?</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: T.ink }}>{tf("有幾個 {0}?", q.item.w)}</div>
         </>
       )}
       renderOption={(o) => (
@@ -6182,8 +5859,8 @@ function ZhCountMode({ speak, addStars }) {
           <div style={{ fontSize: 14, color: T.sub, fontWeight: 700 }}>{ZH_NUM[o]}</div>
         </>
       )}
-      onRight={(q) => zh(speak, `對!${ZH_NUM[q.n]}個`, { rate: 0.9 })}
-      onWrong={(q) => zh(speak, `一起數:有 ${ZH_NUM[q.n]} 個`, { rate: 0.8 })}
+      onRight={(q) => zh(speak, tf("對!{0}個", ZH_NUM[q.n]), { rate: 0.9 })}
+      onWrong={(q) => zh(speak, tf("一起數:有 {0} 個", ZH_NUM[q.n]), { rate: 0.8 })}
     />
   );
 }
@@ -6196,9 +5873,9 @@ function ZhColorMode({ speak, addStars }) {
     return { ans, opts: shuffle([ans, ...others]) };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} doneIcon="🎨" hint="聽顏色,點出對的那個"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🎨" hint={t("聽顏色,點出對的那個")}
       makeQ={makeQ}
-      say={(q) => zh(speak, `哪一個是 ${q.ans.w}?`, { rate: 0.8 })}
+      say={(q) => zh(speak, tf("哪一個是 {0}?", q.ans.w), { rate: 0.8 })}
       options={(q) => q.opts} keyOf={(o) => o.w}
       isRight={(o, q) => o.w === q.ans.w}
       renderPrompt={(q, picked) => (
@@ -6216,8 +5893,8 @@ function ZhColorMode({ speak, addStars }) {
           {picked && <div style={{ fontSize: 13, fontWeight: 700, color: T.ink, marginTop: 4 }}>{o.w}</div>}
         </>
       )}
-      onRight={(q) => zh(speak, `對!${q.ans.w}`, { rate: 0.9 })}
-      onWrong={(q) => zh(speak, `這個才是 ${q.ans.w}`, { rate: 0.8 })}
+      onRight={(q) => zh(speak, tf("對!{0}", q.ans.w), { rate: 0.9 })}
+      onWrong={(q) => zh(speak, tf("這個才是 {0}", q.ans.w), { rate: 0.8 })}
     />
   );
 }
@@ -6230,17 +5907,15 @@ function ZhPrepMode({ speak, addStars }) {
     return { ans, opts: shuffle([ans, ...others]) };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} doneIcon="🧭" hint="聽聽看,球在盒子的哪裡?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🧭" hint={t("聽聽看,球在盒子的哪裡?")}
       makeQ={makeQ}
-      say={(q) => zh(speak, `球在盒子的${q.ans.w}`, { rate: 0.8 })}
+      say={(q) => zh(speak, tf("球在盒子的{0}", q.ans.w), { rate: 0.8 })}
       options={(q) => q.opts} keyOf={(o) => o.w}
       isRight={(o, q) => o.w === q.ans.w}
       renderPrompt={(q, picked) => (
         <>
           <div style={{ fontSize: 44 }}>⚽ 📦</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: picked ? T.greenDark : T.sub }}>
-            {picked ? `球在盒子的${q.ans.w}` : "球在盒子的哪裡?"}
-          </div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: picked ? T.greenDark : T.sub }}>{picked ? tf("球在盒子的{0}", q.ans.w) : t("球在盒子的哪裡?")}</div>
         </>
       )}
       renderOption={(o, _q, picked) => (
@@ -6249,8 +5924,8 @@ function ZhPrepMode({ speak, addStars }) {
           {picked && <div style={{ fontSize: 14, fontWeight: 700, color: T.ink, marginTop: 4 }}>{o.w}</div>}
         </>
       )}
-      onRight={() => zh(speak, "答對了!", { rate: 0.95 })}
-      onWrong={(q) => zh(speak, `球在盒子的${q.ans.w}`, { rate: 0.8 })}
+      onRight={() => zh(speak, t("答對了!"), { rate: 0.95 })}
+      onWrong={(q) => zh(speak, tf("球在盒子的{0}", q.ans.w), { rate: 0.8 })}
     />
   );
 }
@@ -6259,7 +5934,7 @@ function ZhPrepMode({ speak, addStars }) {
 function ZhSyllableMode({ speak, addStars }) {
   const makeQ = () => ({ item: pickOne(ZH_WORDS) });
   return (
-    <PickQuiz speak={speak} addStars={addStars} doneIcon="👏" hint="拍拍看,這個詞有幾個字?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="👏" hint={t("拍拍看,這個詞有幾個字?")}
       makeQ={makeQ}
       say={(q) => zh(speak, q.item.w, { rate: 0.6 })}
       options={() => [1, 2, 3]} keyOf={(o) => String(o)}
@@ -6279,8 +5954,8 @@ function ZhSyllableMode({ speak, addStars }) {
           <div style={{ fontSize: 20, fontWeight: 800, color: T.purple }}>{o}</div>
         </>
       )}
-      onRight={(q) => zh(speak, `對!${ZH_NUM[q.item.w.length]}個字`, { rate: 0.9 })}
-      onWrong={(q) => zh(speak, `${q.item.w},${ZH_NUM[q.item.w.length]}個字`, { rate: 0.7 })}
+      onRight={(q) => zh(speak, tf("對!{0}個字", ZH_NUM[q.item.w.length]), { rate: 0.9 })}
+      onWrong={(q) => zh(speak, tf("{0},{1}個字", q.item.w, ZH_NUM[q.item.w.length]), { rate: 0.7 })}
     />
   );
 }
@@ -6289,7 +5964,7 @@ function ZhSyllableMode({ speak, addStars }) {
 function ZhMedialMode({ speak, addStars }) {
   const makeQ = () => ({ item: pickOne(ZH_MEDIAL) });
   return (
-    <PickQuiz speak={speak} addStars={addStars} doneIcon="🅰️" hint="中間少了哪個音?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🅰️" hint={t("中間少了哪個音?")}
       makeQ={makeQ}
       say={(q) => zh(speak, q.item.w, { rate: 0.6 })}
       options={() => ["ㄧ", "ㄨ", "ㄩ"]} keyOf={(o) => o}
@@ -6311,8 +5986,8 @@ function ZhMedialMode({ speak, addStars }) {
           {picked && <div style={{ fontSize: 13, color: T.sub }}>{BOPO_SOUND[o]}</div>}
         </>
       )}
-      onRight={(q) => zh(speak, `對!${q.item.w}`, { rate: 0.85 })}
-      onWrong={(q) => zh(speak, `是 ${BOPO_SOUND[q.item.m]},${q.item.w}`, { rate: 0.75 })}
+      onRight={(q) => zh(speak, tf("對!{0}", q.item.w), { rate: 0.85 })}
+      onWrong={(q) => zh(speak, tf("是 {0},{1}", BOPO_SOUND[q.item.m], q.item.w), { rate: 0.75 })}
     />
   );
 }
@@ -6325,7 +6000,7 @@ function ZhFindMode({ speak, addStars }) {
     return { ans, opts: shuffle([ans, ...others]) };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} doneIcon="🔍" hint="聽注音的聲音,找出符號"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🔍" hint={t("聽注音的聲音,找出符號")}
       makeQ={makeQ}
       say={(q) => zh(speak, q.ans.sound, { rate: 0.6 })}
       options={(q) => q.opts} keyOf={(o) => o.s}
@@ -6344,8 +6019,8 @@ function ZhFindMode({ speak, addStars }) {
           {picked && <div style={{ fontSize: 13, color: T.sub }}>{o.sound}</div>}
         </>
       )}
-      onRight={(q) => zh(speak, `對!${q.ans.sound},${q.ans.word}`, { rate: 0.85 })}
-      onWrong={(q) => zh(speak, `是這個,${q.ans.sound}`, { rate: 0.8 })}
+      onRight={(q) => zh(speak, tf("對!{0},{1}", q.ans.sound, q.ans.word), { rate: 0.85 })}
+      onWrong={(q) => zh(speak, tf("是這個,{0}", q.ans.sound), { rate: 0.8 })}
     />
   );
 }
@@ -6357,7 +6032,7 @@ function ZhTypeMode({ speak, addStars }) {
     return { item: pickOne(isC ? ZH_CONSONANTS : ZH_VOWELS), isC };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} cols={2} doneIcon="🧠" hint="這個注音放前面還是後面?"
+    <PickQuiz speak={speak} addStars={addStars} cols={2} doneIcon="🧠" hint={t("這個注音放前面還是後面?")}
       makeQ={makeQ}
       say={(q) => zh(speak, q.item.sound, { rate: 0.6 })}
       options={() => ["c", "v"]} keyOf={(o) => o}
@@ -6365,21 +6040,15 @@ function ZhTypeMode({ speak, addStars }) {
       renderPrompt={(q, picked) => (
         <>
           <div style={{ fontSize: 72, fontWeight: 800, color: T.purple }}>{q.item.s}</div>
-          <div style={{ fontSize: 15, color: picked ? T.greenDark : T.sub, fontWeight: 700 }}>
-            {picked ? `${q.item.sound} · ${q.item.word}` : "聽聽看再選"}
-          </div>
+          <div style={{ fontSize: 15, color: picked ? T.greenDark : T.sub, fontWeight: 700 }}>{picked ? `${q.item.sound} · ${q.item.word}` : t("聽聽看再選")}</div>
         </>
       )}
       renderOption={(o) => (
-        <div style={{ fontSize: 18, fontWeight: 800, color: T.ink, lineHeight: 1.35 }}>
-          {o === "c" ? "🅱️ 聲母" : "🅾️ 韻母"}
-          <div style={{ fontSize: 12, color: T.sub, fontWeight: 700 }}>
-            {o === "c" ? "放前面" : "放後面"}
-          </div>
+        <div style={{ fontSize: 18, fontWeight: 800, color: T.ink, lineHeight: 1.35 }}>{o === "c" ? t("🅱️ 聲母") : t("🅾️ 韻母")}<div style={{ fontSize: 12, color: T.sub, fontWeight: 700 }}>{o === "c" ? t("放前面") : t("放後面")}</div>
         </div>
       )}
-      onRight={(q) => zh(speak, `對!${q.item.s} 是${q.isC ? "聲母" : "韻母"}`, { rate: 0.85 })}
-      onWrong={(q) => zh(speak, `${q.item.s} 是${q.isC ? "聲母,放前面" : "韻母,放後面"}`, { rate: 0.8 })}
+      onRight={(q) => zh(speak, tf("對!{0} 是{1}", q.item.s, q.isC ? t("聲母") : t("韻母")), { rate: 0.85 })}
+      onWrong={(q) => zh(speak, tf("{0} 是{1}", q.item.s, q.isC ? t("聲母,放前面") : t("韻母,放後面")), { rate: 0.8 })}
     />
   );
 }
@@ -6397,21 +6066,21 @@ function ZhOppositeMode({ speak, addStars }) {
     return { cue, ans, opts: shuffle([ans, ...others]) };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} doneIcon="↔️" hint="哪一個是它的相反?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="↔️" hint={t("哪一個是它的相反?")}
       makeQ={makeQ}
-      say={(q) => zh(speak, `${q.cue.w} 的相反是什麼?`, { rate: 0.8 })}
+      say={(q) => zh(speak, tf("{0} 的相反是什麼?", q.cue.w), { rate: 0.8 })}
       options={(q) => q.opts} keyOf={(o) => o.w}
       isRight={(o, q) => o.w === q.ans.w}
       renderPrompt={(q) => (
         <>
           <div style={{ fontSize: 56 }}>{q.cue.e}</div>
           <div style={{ fontSize: 26, fontWeight: 800, color: T.ink }}>{q.cue.w}</div>
-          <div style={{ fontSize: 15, color: T.sub, fontWeight: 700 }}>的相反是?</div>
+          <div style={{ fontSize: 15, color: T.sub, fontWeight: 700 }}>{t("的相反是?")}</div>
         </>
       )}
       renderOption={optEmojiWord}
-      onRight={(q) => zh(speak, `對!${q.cue.w} 的相反是 ${q.ans.w}`, { rate: 0.85 })}
-      onWrong={(q) => zh(speak, `${q.cue.w} 的相反是 ${q.ans.w}`, { rate: 0.8 })}
+      onRight={(q) => zh(speak, tf("對!{0} 的相反是 {1}", q.cue.w, q.ans.w), { rate: 0.85 })}
+      onWrong={(q) => zh(speak, tf("{0} 的相反是 {1}", q.cue.w, q.ans.w), { rate: 0.8 })}
     />
   );
 }
@@ -6454,7 +6123,7 @@ function ZhSpellMode({ speak, addStars }) {
       setWrongId(null);
       if (nf >= parts.length) {
         setDoneWord(true); setWins((w) => w + 1); addStars(2);
-        zh(speak, word.w, { rate: 0.85, onEnd: () => zh(speak, "太棒了!", { rate: 0.95 }) });
+        zh(speak, word.w, { rate: 0.85, onEnd: () => zh(speak, t("太棒了!"), { rate: 0.95 }) });
       } else zh(speak, BOPO_SOUND[tile.ch], { rate: 0.7 });
     } else {
       setWrongId(tile.id);
@@ -6464,9 +6133,7 @@ function ZhSpellMode({ speak, addStars }) {
 
   return (
     <div style={{ textAlign: "center" }}>
-      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>
-        照順序點注音磚,把這個字拼出來!拼好一個 +2 ⭐,已完成 {wins} 個
-      </p>
+      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>{tf("照順序點注音磚,把這個字拼出來!拼好一個 +2 ⭐,已完成 {0} 個", wins)}</p>
       <div style={{ background: T.card, borderRadius: 24, padding: "22px 16px",
         boxShadow: "0 6px 0 #E0DBF7", marginBottom: 14 }}>
         <div style={{ fontSize: 56 }}>{word.e}</div>
@@ -6487,9 +6154,7 @@ function ZhSpellMode({ speak, addStars }) {
           })}
         </div>
         {doneWord && (
-          <div style={{ marginTop: 10, fontSize: 19, color: T.greenDark, fontWeight: 700 }}>
-            🎉 拼出「{word.w}」{word.zhu} 了!+2 ⭐
-          </div>
+          <div style={{ marginTop: 10, fontSize: 19, color: T.greenDark, fontWeight: 700 }}>{tf("🎉 拼出「{0}」{1} 了!+2 ⭐", word.w, word.zhu)}</div>
         )}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10,
@@ -6512,10 +6177,10 @@ function ZhSpellMode({ speak, addStars }) {
         })}
       </div>
       {doneWord ? (
-        <ChunkyButton color={T.green} dark={T.greenDark} onClick={next}>下一個字 →</ChunkyButton>
+        <ChunkyButton color={T.green} dark={T.greenDark} onClick={next}>{t("下一個字 →")}</ChunkyButton>
       ) : (
         <ChunkyButton color={T.yellow} dark={T.yellowDark} style={{ color: T.ink }}
-          onClick={() => zh(speak, word.w, { rate: 0.7 })}>🔊 再聽一次</ChunkyButton>
+          onClick={() => zh(speak, word.w, { rate: 0.7 })}>{t("🔊 再聽一次")}</ChunkyButton>
       )}
     </div>
   );
@@ -6547,8 +6212,8 @@ function ZhMissingMode({ speak, addStars }) {
     if (picked) return;
     setPicked(b.s);
     const ok = b.s === q.missing.s;
-    if (ok) { setRight((r) => r + 1); addStars(1); zh(speak, `對!是 ${q.missing.sound}`, { rate: 0.9 }); }
-    else zh(speak, `少了 ${q.missing.sound}`, { rate: 0.8 });
+    if (ok) { setRight((r) => r + 1); addStars(1); zh(speak, tf("對!是 {0}", q.missing.sound), { rate: 0.9 }); }
+    else zh(speak, tf("少了 {0}", q.missing.sound), { rate: 0.8 });
     setTimeout(() => { if (roundNo >= TOTAL) setDone(true); else nextRound(); }, 1700);
   };
 
@@ -6556,19 +6221,15 @@ function ZhMissingMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "🧠"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>答對 {right} / {TOTAL} 題!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("答對 {0} / {1} 題!", right, TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setRoundNo(1); setRight(0); setQ(makeZhMissingQ(3)); setPhase("memorize"); setPicked(null); setDone(false); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeZhMissingQ(3)); setPhase("memorize"); setPicked(null); setDone(false); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-        第 {roundNo} / {TOTAL} 題・{phase === "memorize" ? "先記住這些注音 👀" : "少了哪一個注音?"}
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{tf("第 {0} / {1} 題・{2}", roundNo, TOTAL, phase === "memorize" ? t("先記住這些注音 👀") : t("少了哪一個注音?"))}</div>
       <div style={{ background: T.card, borderRadius: 22, padding: "22px 12px",
         marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7", minHeight: 110,
         display: "flex", gap: 14, justifyContent: "center", alignItems: "center", flexWrap: "wrap" }}>
@@ -6578,9 +6239,7 @@ function ZhMissingMode({ speak, addStars }) {
         {phase === "guess" && <span style={{ fontSize: 46 }}>❓</span>}
       </div>
       {phase === "memorize" ? (
-        <ChunkyButton color={T.purple} dark={T.purpleDark} onClick={() => setPhase("guess")}>
-          記好了,蓋起來!
-        </ChunkyButton>
+        <ChunkyButton color={T.purple} dark={T.purpleDark} onClick={() => setPhase("guess")}>{t("記好了,蓋起來!")}</ChunkyButton>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: `repeat(${options.length}, 1fr)`, gap: 10 }}>
           {options.map((b) => {
@@ -6647,7 +6306,7 @@ function ZhSequenceMode({ speak, addStars }) {
       const ns = step + 1;
       if (ns >= seq.length) {
         addStars(1); setRight((r) => r + 1); setPhase("good");
-        zh(speak, "太棒了!", { rate: 0.95 });
+        zh(speak, t("太棒了!"), { rate: 0.95 });
         timers.current.push(setTimeout(() => {
           if (roundNo >= TOTAL) setDone(true);
           else { const nr = roundNo + 1; setRoundNo(nr); startRound(nr); }
@@ -6663,19 +6322,15 @@ function ZhSequenceMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>{right >= 5 ? "🏆" : "🧠"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>記對 {right} / {TOTAL} 組順序!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("記對 {0} / {1} 組順序!", right, TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setRoundNo(1); setRight(0); startRound(1); setDone(false); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setRoundNo(1); setRight(0); startRound(1); setDone(false); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-        第 {roundNo} / {TOTAL} 組・{phase === "input" ? "照剛剛的順序點出來!" : "記住亮起來的順序 👀"}
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{tf("第 {0} / {1} 組・{2}", roundNo, TOTAL, phase === "input" ? t("照剛剛的順序點出來!") : t("記住亮起來的順序 👀"))}</div>
       {phase !== "input" && (
         <div style={{ background: T.card, borderRadius: 22, padding: "24px 12px",
           marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7", minHeight: 120,
@@ -6741,7 +6396,7 @@ function ZhSizeMode({ speak, addStars }) {
       setProgress(np); setWrong(null);
       if (np >= q.order.length) {
         setRight((r) => r + 1); addStars(1); setCleared(true);
-        zh(speak, "太棒了!", { rate: 0.95 });
+        zh(speak, t("太棒了!"), { rate: 0.95 });
         setTimeout(nextRound, 1300);
       }
     } else {
@@ -6755,27 +6410,21 @@ function ZhSizeMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>{right >= 5 ? "🏆" : "📏"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>排對 {right} / {TOTAL} 組!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("排對 {0} / {1} 組!", right, TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setProgress(0); setCleared(false); setDone(false); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setProgress(0); setCleared(false); setDone(false); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 6 }}>
-        第 {roundNo} / {TOTAL} 組・從「最小」開始,由小到大點!
-      </div>
-      <div style={{ fontSize: 20, marginBottom: 12, color: T.purple, fontWeight: 700 }}>
-        🐜 小 →→→ 大 🐘
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 6 }}>{tf("第 {0} / {1} 組・從「最小」開始,由小到大點!", roundNo, TOTAL)}</div>
+      <div style={{ fontSize: 20, marginBottom: 12, color: T.purple, fontWeight: 700 }}>{t("🐜 小 →→→ 大 🐘")}</div>
       <div style={{ minHeight: 70, display: "flex", gap: 10, justifyContent: "center", alignItems: "center", marginBottom: 8 }}>
         {q.order.slice(0, progress).map((it, i) => (
           <span key={it.w} style={{ fontSize: 30 + i * 12 }}>{it.e}</span>
         ))}
-        {progress < q.order.length && <span style={{ fontSize: 22, color: "#C9C4E8" }}>👉 點第 {progress + 1} 小的</span>}
+        {progress < q.order.length && <span style={{ fontSize: 22, color: "#C9C4E8" }}>{tf("👉 點第 {0} 小的", progress + 1)}</span>}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         {q.display.map((it) => {
@@ -6868,7 +6517,7 @@ function ZhStoryMode({ speak, addStars }) {
     setPicked(opt.w);
     if (opt.w === story.q.ans) {
       addStars(2);
-      zh(speak, story.q.ans, { rate: 0.85, onEnd: () => zh(speak, "太棒了!", { rate: 0.95 }) });
+      zh(speak, story.q.ans, { rate: 0.85, onEnd: () => zh(speak, t("太棒了!"), { rate: 0.95 }) });
     } else {
       zh(speak, story.q.zh, { rate: 0.75 });
       setTimeout(() => setPicked(null), 1500);
@@ -6877,9 +6526,7 @@ function ZhStoryMode({ speak, addStars }) {
 
   return (
     <div style={{ textAlign: "center" }}>
-      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 10px" }}>
-        第 {si + 1} / {ZH_STORIES.length} 個小故事・每句都點一下聽,聽完回答問題!
-      </p>
+      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 10px" }}>{tf("第 {0} / {1} 個小故事・每句都點一下聽,聽完回答問題!", si + 1, ZH_STORIES.length)}</p>
       <h2 style={{ color: T.ink, fontSize: 22, margin: "0 0 12px" }}>
         {story.emoji} {story.title}
       </h2>
@@ -7031,7 +6678,7 @@ function ZhSightMode({ speak, addStars }) {
       }, 1200);
     } else {
       setWrongSet((s) => new Set(s).add(target.s));
-      setEncourage("沒關係!仔細聽,它等一下還會再出現 💪");
+      setEncourage(t("沒關係!仔細聽,它等一下還會再出現 💪"));
       zh(speak, target.sound, { rate: 0.6 });
       setTimeout(() => {
         const rest = [...queue.slice(1), queue[0]];
@@ -7045,12 +6692,8 @@ function ZhSightMode({ speak, addStars }) {
     const crowns = Object.values(progress).filter((s) => s >= 3).length;
     return (
       <div style={{ textAlign: "center" }}>
-        <p style={{ color: T.sub, fontSize: 14, margin: "0 0 4px" }}>
-          聽到聲音就要馬上認出注音符號,一關 5 個。
-        </p>
-        <p style={{ color: T.ink, fontSize: 16, fontWeight: 700, margin: "0 0 14px" }}>
-          收集皇冠吧!👑 {crowns} / {ZH_SIGHT_LEVELS.length}
-        </p>
+        <p style={{ color: T.sub, fontSize: 14, margin: "0 0 4px" }}>{t("聽到聲音就要馬上認出注音符號,一關 5 個。")}</p>
+        <p style={{ color: T.ink, fontSize: 16, fontWeight: 700, margin: "0 0 14px" }}>{tf("收集皇冠吧!👑 {0} / {1}", crowns, ZH_SIGHT_LEVELS.length)}</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
           {ZH_SIGHT_LEVELS.map((lvItems, i) => {
             const unlocked = i === 0 || (progress[i - 1] || 0) >= 1;
@@ -7073,9 +6716,7 @@ function ZhSightMode({ speak, addStars }) {
             );
           })}
         </div>
-        <p style={{ color: "#B7B2D8", fontSize: 13, marginTop: 16 }}>
-          每一關都一定會過,答錯的會再出現,答對就好 💜
-        </p>
+        <p style={{ color: "#B7B2D8", fontSize: 13, marginTop: 16 }}>{t("每一關都一定會過,答錯的會再出現,答對就好 💜")}</p>
       </div>
     );
   }
@@ -7084,19 +6725,15 @@ function ZhSightMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 60 }}>{gotStars >= 3 ? "👑" : "🎉"}</div>
-        <h2 style={{ color: T.ink, fontSize: 28, margin: "8px 0 4px" }}>第 {lv + 1} 關完成!</h2>
+        <h2 style={{ color: T.ink, fontSize: 28, margin: "8px 0 4px" }}>{tf("第 {0} 關完成!", lv + 1)}</h2>
         <div style={{ fontSize: 34 }}>{"⭐".repeat(gotStars)}</div>
         <p style={{ color: T.sub, fontSize: 15, margin: "6px 0 18px" }}>
-          {gotStars >= 3 ? "全部一次答對,拿到皇冠!" : "這一關的注音全部學會了,太厲害!"}
+          {gotStars >= 3 ? t("全部一次答對,拿到皇冠!") : t("這一關的注音全部學會了,太厲害!")}
         </p>
         <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-          <ChunkyButton color={T.purple} dark={T.purpleDark} onClick={() => setView("map")}>
-            回關卡地圖
-          </ChunkyButton>
+          <ChunkyButton color={T.purple} dark={T.purpleDark} onClick={() => setView("map")}>{t("回關卡地圖")}</ChunkyButton>
           {lv + 1 < ZH_SIGHT_LEVELS.length && (
-            <ChunkyButton color={T.green} dark={T.greenDark} onClick={() => openLevel(lv + 1)}>
-              下一關 →
-            </ChunkyButton>
+            <ChunkyButton color={T.green} dark={T.greenDark} onClick={() => openLevel(lv + 1)}>{t("下一關 →")}</ChunkyButton>
           )}
         </div>
       </div>
@@ -7107,12 +6744,8 @@ function ZhSightMode({ speak, addStars }) {
     const allHeard = heard.size >= items.length;
     return (
       <div style={{ textAlign: "center" }}>
-        <p style={{ color: T.ink, fontSize: 16, fontWeight: 700, margin: "0 0 4px" }}>
-          第 {lv + 1} 關的 {items.length} 個注音 👋
-        </p>
-        <p style={{ color: T.sub, fontSize: 14, margin: "0 0 14px" }}>
-          每張卡都點一下聽聽看,全部聽過就可以開始挑戰!
-        </p>
+        <p style={{ color: T.ink, fontSize: 16, fontWeight: 700, margin: "0 0 4px" }}>{tf("第 {0} 關的 {1} 個注音 👋", lv + 1, items.length)}</p>
+        <p style={{ color: T.sub, fontSize: 14, margin: "0 0 14px" }}>{t("每張卡都點一下聽聽看,全部聽過就可以開始挑戰!")}</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(84px, 1fr))", gap: 10, marginBottom: 16 }}>
           {items.map((b) => {
             const ok = heard.has(b.s);
@@ -7127,22 +6760,18 @@ function ZhSightMode({ speak, addStars }) {
                   boxShadow: "0 5px 0 #E0DBF7", transition: "all .15s",
                 }}>
                 {b.s}
-                <div style={{ fontSize: 12, marginTop: 6, color: ok ? T.greenDark : "#C9C4E8" }}>
-                  {ok ? `✓ ${b.word}` : "🔈 點我"}
-                </div>
+                <div style={{ fontSize: 12, marginTop: 6, color: ok ? T.greenDark : "#C9C4E8" }}>{ok ? `✓ ${b.word}` : t("🔈 點我")}</div>
               </button>
             );
           })}
         </div>
         <ChunkyButton color={T.pink} dark="#D14B7D" onClick={startQuiz} disabled={!allHeard}
-          style={{ width: "100%" }}>
-          {allHeard ? "🎈 開始挑戰!" : `再聽 ${items.length - heard.size} 張卡就能挑戰`}
-        </ChunkyButton>
+          style={{ width: "100%" }}>{allHeard ? t("🎈 開始挑戰!") : tf("再聽 {0} 張卡就能挑戰", items.length - heard.size)}</ChunkyButton>
         <button onClick={() => setView("map")}
           style={{
             marginTop: 12, fontFamily: "inherit", fontWeight: 700, fontSize: 14,
             background: "none", border: "none", color: T.sub, cursor: "pointer",
-          }}>← 回關卡地圖</button>
+          }}>{t("← 回關卡地圖")}</button>
       </div>
     );
   }
@@ -7154,13 +6783,9 @@ function ZhSightMode({ speak, addStars }) {
       </div>
       <div style={{ background: T.card, borderRadius: 22, padding: "20px 16px",
         marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
-        <p style={{ color: T.sub, margin: "0 0 10px", fontSize: 15 }}>
-          仔細聽,點出正確的注音,氣球就會變星星!
-        </p>
+        <p style={{ color: T.sub, margin: "0 0 10px", fontSize: 15 }}>{t("仔細聽,點出正確的注音,氣球就會變星星!")}</p>
         <ChunkyButton color={T.yellow} dark={T.yellowDark} style={{ color: T.ink }}
-          onClick={() => target && zh(speak, target.sound, { rate: 0.65 })}>
-          🔊 再聽一次
-        </ChunkyButton>
+          onClick={() => target && zh(speak, target.sound, { rate: 0.65 })}>{t("🔊 再聽一次")}</ChunkyButton>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: nChoices === 2 ? "1fr 1fr" : "1fr 1fr 1fr", gap: 12 }}>
         {options.map((b) => {
@@ -7191,7 +6816,7 @@ function ZhSightMode({ speak, addStars }) {
 
 const NUM_ZH = ["零", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十",
   "十一", "十二", "十三", "十四", "十五", "十六", "十七", "十八", "十九", "二十"];
-const numZh = (n) => NUM_ZH[n] ?? String(n);
+const numZh = (n) => (LANG === "en" ? String(n) : (NUM_ZH[n] ?? String(n)));
 const NUM_EMOJI = ["🍎", "🍓", "⭐", "🎈", "🐟", "🍪", "🌸", "🚗", "🐛", "🎾", "🍌", "🧸"];
 const randInt = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 // 產生含正解的 n 個不重複數字選項
@@ -7233,6 +6858,7 @@ const SHAPES = [
   { k: "diamond", w: "菱形", en: "diamond" },
 ];
 const SHAPE_COLORS = ["#E74C3C", "#3498DB", "#F1C40F", "#2ECC71", "#9B59B6", "#E67E22", "#FD79A8", "#12CBC4"];
+const shapeName = (sh) => (LANG === "en" ? sh.en : sh.w);
 function ShapeIcon({ kind, color = T.purple, size = 54 }) {
   const f = { fill: color };
   let el = null;
@@ -7275,7 +6901,7 @@ function ClockFace({ h, m = 0, size = 150 }) {
     </svg>
   );
 }
-const clockZh = (h, m) => (m === 0 ? `${numZh(h)}點` : `${numZh(h)}點半`);
+const clockZh = (h, m) => (m === 0 ? tf("{0}點", numZh(h)) : tf("{0}點半", numZh(h)));
 
 // 錢幣(新台幣 1 / 5 / 10 元)
 function CoinIcon({ v, size = 42 }) {
@@ -7302,8 +6928,13 @@ const NUM_WEIGHT = [
 ];
 // 排隊用的角色(序數)
 const NUM_LINE = ["🐶", "🐱", "🐰", "🐻", "🐼", "🐸", "🐷", "🦊"];
+const NUM_LINE_EN = { "🐶": "dog", "🐱": "cat", "🐰": "rabbit", "🐻": "bear",
+  "🐼": "panda", "🐸": "frog", "🐷": "pig", "🦊": "fox" };
+const lineName = (e) => (LANG === "en" ? NUM_LINE_EN[e] : NUM_LINE_ZH[e]);
 const NUM_LINE_ZH = { "🐶": "小狗", "🐱": "小貓", "🐰": "兔子", "🐻": "小熊", "🐼": "貓熊", "🐸": "青蛙", "🐷": "小豬", "🦊": "狐狸" };
 const ORDINAL_ZH = ["", "第一", "第二", "第三", "第四", "第五", "第六"];
+const ORDINAL_EN = ["", "1st", "2nd", "3rd", "4th", "5th", "6th"];
+const ordinal = (n) => (LANG === "en" ? ORDINAL_EN[n] : ORDINAL_ZH[n]);
 
 // 0–9 的書寫筆順(0–100 座標,頂 15、基線 80),供「數字手寫」用
 const DIGIT_STROKES = {
@@ -7342,7 +6973,7 @@ function NumListenMode({ speak, addStars }) {
     return { ans, opts: numOptions(ans, 3, 0, 10) };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} doneIcon="👂" hint="聽聽看是哪個數字"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="👂" hint={t("聽聽看是哪個數字")}
       makeQ={makeQ}
       say={(q) => speak(NUM10[q.ans], { rate: 0.85 })}
       options={(q) => q.opts} keyOf={(o) => String(o)}
@@ -7369,9 +7000,9 @@ function NumCountMode({ speak, addStars }) {
     return { n, e: pickOne(NUM_EMOJI), opts: numOptions(n, 3, 1, 10) };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} doneIcon="🍎" hint="數數看,一共有幾個?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🍎" hint={t("數數看,一共有幾個?")}
       makeQ={makeQ}
-      say={(q) => zh(speak, "數數看,一共有幾個?", { rate: 0.85 })}
+      say={(q) => zh(speak, t("數數看,一共有幾個?"), { rate: 0.85 })}
       options={(q) => q.opts} keyOf={(o) => String(o)}
       isRight={(o, q) => o === q.n}
       renderPrompt={(q, picked) => (
@@ -7380,15 +7011,13 @@ function NumCountMode({ speak, addStars }) {
             {q.e.repeat(q.n)}
           </div>
           {picked && (
-            <div style={{ fontSize: 17, fontWeight: 700, color: T.greenDark, marginTop: 4 }}>
-              {q.n} 個・{numZh(q.n)}
-            </div>
+            <div style={{ fontSize: 17, fontWeight: 700, color: T.greenDark, marginTop: 4 }}>{tf("{0} 個・{1}", q.n, numZh(q.n))}</div>
           )}
         </>
       )}
       renderOption={optBigNum}
-      onRight={(q) => zh(speak, `對!${numZh(q.n)}個`, { rate: 0.9 })}
-      onWrong={(q) => zh(speak, `一起數,有 ${numZh(q.n)} 個`, { rate: 0.8 })}
+      onRight={(q) => zh(speak, tf("對!{0}個", numZh(q.n)), { rate: 0.9 })}
+      onWrong={(q) => zh(speak, tf("一起數,有 {0} 個", numZh(q.n)), { rate: 0.8 })}
     />
   );
 }
@@ -7400,17 +7029,17 @@ function NumDotsMode({ speak, addStars }) {
     return { n, opts: numOptions(n, 3, 1, 10) };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} doneIcon="🎯" hint="哪一個十格框是這個數字?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🎯" hint={t("哪一個十格框是這個數字?")}
       makeQ={makeQ}
-      say={(q) => zh(speak, `${numZh(q.n)},哪一個是 ${numZh(q.n)} 個點?`, { rate: 0.85 })}
+      say={(q) => zh(speak, tf("{0},哪一個是 {1} 個點?", numZh(q.n), numZh(q.n)), { rate: 0.85 })}
       options={(q) => q.opts} keyOf={(o) => String(o)}
       isRight={(o, q) => o === q.n}
       renderPrompt={(q) => (
         <div style={{ fontSize: 62, fontWeight: 800, color: T.purple }}>{q.n}</div>
       )}
       renderOption={(o) => <TenFrame n={o} dot={13} />}
-      onRight={(q) => zh(speak, `對!${numZh(q.n)}個點`, { rate: 0.9 })}
-      onWrong={(q) => zh(speak, `${numZh(q.n)} 是 ${numZh(q.n)} 個點`, { rate: 0.8 })}
+      onRight={(q) => zh(speak, tf("對!{0}個點", numZh(q.n)), { rate: 0.9 })}
+      onWrong={(q) => zh(speak, tf("{0} 是 {1} 個點", numZh(q.n), numZh(q.n)), { rate: 0.8 })}
     />
   );
 }
@@ -7425,9 +7054,9 @@ function NumMoreMode({ speak, addStars }) {
     return { a, b, more, e: pickOne(NUM_EMOJI) };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} cols={2} doneIcon="⚖️" hint="哪一邊比較多/比較少?"
+    <PickQuiz speak={speak} addStars={addStars} cols={2} doneIcon="⚖️" hint={t("哪一邊比較多/比較少?")}
       makeQ={makeQ}
-      say={(q) => zh(speak, q.more ? "哪一邊比較多?" : "哪一邊比較少?", { rate: 0.85 })}
+      say={(q) => zh(speak, q.more ? t("哪一邊比較多?") : t("哪一邊比較少?"), { rate: 0.85 })}
       options={(q) => ["a", "b"]} keyOf={(o) => o}
       isRight={(o, q) => {
         const big = q.a > q.b ? "a" : "b";
@@ -7435,13 +7064,9 @@ function NumMoreMode({ speak, addStars }) {
       }}
       renderPrompt={(q, picked) => (
         <>
-          <div style={{ fontSize: 22, fontWeight: 800, color: T.ink }}>
-            {q.more ? "哪一邊比較多?" : "哪一邊比較少?"}
-          </div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: T.ink }}>{q.more ? t("哪一邊比較多?") : t("哪一邊比較少?")}</div>
           {picked && (
-            <div style={{ fontSize: 16, color: T.greenDark, fontWeight: 700 }}>
-              {q.a} 和 {q.b}
-            </div>
+            <div style={{ fontSize: 16, color: T.greenDark, fontWeight: 700 }}>{tf("{0} 和 {1}", q.a, q.b)}</div>
           )}
         </>
       )}
@@ -7457,8 +7082,8 @@ function NumMoreMode({ speak, addStars }) {
           )}
         </>
       )}
-      onRight={() => zh(speak, "答對了!", { rate: 0.95 })}
-      onWrong={(q) => zh(speak, `${numZh(Math.max(q.a, q.b))} 比 ${numZh(Math.min(q.a, q.b))} 多`, { rate: 0.8 })}
+      onRight={() => zh(speak, t("答對了!"), { rate: 0.95 })}
+      onWrong={(q) => zh(speak, tf("{0} 比 {1} 多", numZh(Math.max(q.a, q.b)), numZh(Math.min(q.a, q.b))), { rate: 0.8 })}
     />
   );
 }
@@ -7472,21 +7097,19 @@ function NumCompareMode({ speak, addStars }) {
     return { a, b, big: Math.random() < 0.5 };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} cols={2} doneIcon="🔢" hint="哪個數字比較大/比較小?"
+    <PickQuiz speak={speak} addStars={addStars} cols={2} doneIcon="🔢" hint={t("哪個數字比較大/比較小?")}
       makeQ={makeQ}
-      say={(q) => zh(speak, `${numZh(q.a)} 和 ${numZh(q.b)},哪一個比較${q.big ? "大" : "小"}?`, { rate: 0.85 })}
+      say={(q) => zh(speak, tf("{0} 和 {1},哪一個比較{2}?", numZh(q.a), numZh(q.b), q.big ? t("大") : t("小")), { rate: 0.85 })}
       options={(q) => [q.a, q.b]} keyOf={(o) => String(o)}
       isRight={(o, q) => o === (q.big ? Math.max(q.a, q.b) : Math.min(q.a, q.b))}
       renderPrompt={(q) => (
-        <div style={{ fontSize: 22, fontWeight: 800, color: T.ink }}>
-          哪一個比較{q.big ? "大" : "小"}?
-        </div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: T.ink }}>{tf("哪一個比較{0}?", q.big ? t("大") : t("小"))}</div>
       )}
       renderOption={(o) => (
         <div style={{ fontSize: 46, fontWeight: 800, color: T.purple }}>{o}</div>
       )}
-      onRight={() => zh(speak, "答對了!", { rate: 0.95 })}
-      onWrong={(q) => zh(speak, `${numZh(Math.max(q.a, q.b))} 比 ${numZh(Math.min(q.a, q.b))} 大`, { rate: 0.8 })}
+      onRight={() => zh(speak, t("答對了!"), { rate: 0.95 })}
+      onWrong={(q) => zh(speak, tf("{0} 比 {1} 大", numZh(Math.max(q.a, q.b)), numZh(Math.min(q.a, q.b))), { rate: 0.8 })}
     />
   );
 }
@@ -7499,18 +7122,16 @@ function NumLongMode({ speak, addStars }) {
     return { lens, longest: Math.random() < 0.5 };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} doneIcon="📏" hint="哪一條比較長/比較短?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="📏" hint={t("哪一條比較長/比較短?")}
       makeQ={makeQ}
-      say={(q) => zh(speak, q.longest ? "哪一條最長?" : "哪一條最短?", { rate: 0.85 })}
+      say={(q) => zh(speak, q.longest ? t("哪一條最長?") : t("哪一條最短?"), { rate: 0.85 })}
       options={(q) => [0, 1, 2]} keyOf={(o) => String(o)}
       isRight={(o, q) => {
         const target = q.longest ? Math.max(...q.lens) : Math.min(...q.lens);
         return q.lens[o] === target;
       }}
       renderPrompt={(q) => (
-        <div style={{ fontSize: 22, fontWeight: 800, color: T.ink }}>
-          哪一條最{q.longest ? "長" : "短"}?
-        </div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: T.ink }}>{tf("哪一條最{0}?", q.longest ? t("長") : t("短"))}</div>
       )}
       renderOption={(o, q) => (
         <div style={{ display: "grid", placeItems: "center", height: 108 }}>
@@ -7520,8 +7141,8 @@ function NumLongMode({ speak, addStars }) {
           }} />
         </div>
       )}
-      onRight={() => zh(speak, "答對了!", { rate: 0.95 })}
-      onWrong={(q) => zh(speak, q.longest ? "最長的是這一條" : "最短的是這一條", { rate: 0.8 })}
+      onRight={() => zh(speak, t("答對了!"), { rate: 0.95 })}
+      onWrong={(q) => zh(speak, q.longest ? t("最長的是這一條") : t("最短的是這一條"), { rate: 0.8 })}
     />
   );
 }
@@ -7536,9 +7157,9 @@ function NumHeavyMode({ speak, addStars }) {
     return { a, b, heavy: Math.random() < 0.5 };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} cols={2} doneIcon="⚖️" hint="哪一個比較重/比較輕?"
+    <PickQuiz speak={speak} addStars={addStars} cols={2} doneIcon="⚖️" hint={t("哪一個比較重/比較輕?")}
       makeQ={makeQ}
-      say={(q) => zh(speak, `哪一個比較${q.heavy ? "重" : "輕"}?`, { rate: 0.85 })}
+      say={(q) => zh(speak, tf("哪一個比較{0}?", q.heavy ? t("重") : t("輕")), { rate: 0.85 })}
       options={(q) => [q.a, q.b]} keyOf={(o) => o.w}
       isRight={(o, q) => {
         const heavier = q.a.kg > q.b.kg ? q.a : q.b;
@@ -7546,9 +7167,7 @@ function NumHeavyMode({ speak, addStars }) {
         return o.w === target.w;
       }}
       renderPrompt={(q) => (
-        <div style={{ fontSize: 22, fontWeight: 800, color: T.ink }}>
-          ⚖️ 哪一個比較{q.heavy ? "重" : "輕"}?
-        </div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: T.ink }}>{tf("⚖️ 哪一個比較{0}?", q.heavy ? t("重") : t("輕"))}</div>
       )}
       renderOption={(o) => (
         <>
@@ -7556,10 +7175,10 @@ function NumHeavyMode({ speak, addStars }) {
           <div style={{ fontSize: 15, fontWeight: 700, color: T.ink }}>{o.w}</div>
         </>
       )}
-      onRight={() => zh(speak, "答對了!", { rate: 0.95 })}
+      onRight={() => zh(speak, t("答對了!"), { rate: 0.95 })}
       onWrong={(q) => {
         const h = q.a.kg > q.b.kg ? q.a : q.b, l = q.a.kg > q.b.kg ? q.b : q.a;
-        zh(speak, `${h.w} 比 ${l.w} 重`, { rate: 0.8 });
+        zh(speak, tf("{0} 比 {1} 重", h.w, l.w), { rate: 0.8 });
       }}
     />
   );
@@ -7573,9 +7192,9 @@ function NumSubMode({ speak, addStars }) {
     return { a, b, ans: a - b, e: pickOne(NUM_EMOJI), opts: numOptions(a - b, 3, 0, 9) };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} doneIcon="➖" hint="拿走以後,還剩幾個?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="➖" hint={t("拿走以後,還剩幾個?")}
       makeQ={makeQ}
-      say={(q) => zh(speak, `${numZh(q.a)} 個拿走 ${numZh(q.b)} 個,還剩幾個?`, { rate: 0.8 })}
+      say={(q) => zh(speak, tf("{0} 個拿走 {1} 個,還剩幾個?", numZh(q.a), numZh(q.b)), { rate: 0.8 })}
       options={(q) => q.opts} keyOf={(o) => String(o)}
       isRight={(o, q) => o === q.ans}
       renderPrompt={(q, picked) => (
@@ -7594,8 +7213,8 @@ function NumSubMode({ speak, addStars }) {
         </>
       )}
       renderOption={optBigNum}
-      onRight={(q) => zh(speak, `對!還剩 ${numZh(q.ans)} 個`, { rate: 0.9 })}
-      onWrong={(q) => zh(speak, `還剩 ${numZh(q.ans)} 個`, { rate: 0.8 })}
+      onRight={(q) => zh(speak, tf("對!還剩 {0} 個", numZh(q.ans)), { rate: 0.9 })}
+      onWrong={(q) => zh(speak, tf("還剩 {0} 個", numZh(q.ans)), { rate: 0.8 })}
     />
   );
 }
@@ -7607,9 +7226,9 @@ function NumTenMode({ speak, addStars }) {
     return { n, ans: 10 - n, opts: numOptions(10 - n, 3, 1, 9) };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} doneIcon="🔟" hint="還要幾個才滿十?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🔟" hint={t("還要幾個才滿十?")}
       makeQ={makeQ}
-      say={(q) => zh(speak, `已經有 ${numZh(q.n)} 個,還要幾個才滿十?`, { rate: 0.8 })}
+      say={(q) => zh(speak, tf("已經有 {0} 個,還要幾個才滿十?", numZh(q.n)), { rate: 0.8 })}
       options={(q) => q.opts} keyOf={(o) => String(o)}
       isRight={(o, q) => o === q.ans}
       renderPrompt={(q, picked) => (
@@ -7621,8 +7240,8 @@ function NumTenMode({ speak, addStars }) {
         </>
       )}
       renderOption={optBigNum}
-      onRight={(q) => zh(speak, `對!${numZh(q.n)} 加 ${numZh(q.ans)} 等於十`, { rate: 0.85 })}
-      onWrong={(q) => zh(speak, `${numZh(q.n)} 加 ${numZh(q.ans)} 才是十`, { rate: 0.8 })}
+      onRight={(q) => zh(speak, tf("對!{0} 加 {1} 等於十", numZh(q.n), numZh(q.ans)), { rate: 0.85 })}
+      onWrong={(q) => zh(speak, tf("{0} 加 {1} 才是十", numZh(q.n), numZh(q.ans)), { rate: 0.8 })}
     />
   );
 }
@@ -7635,21 +7254,19 @@ function NumSplitMode({ speak, addStars }) {
     return { total, a, ans: total - a, e: pickOne(NUM_EMOJI), opts: numOptions(total - a, 3, 1, 9) };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} doneIcon="🍰" hint="分成兩堆,另一堆有幾個?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🍰" hint={t("分成兩堆,另一堆有幾個?")}
       makeQ={makeQ}
-      say={(q) => zh(speak, `${numZh(q.total)} 可以分成 ${numZh(q.a)} 和幾?`, { rate: 0.8 })}
+      say={(q) => zh(speak, tf("{0} 可以分成 {1} 和幾?", numZh(q.total), numZh(q.a)), { rate: 0.8 })}
       options={(q) => q.opts} keyOf={(o) => String(o)}
       isRight={(o, q) => o === q.ans}
       renderPrompt={(q, picked) => (
         <>
           <div style={{ fontSize: 28 }}>{q.e.repeat(q.total)}</div>
-          <div style={{ fontSize: 15, color: T.sub, fontWeight: 700, margin: "2px 0 6px" }}>
-            一共 {q.total} 個
-          </div>
+          <div style={{ fontSize: 15, color: T.sub, fontWeight: 700, margin: "2px 0 6px" }}>{tf("一共 {0} 個", q.total)}</div>
           <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
             <div style={{ background: "#EFECFB", borderRadius: 14, padding: "8px 14px",
               fontSize: 26, fontWeight: 800, color: T.purple }}>{q.a}</div>
-            <span style={{ fontSize: 22, color: T.sub }}>和</span>
+            <span style={{ fontSize: 22, color: T.sub }}>{t("和")}</span>
             <div style={{ background: picked ? "#E9FBEF" : "#F6F4FE", borderRadius: 14,
               padding: "8px 14px", fontSize: 26, fontWeight: 800,
               color: picked ? T.greenDark : "#C9C4E8" }}>{picked ? q.ans : "?"}</div>
@@ -7657,8 +7274,8 @@ function NumSplitMode({ speak, addStars }) {
         </>
       )}
       renderOption={optBigNum}
-      onRight={(q) => zh(speak, `對!${numZh(q.a)} 和 ${numZh(q.ans)} 合起來是 ${numZh(q.total)}`, { rate: 0.85 })}
-      onWrong={(q) => zh(speak, `是 ${numZh(q.ans)}`, { rate: 0.8 })}
+      onRight={(q) => zh(speak, tf("對!{0} 和 {1} 合起來是 {2}", numZh(q.a), numZh(q.ans), numZh(q.total)), { rate: 0.85 })}
+      onWrong={(q) => zh(speak, tf("是 {0}", numZh(q.ans)), { rate: 0.8 })}
     />
   );
 }
@@ -7673,30 +7290,26 @@ function NumEqualMode({ speak, addStars }) {
     return { a, b, same, ea: pickOne(NUM_EMOJI), eb: pickOne(NUM_EMOJI) };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} cols={2} doneIcon="🟰" hint="兩邊一樣多嗎?"
+    <PickQuiz speak={speak} addStars={addStars} cols={2} doneIcon="🟰" hint={t("兩邊一樣多嗎?")}
       makeQ={makeQ}
-      say={() => zh(speak, "兩邊一樣多嗎?", { rate: 0.85 })}
+      say={() => zh(speak, t("兩邊一樣多嗎?"), { rate: 0.85 })}
       options={() => ["yes", "no"]} keyOf={(o) => o}
       isRight={(o, q) => (o === "yes") === q.same}
       renderPrompt={(q, picked) => (
         <>
           <div style={{ fontSize: 26, lineHeight: 1.4 }}>{q.ea.repeat(q.a)}</div>
-          <div style={{ fontSize: 18, color: T.sub, fontWeight: 700 }}>和</div>
+          <div style={{ fontSize: 18, color: T.sub, fontWeight: 700 }}>{t("和")}</div>
           <div style={{ fontSize: 26, lineHeight: 1.4 }}>{q.eb.repeat(q.b)}</div>
           {picked && (
-            <div style={{ fontSize: 16, fontWeight: 700, color: T.greenDark, marginTop: 4 }}>
-              {q.a} 和 {q.b}
-            </div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: T.greenDark, marginTop: 4 }}>{tf("{0} 和 {1}", q.a, q.b)}</div>
           )}
         </>
       )}
       renderOption={(o) => (
-        <div style={{ fontSize: 20, fontWeight: 800, color: T.ink }}>
-          {o === "yes" ? "⭕ 一樣多" : "❌ 不一樣"}
-        </div>
+        <div style={{ fontSize: 20, fontWeight: 800, color: T.ink }}>{o === "yes" ? t("⭕ 一樣多") : t("❌ 不一樣")}</div>
       )}
-      onRight={() => zh(speak, "答對了!", { rate: 0.95 })}
-      onWrong={(q) => zh(speak, q.same ? "兩邊一樣多喔" : `${numZh(q.a)} 和 ${numZh(q.b)},不一樣多`, { rate: 0.8 })}
+      onRight={() => zh(speak, t("答對了!"), { rate: 0.95 })}
+      onWrong={(q) => zh(speak, q.same ? t("兩邊一樣多喔") : tf("{0} 和 {1},不一樣多", numZh(q.a), numZh(q.b)), { rate: 0.8 })}
     />
   );
 }
@@ -7710,9 +7323,9 @@ function NumMissingMode({ speak, addStars }) {
     return { seq, hole, ans: seq[hole], opts: numOptions(seq[hole], 3, 1, 20) };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} doneIcon="🕵️" hint="中間少了哪個數字?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🕵️" hint={t("中間少了哪個數字?")}
       makeQ={makeQ}
-      say={(q) => zh(speak, "中間少了哪個數字?", { rate: 0.85 })}
+      say={(q) => zh(speak, t("中間少了哪個數字?"), { rate: 0.85 })}
       options={(q) => q.opts} keyOf={(o) => String(o)}
       isRight={(o, q) => o === q.ans}
       renderPrompt={(q, picked) => (
@@ -7729,8 +7342,8 @@ function NumMissingMode({ speak, addStars }) {
         </div>
       )}
       renderOption={optBigNum}
-      onRight={(q) => zh(speak, `對!是 ${numZh(q.ans)}`, { rate: 0.9 })}
-      onWrong={(q) => zh(speak, `少了 ${numZh(q.ans)}`, { rate: 0.8 })}
+      onRight={(q) => zh(speak, tf("對!是 {0}", numZh(q.ans)), { rate: 0.9 })}
+      onWrong={(q) => zh(speak, tf("少了 {0}", numZh(q.ans)), { rate: 0.8 })}
     />
   );
 }
@@ -7744,9 +7357,9 @@ function NumBackMode({ speak, addStars }) {
     return { seq, ans, opts: numOptions(ans, 3, 0, 20) };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} doneIcon="🔙" hint="倒著數,接下來是幾?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🔙" hint={t("倒著數,接下來是幾?")}
       makeQ={makeQ}
-      say={(q) => zh(speak, `${q.seq.map(numZh).join("、")},接下來是?`, { rate: 0.8 })}
+      say={(q) => zh(speak, tf("{0},接下來是?", q.seq.map(numZh).join("、")), { rate: 0.8 })}
       options={(q) => q.opts} keyOf={(o) => String(o)}
       isRight={(o, q) => o === q.ans}
       renderPrompt={(q) => (
@@ -7755,7 +7368,7 @@ function NumBackMode({ speak, addStars }) {
         </div>
       )}
       renderOption={optBigNum}
-      onRight={(q) => zh(speak, `對!是 ${numZh(q.ans)}`, { rate: 0.9 })}
+      onRight={(q) => zh(speak, tf("對!是 {0}", numZh(q.ans)), { rate: 0.9 })}
       onWrong={(q) => zh(speak, `${q.seq.map(numZh).join("、")}、${numZh(q.ans)}`, { rate: 0.75 })}
     />
   );
@@ -7773,23 +7386,21 @@ function NumSkipMode({ speak, addStars }) {
     return { step, seq, ans, opts: shuffle([...set]) };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} doneIcon="🦘" hint="跳著數,接下來是幾?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🦘" hint={t("跳著數,接下來是幾?")}
       makeQ={makeQ}
-      say={(q) => zh(speak, `${q.step} 個 ${q.step} 個數:${q.seq.join("、")},接下來?`, { rate: 0.8 })}
+      say={(q) => zh(speak, tf("{0} 個 {1} 個數:{2},接下來?", q.step, q.step, q.seq.join("、")), { rate: 0.8 })}
       options={(q) => q.opts} keyOf={(o) => String(o)}
       isRight={(o, q) => o === q.ans}
       renderPrompt={(q) => (
         <>
-          <div style={{ fontSize: 14, color: T.sub, fontWeight: 700 }}>
-            {q.step} 個 {q.step} 個數
-          </div>
+          <div style={{ fontSize: 14, color: T.sub, fontWeight: 700 }}>{tf("{0} 個 {1} 個數", q.step, q.step)}</div>
           <div style={{ fontSize: 36, fontWeight: 800, color: T.purple, letterSpacing: 3 }}>
             {q.seq.join(" ")} <span style={{ color: "#C9C4E8" }}>?</span>
           </div>
         </>
       )}
       renderOption={optBigNum}
-      onRight={(q) => zh(speak, `對!是 ${q.ans}`, { rate: 0.9 })}
+      onRight={(q) => zh(speak, tf("對!是 {0}", q.ans), { rate: 0.9 })}
       onWrong={(q) => zh(speak, `${q.seq.join("、")}、${q.ans}`, { rate: 0.75 })}
     />
   );
@@ -7811,9 +7422,9 @@ function NumPatternMode({ speak, addStars }) {
     return { k, es, ansE, opts };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} doneIcon="🔁" hint="看規律,接下來是哪一個?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🔁" hint={t("看規律,接下來是哪一個?")}
       makeQ={() => makeQ()}
-      say={() => zh(speak, "看看規律,接下來是哪一個?", { rate: 0.85 })}
+      say={() => zh(speak, t("看看規律,接下來是哪一個?"), { rate: 0.85 })}
       options={(q) => q.opts} keyOf={(o) => o}
       isRight={(o, q) => o === q.ansE}
       renderPrompt={(q, picked) => (
@@ -7825,8 +7436,8 @@ function NumPatternMode({ speak, addStars }) {
         </div>
       )}
       renderOption={(o) => <div style={{ fontSize: 40 }}>{o}</div>}
-      onRight={() => zh(speak, "答對了!", { rate: 0.95 })}
-      onWrong={() => zh(speak, "再看一次規律", { rate: 0.8 })}
+      onRight={() => zh(speak, t("答對了!"), { rate: 0.95 })}
+      onWrong={() => zh(speak, t("再看一次規律"), { rate: 0.8 })}
     />
   );
 }
@@ -7840,27 +7451,27 @@ function ShapeFindMode({ speak, addStars }) {
     return { ans, opts: shuffle([ans, ...others]), cols };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} doneIcon="🔷" hint="聽形狀的名字,點出來"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🔷" hint={t("聽形狀的名字,點出來")}
       makeQ={makeQ}
-      say={(q) => zh(speak, `哪一個是${q.ans.w}?`, { rate: 0.85 })}
+      say={(q) => zh(speak, tf("哪一個是{0}?", shapeName(q.ans)), { rate: 0.85 })}
       options={(q) => q.opts} keyOf={(o) => o.k}
       isRight={(o, q) => o.k === q.ans.k}
       renderPrompt={(q, picked) => (
         <>
           <div style={{ fontSize: 48 }}>👀</div>
           <div style={{ fontSize: 22, fontWeight: 800, color: picked ? T.greenDark : T.ink }}>
-            {q.ans.w}
+            {shapeName(q.ans)}
           </div>
         </>
       )}
       renderOption={(o, q, picked) => (
         <>
           <ShapeIcon kind={o.k} color={q.cols[q.opts.indexOf(o) % 3]} size={52} />
-          {picked && <div style={{ fontSize: 13, fontWeight: 700, color: T.ink, marginTop: 4 }}>{o.w}</div>}
+          {picked && <div style={{ fontSize: 13, fontWeight: 700, color: T.ink, marginTop: 4 }}>{shapeName(o)}</div>}
         </>
       )}
-      onRight={(q) => zh(speak, `對!${q.ans.w}`, { rate: 0.9, onEnd: () => speak(q.ans.en, { rate: 0.9 }) })}
-      onWrong={(q) => zh(speak, `這個才是${q.ans.w}`, { rate: 0.8 })}
+      onRight={(q) => zh(speak, tf("對!{0}", shapeName(q.ans)), { rate: 0.9, onEnd: () => speak(q.ans.en, { rate: 0.9 }) })}
+      onWrong={(q) => zh(speak, tf("這個才是{0}", shapeName(q.ans)), { rate: 0.8 })}
     />
   );
 }
@@ -7879,16 +7490,14 @@ function ShapeCountMode({ speak, addStars }) {
     return { target, n, items, opts: numOptions(n, 3, 1, 8) };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} doneIcon="🔺" hint="數數看,有幾個那個形狀?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🔺" hint={t("數數看,有幾個那個形狀?")}
       makeQ={makeQ}
-      say={(q) => zh(speak, `有幾個${q.target.w}?`, { rate: 0.85 })}
+      say={(q) => zh(speak, tf("有幾個{0}?", shapeName(q.target)), { rate: 0.85 })}
       options={(q) => q.opts} keyOf={(o) => String(o)}
       isRight={(o, q) => o === q.n}
       renderPrompt={(q, picked) => (
         <>
-          <div style={{ fontSize: 18, fontWeight: 800, color: T.ink, marginBottom: 6 }}>
-            有幾個 {q.target.w}?
-          </div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: T.ink, marginBottom: 6 }}>{tf("有幾個 {0}?", shapeName(q.target))}</div>
           <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 6 }}>
             {q.items.map((it) => (
               <div key={it.id} style={{ opacity: picked && it.s.k !== q.target.k ? 0.25 : 1 }}>
@@ -7899,8 +7508,8 @@ function ShapeCountMode({ speak, addStars }) {
         </>
       )}
       renderOption={optBigNum}
-      onRight={(q) => zh(speak, `對!${numZh(q.n)}個${q.target.w}`, { rate: 0.9 })}
-      onWrong={(q) => zh(speak, `有 ${numZh(q.n)} 個${q.target.w}`, { rate: 0.8 })}
+      onRight={(q) => zh(speak, tf("對!{0}個{1}", numZh(q.n), shapeName(q.target)), { rate: 0.9 })}
+      onWrong={(q) => zh(speak, tf("有 {0} 個{1}", numZh(q.n), shapeName(q.target)), { rate: 0.8 })}
     />
   );
 }
@@ -7919,9 +7528,9 @@ function NumClockMode({ speak, addStars }) {
     return { h, m, opts: shuffle([...set.values()]) };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} doneIcon="🕐" hint="現在是幾點?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🕐" hint={t("現在是幾點?")}
       makeQ={makeQ}
-      say={() => zh(speak, "現在是幾點?", { rate: 0.85 })}
+      say={() => zh(speak, t("現在是幾點?"), { rate: 0.85 })}
       options={(q) => q.opts} keyOf={(o) => `${o.h}-${o.m}`}
       isRight={(o, q) => o.h === q.h && o.m === q.m}
       renderPrompt={(q, picked) => (
@@ -7937,8 +7546,8 @@ function NumClockMode({ speak, addStars }) {
       renderOption={(o) => (
         <div style={{ fontSize: 18, fontWeight: 800, color: T.ink }}>{clockZh(o.h, o.m)}</div>
       )}
-      onRight={(q) => zh(speak, `對!${clockZh(q.h, q.m)}`, { rate: 0.9 })}
-      onWrong={(q) => zh(speak, `現在是${clockZh(q.h, q.m)}`, { rate: 0.8 })}
+      onRight={(q) => zh(speak, tf("對!{0}", clockZh(q.h, q.m)), { rate: 0.9 })}
+      onWrong={(q) => zh(speak, tf("現在是{0}", clockZh(q.h, q.m)), { rate: 0.8 })}
     />
   );
 }
@@ -7955,9 +7564,9 @@ function NumCoinMode({ speak, addStars }) {
     return { coins, sum, opts: numOptions(sum, 3, 1, 20) };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} doneIcon="🪙" hint="數數看,一共幾元?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🪙" hint={t("數數看,一共幾元?")}
       makeQ={makeQ}
-      say={() => zh(speak, "一共有幾元?", { rate: 0.85 })}
+      say={() => zh(speak, t("一共有幾元?"), { rate: 0.85 })}
       options={(q) => q.opts} keyOf={(o) => String(o)}
       isRight={(o, q) => o === q.sum}
       renderPrompt={(q, picked) => (
@@ -7965,16 +7574,14 @@ function NumCoinMode({ speak, addStars }) {
           <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center" }}>
             {q.coins.map((v, i) => <CoinIcon key={i} v={v} />)}
           </div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: picked ? T.greenDark : T.ink, marginTop: 6 }}>
-            {picked ? `${q.sum} 元` : "一共幾元?"}
-          </div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: picked ? T.greenDark : T.ink, marginTop: 6 }}>{picked ? tf("{0} 元", q.sum) : t("一共幾元?")}</div>
         </>
       )}
       renderOption={(o) => (
-        <div style={{ fontSize: 28, fontWeight: 800, color: T.ink }}>{o} 元</div>
+        <div style={{ fontSize: 28, fontWeight: 800, color: T.ink }}>{tf("{0} 元", o)}</div>
       )}
-      onRight={(q) => zh(speak, `對!一共 ${numZh(q.sum)} 元`, { rate: 0.9 })}
-      onWrong={(q) => zh(speak, `一共 ${numZh(q.sum)} 元`, { rate: 0.8 })}
+      onRight={(q) => zh(speak, tf("對!一共 {0} 元", numZh(q.sum)), { rate: 0.9 })}
+      onWrong={(q) => zh(speak, tf("一共 {0} 元", numZh(q.sum)), { rate: 0.8 })}
     />
   );
 }
@@ -7987,14 +7594,14 @@ function NumOrdinalMode({ speak, addStars }) {
     return { line, idx, ans: idx + 1, opts: numOptions(idx + 1, 3, 1, 5) };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} doneIcon="🚩" hint="從左邊數過來,排第幾個?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🚩" hint={t("從左邊數過來,排第幾個?")}
       makeQ={makeQ}
-      say={(q) => zh(speak, `從左邊數過來,${NUM_LINE_ZH[q.line[q.idx]]} 排第幾個?`, { rate: 0.8 })}
+      say={(q) => zh(speak, tf("從左邊數過來,{0} 排第幾個?", lineName(q.line[q.idx])), { rate: 0.8 })}
       options={(q) => q.opts} keyOf={(o) => String(o)}
       isRight={(o, q) => o === q.ans}
       renderPrompt={(q, picked) => (
         <>
-          <div style={{ fontSize: 13, color: T.sub, fontWeight: 700 }}>← 從這邊開始數</div>
+          <div style={{ fontSize: 13, color: T.sub, fontWeight: 700 }}>{t("← 從這邊開始數")}</div>
           <div style={{ display: "flex", justifyContent: "center", gap: 4 }}>
             {q.line.map((e, i) => (
               <span key={i} style={{
@@ -8003,19 +7610,17 @@ function NumOrdinalMode({ speak, addStars }) {
               }}>{e}</span>
             ))}
           </div>
-          <div style={{ fontSize: 17, fontWeight: 800, color: T.ink, marginTop: 4 }}>
-            {NUM_LINE_ZH[q.line[q.idx]]} 排第幾個?
-          </div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: T.ink, marginTop: 4 }}>{tf("{0} 排第幾個?", lineName(q.line[q.idx]))}</div>
         </>
       )}
       renderOption={(o) => (
         <>
           <div style={{ fontSize: 30, fontWeight: 800, color: T.purple }}>{o}</div>
-          <div style={{ fontSize: 13, color: T.sub, fontWeight: 700 }}>{ORDINAL_ZH[o]}</div>
+          <div style={{ fontSize: 13, color: T.sub, fontWeight: 700 }}>{ordinal(o)}</div>
         </>
       )}
-      onRight={(q) => zh(speak, `對!${ORDINAL_ZH[q.ans]}個`, { rate: 0.9 })}
-      onWrong={(q) => zh(speak, `是${ORDINAL_ZH[q.ans]}個`, { rate: 0.8 })}
+      onRight={(q) => zh(speak, tf("對!{0}個", ordinal(q.ans)), { rate: 0.9 })}
+      onWrong={(q) => zh(speak, tf("是{0}個", ordinal(q.ans)), { rate: 0.8 })}
     />
   );
 }
@@ -8030,9 +7635,9 @@ function NumShareMode({ speak, addStars }) {
     return { people, each, total, e: pickOne(["🍪", "🍬", "🍎", "🍌"]), opts: numOptions(each, 3, 1, 6) };
   };
   return (
-    <PickQuiz speak={speak} addStars={addStars} doneIcon="🍪" hint="平分以後,一個人拿幾個?"
+    <PickQuiz speak={speak} addStars={addStars} doneIcon="🍪" hint={t("平分以後,一個人拿幾個?")}
       makeQ={makeQ}
-      say={(q) => zh(speak, `${numZh(q.total)} 個平分給 ${numZh(q.people)} 個人,一個人幾個?`, { rate: 0.8 })}
+      say={(q) => zh(speak, tf("{0} 個平分給 {1} 個人,一個人幾個?", numZh(q.total), numZh(q.people)), { rate: 0.8 })}
       options={(q) => q.opts} keyOf={(o) => String(o)}
       isRight={(o, q) => o === q.each}
       renderPrompt={(q, picked) => (
@@ -8041,14 +7646,12 @@ function NumShareMode({ speak, addStars }) {
           <div style={{ fontSize: 30, margin: "4px 0" }}>
             {KIDS.slice(0, q.people).join(" ")}
           </div>
-          <div style={{ fontSize: 17, fontWeight: 800, color: picked ? T.greenDark : T.ink }}>
-            {picked ? `一個人 ${q.each} 個` : `${q.total} 個分給 ${q.people} 個人`}
-          </div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: picked ? T.greenDark : T.ink }}>{picked ? tf("一個人 {0} 個", q.each) : tf("{0} 個分給 {1} 個人", q.total, q.people)}</div>
         </>
       )}
       renderOption={optBigNum}
-      onRight={(q) => zh(speak, `對!一個人 ${numZh(q.each)} 個`, { rate: 0.9 })}
-      onWrong={(q) => zh(speak, `一個人 ${numZh(q.each)} 個`, { rate: 0.8 })}
+      onRight={(q) => zh(speak, tf("對!一個人 {0} 個", numZh(q.each)), { rate: 0.9 })}
+      onWrong={(q) => zh(speak, tf("一個人 {0} 個", numZh(q.each)), { rate: 0.8 })}
     />
   );
 }
@@ -8066,14 +7669,15 @@ const NUM_SECTIONS = [
 function NumLearnMode({ speak }) {
   const [sec, setSec] = useState(NUM_SECTIONS[0]);
   const [n, setN] = useState(1);
-  const say = (v) => zh(speak, numZh(v), { rate: 0.8, onEnd: () => speak(NUM20_EN[v], { rate: 0.9 }) });
+  const say = (v) =>
+    LANG === "en"
+      ? speak(NUM20_EN[v], { rate: 0.9 })
+      : zh(speak, numZh(v), { rate: 0.8, onEnd: () => speak(NUM20_EN[v], { rate: 0.9 }) });
   const nums = Array.from({ length: sec.range[1] - sec.range[0] }, (_, i) => sec.range[0] + i);
 
   return (
     <div style={{ textAlign: "center" }}>
-      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>
-        點一下數字,先聽中文再聽英文;下面的點點幫她看見「多少」。
-      </p>
+      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>{tf("點一下數字,先聽中文再聽英文;下面的點點幫她看見「多少」。")}</p>
       <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 12 }}>
         {NUM_SECTIONS.map((s) => (
           <button key={s.key} onClick={() => { setSec(s); setN(s.range[0] === 0 ? 1 : s.range[0]); }}
@@ -8098,9 +7702,7 @@ function NumLearnMode({ speak }) {
           {n > 10 && <TenFrame n={n - 10} dot={17} color={T.pink} />}
         </div>
         <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={() => say(n)}
-          style={{ color: T.ink, marginTop: 12 }}>
-          🔊 再聽一次
-        </ChunkyButton>
+          style={{ color: T.ink, marginTop: 12 }}>{t("🔊 再聽一次")}</ChunkyButton>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 8 }}>
@@ -8123,21 +7725,20 @@ function NumLearnMode({ speak }) {
 function ShapeLearnMode({ speak }) {
   const [i, setI] = useState(0);
   const sh = SHAPES[i];
-  const say = (s) => zh(speak, s.w, { rate: 0.85, onEnd: () => speak(s.en, { rate: 0.9 }) });
+  const say = (s) =>
+    LANG === "en"
+      ? speak(s.en, { rate: 0.9 })
+      : zh(speak, s.w, { rate: 0.85, onEnd: () => speak(s.en, { rate: 0.9 }) });
   return (
     <div style={{ textAlign: "center" }}>
-      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>
-        點一下形狀,先聽中文再聽英文;可以一起在家裡找找看有沒有一樣的形狀。
-      </p>
+      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>{tf("點一下形狀,先聽中文再聽英文;可以一起在家裡找找看有沒有一樣的形狀。")}</p>
       <div style={{ background: T.card, borderRadius: 24, padding: "18px 16px",
         boxShadow: "0 6px 0 #E0DBF7", marginBottom: 14 }}>
         <ShapeIcon kind={sh.k} color={SHAPE_COLORS[i % SHAPE_COLORS.length]} size={120} />
-        <div style={{ fontSize: 24, fontWeight: 800, color: T.ink, marginTop: 8 }}>{sh.w}</div>
+        <div style={{ fontSize: 24, fontWeight: 800, color: T.ink, marginTop: 8 }}>{shapeName(sh)}</div>
         <div style={{ fontSize: 16, color: T.sub, fontWeight: 700 }}>{sh.en}</div>
         <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={() => say(sh)}
-          style={{ color: T.ink, marginTop: 12 }}>
-          🔊 再聽一次
-        </ChunkyButton>
+          style={{ color: T.ink, marginTop: 12 }}>{t("🔊 再聽一次")}</ChunkyButton>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
         {SHAPES.map((s, k) => (
@@ -8149,7 +7750,7 @@ function ShapeLearnMode({ speak }) {
               cursor: "pointer", boxShadow: "0 5px 0 #E0DBF7", transition: "all .15s",
             }}>
             <ShapeIcon kind={s.k} color={SHAPE_COLORS[k % SHAPE_COLORS.length]} size={38} />
-            <div style={{ fontSize: 12, fontWeight: 700, color: T.ink, marginTop: 4 }}>{s.w}</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: T.ink, marginTop: 4 }}>{shapeName(s)}</div>
           </button>
         ))}
       </div>
@@ -8171,7 +7772,7 @@ function NumTapMode({ speak, addStars }) {
   const [done, setDone] = useState(false);
 
   const say = useCallback(
-    () => zh(speak, `請點出 ${numZh(round.target)} 個`, { rate: 0.85 }),
+    () => zh(speak, tf("請點出 {0} 個", numZh(round.target)), { rate: 0.85 }),
     [round, speak]
   );
   useEffect(() => {
@@ -8192,14 +7793,14 @@ function NumTapMode({ speak, addStars }) {
     if (result) return;
     if (picked.size === round.target) {
       setResult("ok"); setRight((r) => r + 1); addStars(1);
-      zh(speak, `對!${numZh(round.target)} 個`, { rate: 0.9 });
+      zh(speak, tf("對!{0} 個", numZh(round.target)), { rate: 0.9 });
       setTimeout(() => {
         if (roundNo >= TOTAL) setDone(true);
         else { setRoundNo((r) => r + 1); setRound(makeRound()); setPicked(new Set()); setResult(null); }
       }, 1500);
     } else {
       setResult("no");
-      zh(speak, `你拿了 ${numZh(picked.size)} 個,再數一次`, { rate: 0.8 });
+      zh(speak, tf("你拿了 {0} 個,再數一次", numZh(picked.size)), { rate: 0.8 });
       setTimeout(() => { setPicked(new Set()); setResult(null); }, 1800);
     }
   };
@@ -8208,27 +7809,19 @@ function NumTapMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>{right >= 5 ? "🏆" : "🧺"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>拿對 {right} / {TOTAL} 次!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("拿對 {0} / {1} 次!", right, TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setRoundNo(1); setRight(0); setRound(makeRound()); setPicked(new Set()); setResult(null); setDone(false); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setRoundNo(1); setRight(0); setRound(makeRound()); setPicked(new Set()); setResult(null); setDone(false); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 10 }}>
-        第 {roundNo} / {TOTAL} 次・一個一個點,拿出老師說的數量
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 10 }}>{tf("第 {0} / {1} 次・一個一個點,拿出老師說的數量", roundNo, TOTAL)}</div>
       <div style={{ background: T.card, borderRadius: 22, padding: "14px 12px",
         marginBottom: 12, boxShadow: "0 5px 0 #E0DBF7" }}>
-        <div style={{ fontSize: 20, fontWeight: 800, color: T.ink }}>
-          請拿出 <span style={{ color: T.purple, fontSize: 26 }}>{round.target}</span> 個
-        </div>
-        <div style={{ fontSize: 15, color: result === "no" ? T.red : T.sub, fontWeight: 700 }}>
-          已經拿了 {picked.size} 個
-        </div>
+        <div style={{ fontSize: 20, fontWeight: 800, color: T.ink }}>{t("請拿出")}<span style={{ color: T.purple, fontSize: 26 }}>{round.target}</span>{t("個")}</div>
+        <div style={{ fontSize: 15, color: result === "no" ? T.red : T.sub, fontWeight: 700 }}>{tf("已經拿了 {0} 個", picked.size)}</div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginBottom: 12 }}>
         {Array.from({ length: 10 }, (_, i) => {
@@ -8247,15 +7840,11 @@ function NumTapMode({ speak, addStars }) {
         })}
       </div>
       <ChunkyButton color={result === "ok" ? T.green : T.pink}
-        dark={result === "ok" ? T.greenDark : "#D14B7D"} onClick={check} style={{ width: "100%" }}>
-        {result === "ok" ? "🎉 答對了!" : result === "no" ? "再數一次…" : "✓ 好了,我數好了"}
-      </ChunkyButton>
+        dark={result === "ok" ? T.greenDark : "#D14B7D"} onClick={check} style={{ width: "100%" }}>{result === "ok" ? t("🎉 答對了!") : result === "no" ? t("再數一次…") : t("✓ 好了,我數好了")}</ChunkyButton>
       <div style={{ marginTop: 10 }}>
         <button onClick={say}
           style={{ fontFamily: "inherit", fontWeight: 700, fontSize: 14, background: "none",
-            border: "none", color: T.sub, cursor: "pointer" }}>
-          🔊 再聽一次
-        </button>
+            border: "none", color: T.sub, cursor: "pointer" }}>{t("🔊 再聽一次")}</button>
       </div>
     </div>
   );
@@ -8283,14 +7872,14 @@ function NumBubbleMode({ speak, addStars }) {
     if (popping) return;
     if (n === round.target) {
       setPopping(n); setCheer(""); addStars(1);
-      zh(speak, `${numZh(n)}!答對了`, { rate: 0.95 });
+      zh(speak, tf("{0}!答對了", numZh(n)), { rate: 0.95 });
       const np = pops + 1;
       setTimeout(() => {
         setPopping(null); setPops(np);
         if (np >= TOTAL) setDone(true); else setRound(makeRound());
       }, 800);
     } else {
-      setCheer("再聽聽看,是哪個數字?🫧");
+      setCheer(t("再聽聽看,是哪個數字?🫧"));
       say();
     }
   };
@@ -8299,19 +7888,15 @@ function NumBubbleMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>🫧✨</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>戳破了 {TOTAL} 個泡泡!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("戳破了 {0} 個泡泡!", TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setPops(0); setDone(false); setRound(makeRound()); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setPops(0); setDone(false); setRound(makeRound()); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 10 }}>
-        聽數字,戳破正確的泡泡!{pops} / {TOTAL} 🫧
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 10 }}>{tf("聽數字,戳破正確的泡泡!{0} / {1} 🫧", pops, TOTAL)}</div>
       <div style={{
         position: "relative", height: 330, overflow: "hidden",
         background: "linear-gradient(#EAF6FF, #F6FBFF)",
@@ -8337,9 +7922,7 @@ function NumBubbleMode({ speak, addStars }) {
           </button>
         ))}
       </div>
-      <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={say} style={{ color: T.ink }}>
-        🔊 再聽一次
-      </ChunkyButton>
+      <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={say} style={{ color: T.ink }}>{t("🔊 再聽一次")}</ChunkyButton>
       {cheer && <div style={{ marginTop: 10, fontSize: 15, color: T.sub, fontWeight: 700 }}>{cheer}</div>}
     </div>
   );
@@ -8369,7 +7952,7 @@ function NumPairsMode({ speak, addStars }) {
       setMatched(nm); setOpen([]); addStars(1);
       if (nm.size === 5) {
         addStars(2);
-        zh(speak, "全部配對完成!好棒", { rate: 0.9 });
+        zh(speak, t("全部配對完成!好棒"), { rate: 0.9 });
         setTimeout(() => setDone(true), 900);
       }
     } else {
@@ -8387,11 +7970,9 @@ function NumPairsMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 60 }}>{misses <= 3 ? "👑" : "🎉"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>5 對數字全部找到!</h2>
-        <p style={{ color: T.sub, fontSize: 15 }}>失誤 {misses} 次</p>
-        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 10 }} onClick={restart}>
-          再玩一次
-        </ChunkyButton>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{t("5 對數字全部找到!")}</h2>
+        <p style={{ color: T.sub, fontSize: 15 }}>{tf("失誤 {0} 次", misses)}</p>
+        <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 10 }} onClick={restart}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
@@ -8399,8 +7980,8 @@ function NumPairsMode({ speak, addStars }) {
     <div style={{ textAlign: "center" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
         color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-        <span>數字配點點</span>
-        <span>找到 {matched.size} / 5 對{"⭐".repeat(matched.size)}</span>
+        <span>{t("數字配點點")}</span>
+        <span>{tf("找到 {0} / 5 對{1}", matched.size, "⭐".repeat(matched.size))}</span>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
         {cards.map((c, i) => {
@@ -8427,9 +8008,7 @@ function NumPairsMode({ speak, addStars }) {
           );
         })}
       </div>
-      <p style={{ color: "#B7B2D8", fontSize: 13, marginTop: 14 }}>
-        翻開卡片,把「數字」和「一樣多的點點」配成一對!
-      </p>
+      <p style={{ color: "#B7B2D8", fontSize: 13, marginTop: 14 }}>{t("翻開卡片,把「數字」和「一樣多的點點」配成一對!")}</p>
     </div>
   );
 }
@@ -8464,7 +8043,7 @@ function NumSortMode({ speak, addStars }) {
       setProgress(np); setWrong(null);
       if (np >= q.order.length) {
         setRight((r) => r + 1); addStars(1); setCleared(true);
-        zh(speak, "太棒了!", { rate: 0.95 });
+        zh(speak, t("太棒了!"), { rate: 0.95 });
         setTimeout(nextRound, 1300);
       }
     } else {
@@ -8477,29 +8056,23 @@ function NumSortMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>{right >= 5 ? "🏆" : "📊"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>排對 {right} / {TOTAL} 組!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("排對 {0} / {1} 組!", right, TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setProgress(0); setCleared(false); setDone(false); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setRoundNo(1); setRight(0); setQ(makeQ()); setProgress(0); setCleared(false); setDone(false); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 6 }}>
-        第 {roundNo} / {TOTAL} 組・從最小的開始,由小到大點!
-      </div>
-      <div style={{ fontSize: 18, marginBottom: 12, color: T.purple, fontWeight: 700 }}>
-        1️⃣ 小 →→→ 大 🔟
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 6 }}>{tf("第 {0} / {1} 組・從最小的開始,由小到大點!", roundNo, TOTAL)}</div>
+      <div style={{ fontSize: 18, marginBottom: 12, color: T.purple, fontWeight: 700 }}>{t("1️⃣ 小 →→→ 大 🔟")}</div>
       <div style={{ minHeight: 66, display: "flex", gap: 10, justifyContent: "center",
         alignItems: "center", marginBottom: 8 }}>
         {q.order.slice(0, progress).map((n, i) => (
           <span key={n} style={{ fontSize: 26 + i * 8, fontWeight: 800, color: T.greenDark }}>{n}</span>
         ))}
         {progress < q.order.length && (
-          <span style={{ fontSize: 20, color: "#C9C4E8" }}>👉 點第 {progress + 1} 小的</span>
+          <span style={{ fontSize: 20, color: "#C9C4E8" }}>{tf("👉 點第 {0} 小的", progress + 1)}</span>
         )}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
@@ -8558,23 +8131,19 @@ function NumWriteMode({ speak, addStars }) {
   };
 
   const onStrokeDone = (n) => {
-    setCheer(`第 ${n} 筆寫對了!換第 ${n + 1} 筆 👍`);
+    setCheer(tf("第 {0} 筆寫對了!換第 {1} 筆 👍", n, n + 1));
     setTimeout(() => setCheer(""), 1400);
   };
 
   return (
     <div style={{ textAlign: "center" }}>
-      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>
-        從 1 號圓點開始,照箭頭方向寫;每筆都寫對才會換下一筆!已完成{" "}
-        <b style={{ color: T.purple }}>{doneSet.size}</b> / {DIGITS.length}
+      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>{tf("從 1 號圓點開始,照箭頭方向寫;每筆都寫對才會換下一筆!已完成{0}", " ")}<b style={{ color: T.purple }}>{doneSet.size}</b> / {DIGITS.length}
       </p>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center",
         gap: 10, marginBottom: 12 }}>
         <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={() => sayNum(d)}
-          style={{ color: T.ink, padding: "10px 18px", fontSize: 16 }}>
-          🔊 {d} 怎麼唸
-        </ChunkyButton>
+          style={{ color: T.ink, padding: "10px 18px", fontSize: 16 }}>{tf("🔊 {0} 怎麼唸", d)}</ChunkyButton>
         <div style={{ background: T.card, border: "3px solid #E8E4FA", borderRadius: 16,
           padding: "6px 12px", boxShadow: "0 4px 0 #E0DBF7" }}>
           <TenFrame n={Number(d)} dot={11} />
@@ -8592,13 +8161,9 @@ function NumWriteMode({ speak, addStars }) {
 
       {celebrate ? (
         <div style={{ marginTop: 14 }}>
-          <div style={{ fontSize: 22, color: T.greenDark, fontWeight: 700 }}>
-            🎉 太棒了!{d} 寫得真漂亮!+2 ⭐
-          </div>
+          <div style={{ fontSize: 22, color: T.greenDark, fontWeight: 700 }}>{tf("🎉 太棒了!{0} 寫得真漂亮!+2 ⭐", d)}</div>
           <ChunkyButton color={T.green} dark={T.greenDark}
-            onClick={() => select((idx + 1) % DIGITS.length)} style={{ marginTop: 10 }}>
-            下一個數字 →
-          </ChunkyButton>
+            onClick={() => select((idx + 1) % DIGITS.length)} style={{ marginTop: 10 }}>{t("下一個數字 →")}</ChunkyButton>
         </div>
       ) : (
         cheer && (
@@ -8670,19 +8235,15 @@ function FirstSoundMode({ speak, addStars }) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: 56 }}>{right >= 7 ? "🏆" : "🕵️"}</div>
-        <h2 style={{ color: T.ink, fontSize: 26 }}>偵探破案 {right} / {TOTAL} 次!</h2>
+        <h2 style={{ color: T.ink, fontSize: 26 }}>{tf("偵探破案 {0} / {1} 次!", right, TOTAL)}</h2>
         <ChunkyButton color={T.green} dark={T.greenDark} style={{ marginTop: 14 }}
-          onClick={() => { setRound(1); setRight(0); setQ(makeSoundQ()); setPicked(null); setDone(false); }}>
-          再玩一次
-        </ChunkyButton>
+          onClick={() => { setRound(1); setRight(0); setQ(makeSoundQ()); setPicked(null); setDone(false); }}>{t("再玩一次")}</ChunkyButton>
       </div>
     );
 
   return (
     <div>
-      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 14 }}>
-        第 {round} / {TOTAL} 題・這個字的「開頭字母」是哪一個?🕵️
-      </div>
+      <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 14 }}>{tf("第 {0} / {1} 題・這個字的「開頭字母」是哪一個?🕵️", round, TOTAL)}</div>
       <div style={{ background: T.card, borderRadius: 22, padding: "22px 16px",
         textAlign: "center", marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
         <div style={{ fontSize: 60 }}>{q.ans.emoji}</div>
@@ -8690,9 +8251,7 @@ function FirstSoundMode({ speak, addStars }) {
           {picked ? q.ans.en : "_" + q.ans.en.slice(1)}
         </div>
         <ChunkyButton color={T.yellow} dark={T.yellowDark} onClick={() => speak(q.ans.en)}
-          style={{ color: T.ink }}>
-          🔊 再聽一次
-        </ChunkyButton>
+          style={{ color: T.ink }}>{t("🔊 再聽一次")}</ChunkyButton>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         {q.options.map((L) => {
@@ -8814,9 +8373,7 @@ function SayItMode({ speak, addStars }) {
 
   return (
     <div style={{ textAlign: "center" }}>
-      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>
-        大聲唸出這個字,唸對得 ⭐⭐!已成功 {wins} 次
-      </p>
+      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>{tf("大聲唸出這個字,唸對得 ⭐⭐!已成功 {0} 次", wins)}</p>
       <div style={{ background: T.card, borderRadius: 24, padding: "26px 16px",
         boxShadow: "0 6px 0 #E0DBF7", marginBottom: 14 }}>
         <div style={{ fontSize: 64 }}>{word.emoji}</div>
@@ -8825,30 +8382,22 @@ function SayItMode({ speak, addStars }) {
         <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
           <ChunkyButton color={T.yellow} dark={T.yellowDark}
             onClick={() => speak(word.en)} style={{ color: T.ink }}
-            disabled={status === "listening"}>
-            🔊 先聽一次
-          </ChunkyButton>
+            disabled={status === "listening"}>{t("🔊 先聽一次")}</ChunkyButton>
           {SR ? (
             <ChunkyButton
               color={status === "listening" ? T.red : T.pink}
               dark={status === "listening" ? "#C94F4E" : "#D14B7D"}
-              onClick={listen} disabled={status === "listening"}>
-              {status === "listening" ? "🎤 聽你說…" : "🎤 換我唸!"}
-            </ChunkyButton>
+              onClick={listen} disabled={status === "listening"}>{status === "listening" ? t("🎤 聽你說…") : t("🎤 換我唸!")}</ChunkyButton>
           ) : (
             <ChunkyButton color={T.green} dark={T.greenDark}
-              onClick={() => { setStatus("correct"); setWins((n) => n + 1); addStars(1); }}>
-              👍 我唸對了(家長按)
-            </ChunkyButton>
+              onClick={() => { setStatus("correct"); setWins((n) => n + 1); addStars(1); }}>{tf("👍 我唸對了(家長按)")}</ChunkyButton>
           )}
         </div>
         {status === "listening" && (
           <div style={{
             marginTop: 14, fontSize: 17, color: T.pink, fontWeight: 700,
             animation: "wp-pulse 1s ease-in-out infinite",
-          }}>
-            🎙️ 我在聽,大聲唸出來!{heard && ` 「${heard}」`}
-          </div>
+          }}>{tf("🎙️ 我在聽,大聲唸出來!{0}", heard && ` 「${heard}」`)}</div>
         )}
         {status === "correct" && (
           <div style={{ marginTop: 14, fontSize: 20, color: T.greenDark, fontWeight: 700 }}>
@@ -8856,18 +8405,12 @@ function SayItMode({ speak, addStars }) {
           </div>
         )}
         {status === "tryagain" && (
-          <div style={{ marginTop: 14, fontSize: 15, color: T.sub }}>
-            {heard ? `我聽到「${heard}」,` : ""}再試一次,先聽範例再慢慢唸 💪
-          </div>
+          <div style={{ marginTop: 14, fontSize: 15, color: T.sub }}>{tf("{0}再試一次,先聽範例再慢慢唸 💪", heard ? tf("我聽到「{0}」,", heard) : "")}</div>
         )}
       </div>
-      <ChunkyButton color={T.purple} dark={T.purpleDark} onClick={next}>
-        下一個字 →
-      </ChunkyButton>
+      <ChunkyButton color={T.purple} dark={T.purpleDark} onClick={next}>{t("下一個字 →")}</ChunkyButton>
       {!SR && (
-        <p style={{ color: "#B7B2D8", fontSize: 12, marginTop: 14 }}>
-          此瀏覽器不支援語音辨識,改由家長確認模式(建議用 Chrome)
-        </p>
+        <p style={{ color: "#B7B2D8", fontSize: 12, marginTop: 14 }}>{tf("此瀏覽器不支援語音辨識,改由家長確認模式(建議用 Chrome)")}</p>
       )}
     </div>
   );
@@ -9403,7 +8946,7 @@ function TraceCanvas({
     if (distToPolyline(bx, by, strokes[i]) > TRACE_CORRIDOR) {
       if (nextCpRef.current > 0) {
         nextCpRef.current = 0;
-        setHint(`要沿著線描喔,回到 ${i + 1} 號圓點 →`);
+        setHint(tf("要沿著線描喔,回到 {0} 號圓點 →", i + 1));
       }
       return;
     }
@@ -9481,7 +9024,7 @@ function TraceCanvas({
     prevRef.current = null;
     // 這一筆還沒開始就放手 → 溫柔提示從起點開始
     if (idxRef.current < total && nextCpRef.current === 0)
-      setHint(`從 ${idxRef.current + 1} 號圓點開始,跟著箭頭描 →`);
+      setHint(tf("從 {0} 號圓點開始,跟著箭頭描 →", idxRef.current + 1));
   };
 
   const clear = () => {
@@ -9494,11 +9037,9 @@ function TraceCanvas({
 
   return (
     <div style={{ width: "100%", maxWidth: 340, margin: "0 auto" }}>
-      <div style={{ fontWeight: 700, fontSize: 15, color: T.purple, marginBottom: 8 }}>
-        {allDone
-          ? "✅ 每一筆都描對了!"
-          : `✏️ 第 ${strokeIdx + 1} / ${total} 筆 · 從 ${strokeIdx + 1} 號圓點開始`}
-      </div>
+      <div style={{ fontWeight: 700, fontSize: 15, color: T.purple, marginBottom: 8 }}>{allDone
+          ? t("✅ 每一筆都描對了!")
+          : tf("✏️ 第 {0} / {1} 筆 · 從 {2} 號圓點開始", strokeIdx + 1, total, strokeIdx + 1)}</div>
       <div style={{ position: "relative", width: "100%" }}>
         <canvas
           ref={guideRef}
@@ -9534,9 +9075,7 @@ function TraceCanvas({
             borderRadius: 999, padding: "9px 16px", cursor: "pointer",
             boxShadow: `0 3px 0 ${T.purpleDark}`,
           }}
-        >
-          ✏️ 筆順示範
-        </button>
+        >{t("✏️ 筆順示範")}</button>
         <button
           onClick={clear}
           style={{
@@ -9545,9 +9084,7 @@ function TraceCanvas({
             borderRadius: 999, padding: "9px 16px", cursor: "pointer",
             boxShadow: "0 3px 0 #D2CCED",
           }}
-        >
-          🧽 擦掉
-        </button>
+        >{t("🧽 擦掉")}</button>
       </div>
       {hint && (
         <div style={{ marginTop: 10, fontSize: 15, color: T.pink, fontWeight: 700 }}>
@@ -9602,24 +9139,20 @@ function BopoWriteMode({ speak, addStars }) {
   };
 
   const onStrokeDone = (n, tot) => {
-    setCheer(`第 ${n} 筆寫對了!換第 ${n + 1} 筆 👍`);
+    setCheer(tf("第 {0} 筆寫對了!換第 {1} 筆 👍", n, n + 1));
     setTimeout(() => setCheer(""), 1400);
   };
 
   return (
     <div style={{ textAlign: "center" }}>
-      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>
-        照教育部標準筆順,從 1 號圓點跟著箭頭寫!已完成{" "}
-        <b style={{ color: T.purple }}>{doneSet.size}</b> / {BOPOMOFO.length}
+      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>{tf("照教育部標準筆順,從 1 號圓點跟著箭頭寫!已完成{0}", " ")}<b style={{ color: T.purple }}>{doneSet.size}</b> / {BOPOMOFO.length}
       </p>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center",
         gap: 10, marginBottom: 12 }}>
         <ChunkyButton color={T.yellow} dark={T.yellowDark}
           onClick={() => zh(speak, item.sound, { rate: 0.8 })}
-          style={{ color: T.ink, padding: "10px 18px", fontSize: 16 }}>
-          🔊 {s} 怎麼唸
-        </ChunkyButton>
+          style={{ color: T.ink, padding: "10px 18px", fontSize: 16 }}>{tf("🔊 {0} 怎麼唸", s)}</ChunkyButton>
         <button
           onClick={() => zh(speak, item.word, { rate: 0.85 })}
           style={{
@@ -9644,14 +9177,10 @@ function BopoWriteMode({ speak, addStars }) {
 
       {celebrate ? (
         <div style={{ marginTop: 14 }}>
-          <div style={{ fontSize: 22, color: T.greenDark, fontWeight: 700 }}>
-            🎉 太棒了!{s} 寫得真漂亮!+2 ⭐
-          </div>
+          <div style={{ fontSize: 22, color: T.greenDark, fontWeight: 700 }}>{tf("🎉 太棒了!{0} 寫得真漂亮!+2 ⭐", s)}</div>
           <ChunkyButton color={T.green} dark={T.greenDark}
             onClick={() => select((idx + 1) % BOPOMOFO.length)}
-            style={{ marginTop: 10 }}>
-            下一個注音 →
-          </ChunkyButton>
+            style={{ marginTop: 10 }}>{t("下一個注音 →")}</ChunkyButton>
         </div>
       ) : (
         cheer && (
@@ -9740,7 +9269,7 @@ function WriteMode({ speak, addStars }) {
 
   // 描對一筆時給正向回饋(不換行的小鼓勵)
   const onStrokeDone = (doneCount, totalStrokes) => {
-    setCheer(`第 ${doneCount} 筆描對了!換第 ${doneCount + 1} 筆 👍`);
+    setCheer(tf("第 {0} 筆描對了!換第 {1} 筆 👍", doneCount, doneCount + 1));
     speak("Good!", { rate: 1 });
     setTimeout(() => setCheer(""), 1400);
   };
@@ -9753,14 +9282,12 @@ function WriteMode({ speak, addStars }) {
 
   return (
     <div style={{ textAlign: "center" }}>
-      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>
-        從 1 號圓點開始,照箭頭方向一筆一筆描;每筆都描對才會換下一筆!已完成{" "}
-        <b style={{ color: T.purple }}>{doneSet.size}</b> / {LETTERS.length * 2}
+      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>{tf("從 1 號圓點開始,照箭頭方向一筆一筆描;每筆都描對才會換下一筆!已完成{0}", " ")}<b style={{ color: T.purple }}>{doneSet.size}</b> / {LETTERS.length * 2}
       </p>
 
       {/* 大小寫切換 */}
       <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 12 }}>
-        {[["upper", "大寫 ABC"], ["lower", "小寫 abc"]].map(([cm, label]) => (
+        {[["upper", t("大寫 ABC")], ["lower", t("小寫 abc")]].map(([cm, label]) => (
           <button
             key={cm}
             onClick={() => selectLetter(letter, cm)}
@@ -9789,9 +9316,7 @@ function WriteMode({ speak, addStars }) {
           color={T.yellow} dark={T.yellowDark}
           onClick={() => sayLetter(letter)}
           style={{ color: T.ink, padding: "10px 18px", fontSize: 16 }}
-        >
-          🔊 {displayChar} 怎麼唸
-        </ChunkyButton>
+        >{tf("🔊 {0} 怎麼唸", displayChar)}</ChunkyButton>
         {example && (
           <button
             onClick={() => speak(example.en)}
@@ -9816,15 +9341,11 @@ function WriteMode({ speak, addStars }) {
 
       {celebrate ? (
         <div style={{ marginTop: 14 }}>
-          <div style={{ fontSize: 22, color: T.greenDark, fontWeight: 700 }}>
-            🎉 太棒了!{displayChar} 寫得真漂亮!+2 ⭐
-          </div>
+          <div style={{ fontSize: 22, color: T.greenDark, fontWeight: 700 }}>{tf("🎉 太棒了!{0} 寫得真漂亮!+2 ⭐", displayChar)}</div>
           <ChunkyButton
             color={T.green} dark={T.greenDark} onClick={nextLetter}
             style={{ marginTop: 10 }}
-          >
-            {caseMode === "upper" ? `接著寫小寫 ${letter.toLowerCase()} →` : "下一個字母 →"}
-          </ChunkyButton>
+          >{caseMode === "upper" ? tf("接著寫小寫 {0} →", letter.toLowerCase()) : t("下一個字母 →")}</ChunkyButton>
         </div>
       ) : (
         cheer && (
@@ -10233,6 +9754,9 @@ export default function WordPop() {
   const [confirmClear, setConfirmClear] = useState(false);
   const [cleared, setCleared] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  // 介面語言:換語言只要讓最上層重畫一次,底下所有 t() 就會重新取值
+  const [lang, setLangState] = useState(LANG);
+  const switchLang = (l) => { setLang(l); setLangState(l); };
   // 目前選的科目分頁(記住上次選的)
   const [subject, setSubject] = useState(() => {
     try {
@@ -10333,9 +9857,7 @@ canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
                   background: "#E8E4FA", color: T.sub, border: "none",
                   borderRadius: 999, padding: "8px 14px", cursor: "pointer",
                 }}
-              >
-                ← 返回
-              </button>
+              >{t("← 返回")}</button>
             )}
           </div>
         </header>
@@ -10343,11 +9865,9 @@ canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
         {mode === "home" && (
           <div style={{ textAlign: "center", paddingTop: 28 }}>
             <div style={{ fontSize: 64, marginBottom: 8 }}>🎈🔤</div>
-            <h1 style={{ color: T.ink, fontSize: 30, margin: "0 0 6px" }}>
-              點一下,單字 POP 出聲音!
-            </h1>
+            <h1 style={{ color: T.ink, fontSize: 30, margin: "0 0 6px" }}>{t("點一下,單字 POP 出聲音!")}</h1>
             <p style={{ color: T.sub, fontSize: 16, margin: "0 0 18px" }}>
-              {SUBJECTS.find((s) => s.key === subject)?.sub}
+              {t(SUBJECTS.find((s) => s.key === subject)?.sub || "")}
             </p>
 
             {/* 科目分頁:ABC / ㄅㄆㄇ / 數字 分開,不混在一起 */}
@@ -10370,7 +9890,7 @@ canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
                       transition: "all .15s",
                     }}>
                     <div style={{ fontSize: 22, lineHeight: 1.1 }}>{s.icon}</div>
-                    {s.label}
+                    {t(s.label)}
                   </button>
                 );
               })}
@@ -10385,7 +9905,7 @@ canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
                       fontSize: 14, margin: "0 0 8px 4px",
                     }}
                   >
-                    {group.label}
+                    {t(group.label)}
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                     {group.items.map((g, gi) => (
@@ -10400,7 +9920,7 @@ canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
                             : {}),
                         }}
                       >
-                        {g.label}
+                        {t(g.label)}
                       </ChunkyButton>
                     ))}
                   </div>
@@ -10418,9 +9938,7 @@ canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
                   border: "none", borderRadius: 999, padding: "10px 18px",
                   cursor: "pointer", transition: "all .15s",
                 }}
-              >
-                👨‍👩‍👧 給爸媽的陪玩指南 {showGuide ? "▲ 收起" : "▼ 展開"}
-              </button>
+              >{tf("👨‍👩‍👧 給爸媽的陪玩指南 {0}", showGuide ? t("▲ 收起") : t("▼ 展開"))}</button>
               {showGuide && (
                 <div
                   style={{
@@ -10428,28 +9946,25 @@ canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
                     marginTop: 12, boxShadow: "0 5px 0 #E0DBF7", textAlign: "left",
                   }}
                 >
-                  <p style={{ color: T.sub, fontSize: 13, margin: "0 0 12px" }}>
-                    每個遊戲的一句話陪玩訣竅。共同原則:孩子答錯時不糾正、
-                    讓遊戲自己引導;多讓她「開口跟著唸」效果加倍 💜
-                  </p>
+                  <p style={{ color: T.sub, fontSize: 13, margin: "0 0 12px" }}>{tf("每個遊戲的一句話陪玩訣竅。共同原則:孩子答錯時不糾正、 讓遊戲自己引導;多讓她「開口跟著唸」效果加倍 💜")}</p>
                   {SUBJECTS.map((sub) => (
                     <div key={sub.key}>
                       <div style={{ fontWeight: 800, fontSize: 15, color: T.ink,
                         margin: "2px 0 8px", paddingBottom: 4, borderBottom: "2px solid #EFECFB" }}>
-                        {sub.icon} {sub.label}
+                        {sub.icon} {t(sub.label)}
                       </div>
                       {MENU_GROUPS.filter((g) => g.subject === sub.key).map((group) => (
                     <div key={group.label} style={{ marginBottom: 12 }}>
                       <div style={{ fontWeight: 700, fontSize: 14, color: T.purple, marginBottom: 6 }}>
-                        {group.label}
+                        {t(group.label)}
                       </div>
                       {group.items.map((g) => (
                         <div key={g.mode} style={{ margin: "0 0 8px 4px" }}>
                           <span style={{ fontWeight: 700, fontSize: 13, color: T.ink }}>
-                            {g.label}
+                            {t(g.label)}
                           </span>
                           <div style={{ fontSize: 13, color: T.sub, lineHeight: 1.5 }}>
-                            {g.tip}
+                            {t(g.tip)}
                           </div>
                         </div>
                       ))}
@@ -10461,20 +9976,14 @@ canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
               )}
             </div>
 
-            <p style={{ color: "#B7B2D8", fontSize: 13, marginTop: 18 }}>
-              🎙️ 單字使用真人錄音(Wiktionary),查無音檔時自動改用合成語音
-            </p>
+            <p style={{ color: "#B7B2D8", fontSize: 13, marginTop: 18 }}>{tf("🎙️ 單字使用真人錄音(Wiktionary),查無音檔時自動改用合成語音")}</p>
             {/* 家長區:清空紀錄(二次確認,避免小朋友誤觸)*/}
             <div style={{ marginTop: 18 }}>
               {cleared ? (
-                <p style={{ color: T.greenDark, fontSize: 14, fontWeight: 700 }}>
-                  ✅ 紀錄已清空,重新開始囉!
-                </p>
+                <p style={{ color: T.greenDark, fontSize: 14, fontWeight: 700 }}>{t("✅ 紀錄已清空,重新開始囉!")}</p>
               ) : confirmClear ? (
                 <div>
-                  <p style={{ color: T.ink, fontSize: 14, fontWeight: 700, margin: "0 0 8px" }}>
-                    確定清空所有星星和關卡紀錄嗎?
-                  </p>
+                  <p style={{ color: T.ink, fontSize: 14, fontWeight: 700, margin: "0 0 8px" }}>{t("確定清空所有星星和關卡紀錄嗎?")}</p>
                   <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
                     <button
                       onClick={clearRecords}
@@ -10484,9 +9993,7 @@ canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
                         borderRadius: 999, padding: "9px 18px", cursor: "pointer",
                         boxShadow: "0 3px 0 #C94F4E",
                       }}
-                    >
-                      確定清空
-                    </button>
+                    >{t("確定清空")}</button>
                     <button
                       onClick={() => setConfirmClear(false)}
                       style={{
@@ -10494,9 +10001,7 @@ canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
                         background: "#E8E4FA", color: T.sub, border: "none",
                         borderRadius: 999, padding: "9px 18px", cursor: "pointer",
                       }}
-                    >
-                      取消
-                    </button>
+                    >{t("取消")}</button>
                   </div>
                 </div>
               ) : (
@@ -10507,10 +10012,27 @@ canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
                     background: "none", border: "none", color: "#B7B2D8",
                     cursor: "pointer", textDecoration: "underline",
                   }}
-                >
-                  🧹 清空學習紀錄(家長)
-                </button>
+                >{tf("🧹 清空學習紀錄(家長)")}</button>
               )}
+            </div>
+            <div style={{ marginTop: 14, display: "flex", gap: 6,
+              justifyContent: "center", alignItems: "center" }}>
+              <span style={{ fontSize: 13, color: "#B7B2D8", fontWeight: 700 }}>🌐</span>
+              {[["zh", "中文"], ["en", "English"]].map(([k, label]) => {
+                const on = lang === k;
+                return (
+                  <button key={k} onClick={() => switchLang(k)}
+                    style={{
+                      fontFamily: "inherit", fontWeight: 700, fontSize: 13,
+                      padding: "6px 14px", borderRadius: 999, cursor: "pointer",
+                      border: `2px solid ${on ? T.purpleDark : "#E0DBF7"}`,
+                      background: on ? T.purple : "#FFFFFF",
+                      color: on ? "#fff" : T.sub, transition: "all .15s",
+                    }}>
+                    {label}
+                  </button>
+                );
+              })}
             </div>
             <p style={{ color: "#C9C4E8", fontSize: 12, marginTop: 12 }}>
               WordPop {APP_VERSION}{BUILD_DATE ? ` · ${BUILD_DATE}` : ""}
