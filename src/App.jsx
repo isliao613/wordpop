@@ -362,7 +362,7 @@ const SIGHT_WORDS = [
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
 // 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
-const APP_VERSION = "v1.34";
+const APP_VERSION = "v1.35";
 const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
@@ -383,6 +383,14 @@ const T = {
 
 // ---------- 發音(真人優先,合成備援)----------
 const SPEAKABLE_RE = /^[a-z]+(?:[ -][a-z]+){0,2}$/i; // 單字或 2~3 字的複合詞
+
+// 單獨出現的大寫字母改送小寫:有些語音引擎拿到大寫會唸成 "capital I"、"capital B",
+// 小朋友要聽的是字母的名字本身。只動「前後都不是字母」的單一字母,
+// 所以 "I! Great job!" → "i! Great job!",但 "Great job!" 完全不受影響。
+// (句點保留,那是用來略過真人音檔查詢的。)
+const LONE_UPPER = /(^|[\s"'(\-])([A-Z])(?=[\s.,!?;:"')\-]|$)/g;
+const sayableLetters = (text) =>
+  String(text).replace(LONE_UPPER, (m, pre, ch) => pre + ch.toLowerCase());
 
 // iOS(含 iPhone 上的 Chrome,底層都是 WebKit):
 // Web Audio 會被實體靜音鍵消音,但 <audio> 媒體播放不會,
@@ -509,7 +517,7 @@ function useSpeech() {
     if (!ss) return;
     if (ss.speaking || ss.pending) ss.cancel();
     const zh = lang && /^zh/i.test(lang);
-    const u = new SpeechSynthesisUtterance(text);
+    const u = new SpeechSynthesisUtterance(sayableLetters(text));
     u.lang = zh ? (zhVoiceRef.current?.lang || "zh-TW") : "en-US";
     u.rate = rate;
     u.volume = 1;
