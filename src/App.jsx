@@ -362,7 +362,7 @@ const SIGHT_WORDS = [
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
 // 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
-const APP_VERSION = "v1.35";
+const APP_VERSION = "v1.36";
 const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
@@ -383,6 +383,41 @@ const T = {
 
 // ---------- 發音(真人優先,合成備援)----------
 const SPEAKABLE_RE = /^[a-z]+(?:[ -][a-z]+){0,2}$/i; // 單字或 2~3 字的複合詞
+
+// ---------- 中文語音是否存在 ----------
+// "tw" = 有台灣中文語音;"other" = 只有其他中文(例如 zh-CN,口音會不一樣);
+// "none" = 這台裝置沒有中文語音,系統會拿英文聲音硬唸中文字,聽起來像外國人在唸。
+let ZH_VOICE_STATE = "unknown";
+const zhVoiceListeners = new Set();
+const setZhVoiceState = (v) => {
+  if (ZH_VOICE_STATE === v) return;
+  ZH_VOICE_STATE = v;
+  zhVoiceListeners.forEach((fn) => fn(v));
+};
+function useZhVoiceState() {
+  const [v, setV] = useState(ZH_VOICE_STATE);
+  useEffect(() => {
+    zhVoiceListeners.add(setV);
+    setV(ZH_VOICE_STATE);
+    return () => { zhVoiceListeners.delete(setV); };
+  }, []);
+  return v;
+}
+
+// ---------- 注音要怎麼唸 ----------
+// "symbol" = 直接把注音符號送給語音引擎(台灣的中文語音多半認得,最準);
+// "char"   = 退回用代表字(ㄅ→波),萬一裝置唸不出注音符號時用。
+const BOPO_READ_KEY = "wordpop-bopo-read";
+let BOPO_READ = (() => {
+  try { return localStorage.getItem(BOPO_READ_KEY) === "char" ? "char" : "symbol"; }
+  catch { return "symbol"; }
+})();
+const setBopoRead = (m) => {
+  BOPO_READ = m === "char" ? "char" : "symbol";
+  try { localStorage.setItem(BOPO_READ_KEY, BOPO_READ); } catch { /* 無痕模式就不保存 */ }
+};
+// 一個注音符號要「唸出來」的文字(read 是特地挑過聲調的代表字,沒有就用 sound)
+const bopoRead = (b) => (!b ? "" : BOPO_READ === "symbol" ? b.s : (b.read || b.sound));
 
 // 單獨出現的大寫字母改送小寫:有些語音引擎拿到大寫會唸成 "capital I"、"capital B",
 // 小朋友要聽的是字母的名字本身。只動「前後都不是字母」的單一字母,
@@ -496,9 +531,15 @@ function useSpeech() {
         zh.find((v) => /natural|neural|premium|enhanced/i.test(v.name)) ||
         zh[0] ||
         null;
+      // 裝置上到底有沒有中文語音?沒有的話會變成英文聲音硬唸中文字,
+      // 聽起來像外國人在唸,要讓爸媽知道是裝置要裝語音,不是遊戲壞了
+      if (vs.length) setZhVoiceState(zhVoiceRef.current ? (isTW(zhVoiceRef.current) ? "tw" : "other") : "none");
     };
     pick();
     window.speechSynthesis?.addEventListener("voiceschanged", pick);
+    // 有些瀏覽器語音清單是非同步載入,而且不一定會發 voiceschanged,
+    // 所以開頭幾秒再多探幾次,免得中文語音還沒載好就被判定成「沒有中文語音」
+    const retries = [300, 800, 1500, 3000].map((ms) => setTimeout(pick, ms));
     // 頁面切走/關閉前把音檔快取補存一次
     const flush = () => {
       if (document.visibilityState === "hidden") {
@@ -507,6 +548,7 @@ function useSpeech() {
     };
     document.addEventListener("visibilitychange", flush);
     return () => {
+      retries.forEach(clearTimeout);
       window.speechSynthesis?.removeEventListener("voiceschanged", pick);
       document.removeEventListener("visibilitychange", flush);
     };
@@ -4605,7 +4647,7 @@ const BOPOMOFO = [
   { s: "ㄆ", sound: "坡", word: "蘋果", emoji: "🍎", first: true },
   { s: "ㄇ", sound: "摸", word: "媽媽", emoji: "👩", first: true },
   { s: "ㄈ", sound: "佛", word: "飛機", emoji: "✈️", first: true },
-  { s: "ㄉ", sound: "得", word: "蛋", emoji: "🥚", first: true },
+  { s: "ㄉ", sound: "得", read: "德", word: "蛋", emoji: "🥚", first: true },
   { s: "ㄊ", sound: "特", word: "兔子", emoji: "🐰", first: true },
   { s: "ㄋ", sound: "呢", word: "牛", emoji: "🐮", first: true },
   { s: "ㄌ", sound: "勒", word: "老虎", emoji: "🐯", first: true },
@@ -4620,24 +4662,24 @@ const BOPOMOFO = [
   { s: "ㄕ", sound: "詩", word: "獅子", emoji: "🦁", first: true },
   { s: "ㄖ", sound: "日", word: "熱狗", emoji: "🌭", first: true },
   { s: "ㄗ", sound: "資", word: "嘴巴", emoji: "👄", first: true },
-  { s: "ㄘ", sound: "次", word: "草莓", emoji: "🍓", first: true },
+  { s: "ㄘ", sound: "次", read: "疵", word: "草莓", emoji: "🍓", first: true },
   { s: "ㄙ", sound: "思", word: "松鼠", emoji: "🐿️", first: true },
   // 介音 3
   { s: "ㄧ", sound: "衣", word: "椅子", emoji: "🪑", first: true },
   { s: "ㄨ", sound: "屋", word: "襪子", emoji: "🧦", first: true },
-  { s: "ㄩ", sound: "魚", word: "魚", emoji: "🐟", first: true },
+  { s: "ㄩ", sound: "魚", read: "迂", word: "魚", emoji: "🐟", first: true },
   // 韻母 13
   { s: "ㄚ", sound: "啊", word: "阿姨", emoji: "👩‍🦰", first: true },
   { s: "ㄛ", sound: "喔", word: "婆婆", emoji: "👵", first: false },
   { s: "ㄜ", sound: "鵝", word: "鵝", emoji: "🦢", first: true },
   { s: "ㄝ", sound: "耶", word: "耶", emoji: "✌️", first: false },
-  { s: "ㄞ", sound: "愛", word: "愛心", emoji: "❤️", first: true },
+  { s: "ㄞ", sound: "愛", read: "哀", word: "愛心", emoji: "❤️", first: true },
   { s: "ㄟ", sound: "欸", word: "杯子", emoji: "🥤", first: false },
   { s: "ㄠ", sound: "凹", word: "貓", emoji: "🐱", first: false },
   { s: "ㄡ", sound: "歐", word: "手", emoji: "✋", first: false },
   { s: "ㄢ", sound: "安", word: "安全帽", emoji: "⛑️", first: true },
   { s: "ㄣ", sound: "恩", word: "門", emoji: "🚪", first: false },
-  { s: "ㄤ", sound: "昂", word: "糖果", emoji: "🍬", first: false },
+  { s: "ㄤ", sound: "昂", read: "骯", word: "糖果", emoji: "🍬", first: false },
   { s: "ㄥ", sound: "鞥", word: "燈", emoji: "💡", first: false },
   { s: "ㄦ", sound: "兒", word: "耳朵", emoji: "👂", first: true },
 ];
@@ -4670,7 +4712,7 @@ function BopoOrderMode({ speak, addStars }) {
   const say = useCallback(() => {
     const a = BOPOMOFO.find((b) => b.s === q.shown[0]);
     const b2 = BOPOMOFO.find((b) => b.s === q.shown[1]);
-    zh(speak, tf("{0}、{1}、然後呢?", a.sound, b2.sound));
+    zh(speak, tf("{0}、{1}、然後呢?", bopoRead(a), bopoRead(b2)));
   }, [q, speak]);
   useEffect(() => {
     const t = setTimeout(say, 400);
@@ -4681,8 +4723,8 @@ function BopoOrderMode({ speak, addStars }) {
     if (picked) return;
     setPicked(s);
     const ok = s === q.target.s;
-    if (ok) { setRight((r) => r + 1); addStars(1); zh(speak, tf("{0}!答對了", q.target.sound), { rate: 0.9 }); }
-    else zh(speak, tf("是 {0}", q.target.sound), { rate: 0.8 });
+    if (ok) { setRight((r) => r + 1); addStars(1); zh(speak, tf("{0}!答對了", bopoRead(q.target)), { rate: 0.9 }); }
+    else zh(speak, tf("是 {0}", bopoRead(q.target)), { rate: 0.8 });
     setTimeout(() => {
       if (roundNo >= TOTAL) setDone(true);
       else { setRoundNo((r) => r + 1); setQ(makeQ()); setPicked(null); }
@@ -4761,8 +4803,8 @@ function BopoHuntMode({ speak, addStars }) {
     if (picked) return;
     setPicked(s);
     const ok = s === q.ans.s;
-    if (ok) { setRight((r) => r + 1); addStars(1); zh(speak, tf("{0}!{1}!答對了", q.ans.sound, q.ans.word), { rate: 0.9 }); }
-    else zh(speak, tf("{0},是 {1}", q.ans.word, q.ans.sound), { rate: 0.8 });
+    if (ok) { setRight((r) => r + 1); addStars(1); zh(speak, tf("{0}!{1}!答對了", bopoRead(q.ans), q.ans.word), { rate: 0.9 }); }
+    else zh(speak, tf("{0},是 {1}", q.ans.word, bopoRead(q.ans)), { rate: 0.8 });
     setTimeout(() => {
       if (roundNo >= TOTAL) setDone(true);
       else { setRoundNo((r) => r + 1); setQ(makeQ()); setPicked(null); }
@@ -4831,7 +4873,7 @@ function BopoMatchMode({ speak, addStars }) {
   const [picked, setPicked] = useState(null);
   const [done, setDone] = useState(false);
 
-  const say = useCallback(() => zh(speak, q.ans.sound, { rate: 0.75 }), [q, speak]);
+  const say = useCallback(() => zh(speak, bopoRead(q.ans), { rate: 0.75 }), [q, speak]);
   useEffect(() => {
     const t = setTimeout(say, 400);
     return () => clearTimeout(t);
@@ -4842,7 +4884,7 @@ function BopoMatchMode({ speak, addStars }) {
     setPicked(b.s);
     const ok = b.s === q.ans.s;
     if (ok) { setRight((r) => r + 1); addStars(1); zh(speak, tf("{0}!答對了", q.ans.word), { rate: 0.9 }); }
-    else zh(speak, tf("{0},是{1}", q.ans.sound, q.ans.word), { rate: 0.8 });
+    else zh(speak, tf("{0},是{1}", bopoRead(q.ans), q.ans.word), { rate: 0.8 });
     setTimeout(() => {
       if (roundNo >= TOTAL) setDone(true);
       else { setRoundNo((r) => r + 1); setQ(makeQ()); setPicked(null); }
@@ -4973,7 +5015,7 @@ function BopoLearnMode({ speak }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
         {list.map((b) => (
           <button key={b.s}
-            onClick={() => zh(speak, b.sound, { rate: 0.8, onEnd: () => zh(speak, b.word, { rate: 0.85 }) })}
+            onClick={() => zh(speak, bopoRead(b), { rate: 0.8, onEnd: () => zh(speak, b.word, { rate: 0.85 }) })}
             style={{
               background: T.card, border: "3px solid #E8E4FA", borderRadius: 18,
               padding: "12px 4px", fontFamily: "inherit", cursor: "pointer",
@@ -5010,7 +5052,7 @@ function BopoBlendMode({ speak, addStars }) {
       setTimeout(() => {
         setLit(i);
         const b = BOPOMOFO.find((x) => x.s === p);
-        zh(speak, b ? b.sound : p, { rate: 0.8 });
+        zh(speak, b ? bopoRead(b) : p, { rate: 0.8 });
       }, i * 800);
     });
     setTimeout(() => { setLit(ps.length); zh(speak, q.ans.word, { rate: 0.85 }); }, ps.length * 800 + 250);
@@ -5184,7 +5226,7 @@ function BopoBubbleMode({ speak, addStars }) {
   const [cheer, setCheer] = useState("");
   const [done, setDone] = useState(false);
 
-  const say = useCallback(() => zh(speak, round.target.sound, { rate: 0.8 }), [round, speak]);
+  const say = useCallback(() => zh(speak, bopoRead(round.target), { rate: 0.8 }), [round, speak]);
   useEffect(() => {
     if (!done) {
       const t = setTimeout(say, 500);
@@ -5196,7 +5238,7 @@ function BopoBubbleMode({ speak, addStars }) {
     if (popping) return;
     if (b.s === round.target.s) {
       setPopping(b.s); setCheer(""); addStars(1);
-      zh(speak, tf("{0}!答對了", b.sound), { rate: 0.95 });
+      zh(speak, tf("{0}!答對了", bopoRead(b)), { rate: 0.95 });
       const np = pops + 1;
       setTimeout(() => {
         setPopping(null); setPops(np);
@@ -5272,7 +5314,7 @@ function BopoPairsMode({ speak, addStars }) {
 
   const flip = (i) => {
     if (lock || open.includes(i) || matched.has(cards[i].b.s)) return;
-    zh(speak, cards[i].b.sound, { rate: 0.85 });
+    zh(speak, bopoRead(cards[i].b), { rate: 0.85 });
     if (open.length === 0) { setOpen([i]); return; }
     const j = open[0];
     if (cards[j].b.s === cards[i].b.s) {
@@ -5628,7 +5670,10 @@ const pickOthers = (arr, n, notKey, keyFn) =>
   shuffle(arr.filter((x) => keyFn(x) !== notKey)).slice(0, n);
 
 // ========== ㄅㄆㄇ:14 個以 PickQuiz 骨架實作的遊戲 ==========
+const BOPO_BY_SYMBOL = Object.fromEntries(BOPOMOFO.map((b) => [b.s, b]));
+// 顯示用:代表字;唸出來用:bopoReadSym()(會跟著「注音怎麼唸」的設定走)
 const BOPO_SOUND = Object.fromEntries(BOPOMOFO.map((b) => [b.s, b.sound]));
+const bopoReadSym = (sym) => bopoRead(BOPO_BY_SYMBOL[sym]) || sym;
 const ZH_CONSONANTS = BOPOMOFO.slice(0, 21);   // 聲母 21
 const ZH_VOWELS = BOPOMOFO.slice(24);          // 韻母 13
 const ZH_NUM = ["零", "一", "二", "三", "四", "五", "六"];
@@ -5669,7 +5714,7 @@ function ZhFamilyMode({ speak, addStars }) {
   return (
     <PickQuiz speak={speak} addStars={addStars} doneIcon="👨‍👩‍👧" hint={t("哪一個字的韻母是它?")}
       makeQ={makeQ}
-      say={(q) => zh(speak, tf("找出韻母是 {0} 的字", BOPO_SOUND[q.f]), { rate: 0.8 })}
+      say={(q) => zh(speak, tf("找出韻母是 {0} 的字", bopoReadSym(q.f)), { rate: 0.8 })}
       options={(q) => q.opts} keyOf={(o) => o.w}
       isRight={(o, q) => finalOf(o.zhu) === q.f}
       renderPrompt={(q) => (
@@ -5679,7 +5724,7 @@ function ZhFamilyMode({ speak, addStars }) {
         </>
       )}
       renderOption={optEmojiWord}
-      onRight={(q, o) => zh(speak, tf("對!{0},韻母是 {1}", o.w, BOPO_SOUND[q.f]), { rate: 0.85 })}
+      onRight={(q, o) => zh(speak, tf("對!{0},韻母是 {1}", o.w, bopoReadSym(q.f)), { rate: 0.85 })}
       onWrong={(q) => zh(speak, tf("答案是 {0}", q.ans.w), { rate: 0.8 })}
     />
   );
@@ -5741,8 +5786,8 @@ function ZhEndSoundMode({ speak, addStars }) {
           {picked && <div style={{ fontSize: 13, color: T.sub }}>{BOPO_SOUND[o]}</div>}
         </>
       )}
-      onRight={(q) => zh(speak, tf("對!{0} 的韻母是 {1}", q.ans.w, BOPO_SOUND[q.f]), { rate: 0.85 })}
-      onWrong={(q) => zh(speak, tf("{0},韻母是 {1}", q.ans.w, BOPO_SOUND[q.f]), { rate: 0.8 })}
+      onRight={(q) => zh(speak, tf("對!{0} 的韻母是 {1}", q.ans.w, bopoReadSym(q.f)), { rate: 0.85 })}
+      onWrong={(q) => zh(speak, tf("{0},韻母是 {1}", q.ans.w, bopoReadSym(q.f)), { rate: 0.8 })}
     />
   );
 }
@@ -5995,7 +6040,7 @@ function ZhMedialMode({ speak, addStars }) {
         </>
       )}
       onRight={(q) => zh(speak, tf("對!{0}", q.item.w), { rate: 0.85 })}
-      onWrong={(q) => zh(speak, tf("是 {0},{1}", BOPO_SOUND[q.item.m], q.item.w), { rate: 0.75 })}
+      onWrong={(q) => zh(speak, tf("是 {0},{1}", bopoReadSym(q.item.m), q.item.w), { rate: 0.75 })}
     />
   );
 }
@@ -6010,7 +6055,7 @@ function ZhFindMode({ speak, addStars }) {
   return (
     <PickQuiz speak={speak} addStars={addStars} doneIcon="🔍" hint={t("聽注音的聲音,找出符號")}
       makeQ={makeQ}
-      say={(q) => zh(speak, q.ans.sound, { rate: 0.6 })}
+      say={(q) => zh(speak, bopoRead(q.ans), { rate: 0.6 })}
       options={(q) => q.opts} keyOf={(o) => o.s}
       isRight={(o, q) => o.s === q.ans.s}
       renderPrompt={(q, picked) => (
@@ -6027,8 +6072,8 @@ function ZhFindMode({ speak, addStars }) {
           {picked && <div style={{ fontSize: 13, color: T.sub }}>{o.sound}</div>}
         </>
       )}
-      onRight={(q) => zh(speak, tf("對!{0},{1}", q.ans.sound, q.ans.word), { rate: 0.85 })}
-      onWrong={(q) => zh(speak, tf("是這個,{0}", q.ans.sound), { rate: 0.8 })}
+      onRight={(q) => zh(speak, tf("對!{0},{1}", bopoRead(q.ans), q.ans.word), { rate: 0.85 })}
+      onWrong={(q) => zh(speak, tf("是這個,{0}", bopoRead(q.ans)), { rate: 0.8 })}
     />
   );
 }
@@ -6042,7 +6087,7 @@ function ZhTypeMode({ speak, addStars }) {
   return (
     <PickQuiz speak={speak} addStars={addStars} cols={2} doneIcon="🧠" hint={t("這個注音放前面還是後面?")}
       makeQ={makeQ}
-      say={(q) => zh(speak, q.item.sound, { rate: 0.6 })}
+      say={(q) => zh(speak, bopoRead(q.item), { rate: 0.6 })}
       options={() => ["c", "v"]} keyOf={(o) => o}
       isRight={(o, q) => (o === "c") === q.isC}
       renderPrompt={(q, picked) => (
@@ -6132,7 +6177,7 @@ function ZhSpellMode({ speak, addStars }) {
       if (nf >= parts.length) {
         setDoneWord(true); setWins((w) => w + 1); addStars(2);
         zh(speak, word.w, { rate: 0.85, onEnd: () => zh(speak, t("太棒了!"), { rate: 0.95 }) });
-      } else zh(speak, BOPO_SOUND[tile.ch], { rate: 0.7 });
+      } else zh(speak, bopoReadSym(tile.ch), { rate: 0.7 });
     } else {
       setWrongId(tile.id);
       setTimeout(() => setWrongId(null), 600);
@@ -6220,8 +6265,8 @@ function ZhMissingMode({ speak, addStars }) {
     if (picked) return;
     setPicked(b.s);
     const ok = b.s === q.missing.s;
-    if (ok) { setRight((r) => r + 1); addStars(1); zh(speak, tf("對!是 {0}", q.missing.sound), { rate: 0.9 }); }
-    else zh(speak, tf("少了 {0}", q.missing.sound), { rate: 0.8 });
+    if (ok) { setRight((r) => r + 1); addStars(1); zh(speak, tf("對!是 {0}", bopoRead(q.missing)), { rate: 0.9 }); }
+    else zh(speak, tf("少了 {0}", bopoRead(q.missing)), { rate: 0.8 });
     setTimeout(() => { if (roundNo >= TOTAL) setDone(true); else nextRound(); }, 1700);
   };
 
@@ -6299,7 +6344,7 @@ function ZhSequenceMode({ speak, addStars }) {
     clearTimers();
     setLitIdx(-1);
     seq.forEach((b, i) => {
-      timers.current.push(setTimeout(() => { setLitIdx(i); zh(speak, b.sound, { rate: 0.7 }); }, 500 + i * 950));
+      timers.current.push(setTimeout(() => { setLitIdx(i); zh(speak, bopoRead(b), { rate: 0.7 }); }, 500 + i * 950));
     });
     timers.current.push(setTimeout(() => { setLitIdx(-1); setStep(0); setPhase("input"); }, 500 + seq.length * 950 + 300));
     return clearTimers;
@@ -6310,7 +6355,7 @@ function ZhSequenceMode({ speak, addStars }) {
   const tap = (b) => {
     if (phase !== "input") return;
     if (b.s === seq[step].s) {
-      zh(speak, b.sound, { rate: 0.75 });
+      zh(speak, bopoRead(b), { rate: 0.75 });
       const ns = step + 1;
       if (ns >= seq.length) {
         addStars(1); setRight((r) => r + 1); setPhase("good");
@@ -6321,7 +6366,7 @@ function ZhSequenceMode({ speak, addStars }) {
         }, 1300));
       } else setStep(ns);
     } else {
-      zh(speak, seq[step].sound, { rate: 0.7 });
+      zh(speak, bopoRead(seq[step]), { rate: 0.7 });
       timers.current.push(setTimeout(() => setPhase("show"), 700));
     }
   };
@@ -6654,7 +6699,7 @@ function ZhSightMode({ speak, addStars }) {
 
   useEffect(() => {
     if (view === "quiz" && target) {
-      const t = setTimeout(() => zh(speak, target.sound, { rate: 0.65 }), 400);
+      const t = setTimeout(() => zh(speak, bopoRead(target), { rate: 0.65 }), 400);
       return () => clearTimeout(t);
     }
   }, [view, target, speak]);
@@ -6664,7 +6709,7 @@ function ZhSightMode({ speak, addStars }) {
     setPicked(b.s);
     if (b.s === target.s) {
       addStars(1);
-      zh(speak, `${target.sound}!${target.word}`, { rate: 0.85 });
+      zh(speak, `${bopoRead(target)}!${target.word}`, { rate: 0.85 });
       const nm = new Set(mastered).add(target.s);
       setTimeout(() => {
         setMastered(nm);
@@ -6687,7 +6732,7 @@ function ZhSightMode({ speak, addStars }) {
     } else {
       setWrongSet((s) => new Set(s).add(target.s));
       setEncourage(t("沒關係!仔細聽,它等一下還會再出現 💪"));
-      zh(speak, target.sound, { rate: 0.6 });
+      zh(speak, bopoRead(target), { rate: 0.6 });
       setTimeout(() => {
         const rest = [...queue.slice(1), queue[0]];
         setQueue(rest); setPicked(null);
@@ -6759,7 +6804,7 @@ function ZhSightMode({ speak, addStars }) {
             const ok = heard.has(b.s);
             return (
               <button key={b.s}
-                onClick={() => { zh(speak, `${b.sound},${b.word}`, { rate: 0.75 }); setHeard((s) => new Set(s).add(b.s)); }}
+                onClick={() => { zh(speak, `${bopoRead(b)},${b.word}`, { rate: 0.75 }); setHeard((s) => new Set(s).add(b.s)); }}
                 style={{
                   background: ok ? "#E9FBEF" : T.card,
                   border: `3px solid ${ok ? T.green : "#E8E4FA"}`,
@@ -6793,7 +6838,7 @@ function ZhSightMode({ speak, addStars }) {
         marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
         <p style={{ color: T.sub, margin: "0 0 10px", fontSize: 15 }}>{t("仔細聽,點出正確的注音,氣球就會變星星!")}</p>
         <ChunkyButton color={T.yellow} dark={T.yellowDark} style={{ color: T.ink }}
-          onClick={() => target && zh(speak, target.sound, { rate: 0.65 })}>{t("🔊 再聽一次")}</ChunkyButton>
+          onClick={() => target && zh(speak, bopoRead(target), { rate: 0.65 })}>{t("🔊 再聽一次")}</ChunkyButton>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: nChoices === 2 ? "1fr 1fr" : "1fr 1fr 1fr", gap: 12 }}>
         {options.map((b) => {
@@ -9130,14 +9175,14 @@ function BopoWriteMode({ speak, addStars }) {
     setIdx(i);
     setCelebrate(false);
     setCheer("");
-    zh(speak, BOPOMOFO[i].sound, { rate: 0.8 });
+    zh(speak, bopoRead(BOPOMOFO[i]), { rate: 0.8 });
   };
 
   const markDone = () => {
     setCelebrate(true);
     setCheer("");
     addStars(2);
-    zh(speak, `${item.sound}!${item.word}`, { rate: 0.9 });
+    zh(speak, `${bopoRead(item)}!${item.word}`, { rate: 0.9 });
     setDoneSet((prev) => {
       const next = new Set(prev);
       next.add(s);
@@ -9159,7 +9204,7 @@ function BopoWriteMode({ speak, addStars }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center",
         gap: 10, marginBottom: 12 }}>
         <ChunkyButton color={T.yellow} dark={T.yellowDark}
-          onClick={() => zh(speak, item.sound, { rate: 0.8 })}
+          onClick={() => zh(speak, bopoRead(item), { rate: 0.8 })}
           style={{ color: T.ink, padding: "10px 18px", fontSize: 16 }}>{tf("🔊 {0} 怎麼唸", s)}</ChunkyButton>
         <button
           onClick={() => zh(speak, item.word, { rate: 0.85 })}
@@ -9765,6 +9810,9 @@ export default function WordPop() {
   // 介面語言:換語言只要讓最上層重畫一次,底下所有 t() 就會重新取值
   const [lang, setLangState] = useState(LANG);
   const switchLang = (l) => { setLang(l); setLangState(l); };
+  const zhVoice = useZhVoiceState();
+  const [bopoRead2, setBopoRead2] = useState(BOPO_READ);
+  const switchBopoRead = (m) => { setBopoRead(m); setBopoRead2(m); };
   // 目前選的科目分頁(記住上次選的)
   const [subject, setSubject] = useState(() => {
     try {
@@ -10023,6 +10071,40 @@ canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
                 >{tf("🧹 清空學習紀錄(家長)")}</button>
               )}
             </div>
+            {zhVoice === "none" && (
+              <div style={{ marginTop: 14, background: "#FFF3D6", border: "2px solid #FFD93D",
+                borderRadius: 14, padding: "10px 12px", color: T.ink, fontSize: 13,
+                lineHeight: 1.6, textAlign: "left", maxWidth: 380, margin: "14px auto 0" }}>
+                {t("⚠️ 這台裝置找不到中文語音,注音遊戲會被英文聲音硬唸中文字,聽起來像外國人。請到手機的「設定 → 協助工具 → 朗讀內容 / 語音」加裝中文(台灣)語音。")}
+              </div>
+            )}
+            {zhVoice === "other" && (
+              <div style={{ marginTop: 14, color: "#B7B2D8", fontSize: 12, lineHeight: 1.6 }}>
+                {t("注音遊戲用的不是台灣的中文語音,口音會不太一樣;裝了中文(台灣)語音會更準。")}
+              </div>
+            )}
+            <div style={{ marginTop: 14, display: "flex", gap: 6,
+              justifyContent: "center", alignItems: "center", flexWrap: "wrap" }}>
+              <span style={{ fontSize: 13, color: "#B7B2D8", fontWeight: 700 }}>ㄅ</span>
+              {[["symbol", t("唸注音符號")], ["char", t("唸代表字")]].map(([k, label]) => {
+                const on = bopoRead2 === k;
+                return (
+                  <button key={k} onClick={() => switchBopoRead(k)}
+                    style={{
+                      fontFamily: "inherit", fontWeight: 700, fontSize: 13,
+                      padding: "6px 14px", borderRadius: 999, cursor: "pointer",
+                      border: `2px solid ${on ? T.purpleDark : "#E0DBF7"}`,
+                      background: on ? T.purple : "#FFFFFF",
+                      color: on ? "#fff" : T.sub, transition: "all .15s",
+                    }}>
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            <p style={{ color: "#C9C4E8", fontSize: 11, margin: "6px 0 0", lineHeight: 1.6 }}>
+              {t("注音唸起來怪怪的就換另一個:「唸注音符號」最準,但有些裝置的語音不認得符號。")}
+            </p>
             <div style={{ marginTop: 14, display: "flex", gap: 6,
               justifyContent: "center", alignItems: "center" }}>
               <span style={{ fontSize: 13, color: "#B7B2D8", fontWeight: 700 }}>🌐</span>
