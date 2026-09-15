@@ -362,7 +362,7 @@ const SIGHT_WORDS = [
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
 // 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
-const APP_VERSION = "v1.36";
+const APP_VERSION = "v1.37";
 const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
@@ -387,33 +387,34 @@ const SPEAKABLE_RE = /^[a-z]+(?:[ -][a-z]+){0,2}$/i; // 單字或 2~3 字的複�
 // ---------- 中文語音是否存在 ----------
 // "tw" = 有台灣中文語音;"other" = 只有其他中文(例如 zh-CN,口音會不一樣);
 // "none" = 這台裝置沒有中文語音,系統會拿英文聲音硬唸中文字,聽起來像外國人在唸。
-let ZH_VOICE_STATE = "unknown";
+let ZH_VOICE_INFO = { state: "unknown", name: "", lang: "" };
 const zhVoiceListeners = new Set();
-const setZhVoiceState = (v) => {
-  if (ZH_VOICE_STATE === v) return;
-  ZH_VOICE_STATE = v;
-  zhVoiceListeners.forEach((fn) => fn(v));
+const setZhVoiceInfo = (info) => {
+  if (JSON.stringify(info) === JSON.stringify(ZH_VOICE_INFO)) return;
+  ZH_VOICE_INFO = info;
+  zhVoiceListeners.forEach((fn) => fn(info));
 };
-function useZhVoiceState() {
-  const [v, setV] = useState(ZH_VOICE_STATE);
+function useZhVoiceInfo() {
+  const [v, setV] = useState(ZH_VOICE_INFO);
   useEffect(() => {
     zhVoiceListeners.add(setV);
-    setV(ZH_VOICE_STATE);
+    setV(ZH_VOICE_INFO);
     return () => { zhVoiceListeners.delete(setV); };
   }, []);
   return v;
 }
 
 // ---------- 注音要怎麼唸 ----------
-// "symbol" = 直接把注音符號送給語音引擎(台灣的中文語音多半認得,最準);
-// "char"   = 退回用代表字(ㄅ→波),萬一裝置唸不出注音符號時用。
+// "char"   = 用代表字唸「呼讀音」(ㄅ→波)。注音符號本身是音素,單獨發不出來,
+//            教材用呼讀音就是這個原因,所以這是預設。
+// "symbol" = 直接把注音符號送給語音引擎。少數語音認得,多數唸不出來,所以讓家長自己選。
 const BOPO_READ_KEY = "wordpop-bopo-read";
 let BOPO_READ = (() => {
-  try { return localStorage.getItem(BOPO_READ_KEY) === "char" ? "char" : "symbol"; }
-  catch { return "symbol"; }
+  try { return localStorage.getItem(BOPO_READ_KEY) === "symbol" ? "symbol" : "char"; }
+  catch { return "char"; }
 })();
 const setBopoRead = (m) => {
-  BOPO_READ = m === "char" ? "char" : "symbol";
+  BOPO_READ = m === "symbol" ? "symbol" : "char";
   try { localStorage.setItem(BOPO_READ_KEY, BOPO_READ); } catch { /* 無痕模式就不保存 */ }
 };
 // 一個注音符號要「唸出來」的文字(read 是特地挑過聲調的代表字,沒有就用 sound)
@@ -533,7 +534,11 @@ function useSpeech() {
         null;
       // 裝置上到底有沒有中文語音?沒有的話會變成英文聲音硬唸中文字,
       // 聽起來像外國人在唸,要讓爸媽知道是裝置要裝語音,不是遊戲壞了
-      if (vs.length) setZhVoiceState(zhVoiceRef.current ? (isTW(zhVoiceRef.current) ? "tw" : "other") : "none");
+      if (vs.length) {
+        const v = zhVoiceRef.current;
+        setZhVoiceInfo({ state: v ? (isTW(v) ? "tw" : "other") : "none",
+          name: v ? v.name : "", lang: v ? v.lang : "" });
+      }
     };
     pick();
     window.speechSynthesis?.addEventListener("voiceschanged", pick);
@@ -4688,10 +4693,15 @@ const BOPO_FIRST = BOPOMOFO.filter((b) => b.first); // 例詞真的以該注音�
 
 // 中文語音捷徑:字串裡還有中文就用中文聲音唸,已經翻成英文的就走英文發音管道
 const HAS_CJK = /[\u4e00-\u9fff\u3105-\u312f]/;
-const zh = (speak, text, opts = {}) =>
-  HAS_CJK.test(String(text))
-    ? speak(text, { lang: "zh-TW", rate: 0.85, ...opts })
-    : speak(text, { rate: 0.9, ...opts });
+const zh = (speak, text, opts = {}) => {
+  const str = String(text);
+  if (!HAS_CJK.test(str)) return speak(str, { rate: 0.9, ...opts });
+  // 中文語音一放慢就會拖長、變含糊,只有一兩個字時特別明顯,
+  // 所以中文設語速下限(英文放慢沒這個問題,不受影響)
+  const n = str.replace(/[^\u4e00-\u9fff\u3105-\u312f]/g, "").length;
+  const floor = n <= 2 ? 0.95 : 0.85;
+  return speak(str, { lang: "zh-TW", ...opts, rate: Math.max(opts.rate ?? 0.85, floor) });
+};
 
 // ---------- ㄅㄆㄇ 接接看(注音順序)----------
 function BopoOrderMode({ speak, addStars }) {
@@ -9810,8 +9820,10 @@ export default function WordPop() {
   // 介面語言:換語言只要讓最上層重畫一次,底下所有 t() 就會重新取值
   const [lang, setLangState] = useState(LANG);
   const switchLang = (l) => { setLang(l); setLangState(l); };
-  const zhVoice = useZhVoiceState();
+  const zhVoiceInfo = useZhVoiceInfo();
+  const zhVoice = zhVoiceInfo.state;
   const [bopoRead2, setBopoRead2] = useState(BOPO_READ);
+  const [showVoice, setShowVoice] = useState(false);
   const switchBopoRead = (m) => { setBopoRead(m); setBopoRead2(m); };
   // 目前選的科目分頁(記住上次選的)
   const [subject, setSubject] = useState(() => {
@@ -10083,28 +10095,70 @@ canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
                 {t("注音遊戲用的不是台灣的中文語音,口音會不太一樣;裝了中文(台灣)語音會更準。")}
               </div>
             )}
-            <div style={{ marginTop: 14, display: "flex", gap: 6,
-              justifyContent: "center", alignItems: "center", flexWrap: "wrap" }}>
-              <span style={{ fontSize: 13, color: "#B7B2D8", fontWeight: 700 }}>ㄅ</span>
-              {[["symbol", t("唸注音符號")], ["char", t("唸代表字")]].map(([k, label]) => {
-                const on = bopoRead2 === k;
-                return (
-                  <button key={k} onClick={() => switchBopoRead(k)}
+            <button
+              onClick={() => setShowVoice((v) => !v)}
+              style={{
+                marginTop: 14, fontFamily: "inherit", fontWeight: 700, fontSize: 13,
+                background: "none", border: "none", color: "#B7B2D8",
+                cursor: "pointer", textDecoration: "underline",
+              }}>
+              {tf("🔍 注音發音檢查(家長) {0}", showVoice ? t("▲ 收起") : t("▼ 展開"))}
+            </button>
+            {showVoice && (
+              <div style={{ background: T.card, borderRadius: 18, padding: "14px",
+                boxShadow: "0 5px 0 #E0DBF7", margin: "10px auto 0", maxWidth: 380, textAlign: "left" }}>
+                <div style={{ fontSize: 13, color: T.sub, lineHeight: 1.8 }}>
+                  {t("這台裝置的中文語音:")}
+                  <b style={{ color: zhVoice === "none" ? T.red : T.ink }}>
+                    {zhVoice === "none" ? t("找不到 ❌") : `${zhVoiceInfo.name} (${zhVoiceInfo.lang})`}
+                  </b>
+                </div>
+                <div style={{ fontSize: 13, color: T.sub, marginTop: 8, lineHeight: 1.7 }}>
+                  {t("四個都按按看,聽哪一個是正常的:")}
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+                  {[["ㄅ", t("注音符號")], ["波", t("代表字")], ["爸爸", t("一般中文詞")]].map(([txt, tag]) => (
+                    <button key={txt} onClick={() => zh(speak, txt, { rate: 1 })}
+                      style={{
+                        fontFamily: "inherit", fontWeight: 700, fontSize: 14,
+                        padding: "8px 12px", borderRadius: 14, cursor: "pointer",
+                        border: "2px solid #E0DBF7", background: "#F6F4FE", color: T.ink,
+                      }}>
+                      🔊 {txt}<span style={{ fontSize: 11, color: T.sub }}> · {tag}</span>
+                    </button>
+                  ))}
+                  <button onClick={() => speak("cat", { rate: 1 })}
                     style={{
-                      fontFamily: "inherit", fontWeight: 700, fontSize: 13,
-                      padding: "6px 14px", borderRadius: 999, cursor: "pointer",
-                      border: `2px solid ${on ? T.purpleDark : "#E0DBF7"}`,
-                      background: on ? T.purple : "#FFFFFF",
-                      color: on ? "#fff" : T.sub, transition: "all .15s",
+                      fontFamily: "inherit", fontWeight: 700, fontSize: 14,
+                      padding: "8px 12px", borderRadius: 14, cursor: "pointer",
+                      border: "2px solid #E0DBF7", background: "#F6F4FE", color: T.ink,
                     }}>
-                    {label}
+                    🔊 cat<span style={{ fontSize: 11, color: T.sub }}> · {t("英文")}</span>
                   </button>
-                );
-              })}
-            </div>
-            <p style={{ color: "#C9C4E8", fontSize: 11, margin: "6px 0 0", lineHeight: 1.6 }}>
-              {t("注音唸起來怪怪的就換另一個:「唸注音符號」最準,但有些裝置的語音不認得符號。")}
-            </p>
+                </div>
+                <div style={{ fontSize: 12, color: "#B7B2D8", marginTop: 10, lineHeight: 1.7 }}>
+                  {t("連一般中文詞都不像中文 → 裝置缺中文語音。只有注音符號那個怪 → 選「唸代表字」。")}
+                </div>
+                <div style={{ display: "flex", gap: 6, marginTop: 12, alignItems: "center", flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 13, color: T.sub, fontWeight: 700 }}>{t("注音怎麼唸:")}</span>
+                  {[["char", t("唸代表字")], ["symbol", t("唸注音符號")]].map(([k, label]) => {
+                    const on = bopoRead2 === k;
+                    return (
+                      <button key={k} onClick={() => switchBopoRead(k)}
+                        style={{
+                          fontFamily: "inherit", fontWeight: 700, fontSize: 13,
+                          padding: "6px 14px", borderRadius: 999, cursor: "pointer",
+                          border: `2px solid ${on ? T.purpleDark : "#E0DBF7"}`,
+                          background: on ? T.purple : "#FFFFFF",
+                          color: on ? "#fff" : T.sub, transition: "all .15s",
+                        }}>
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             <div style={{ marginTop: 14, display: "flex", gap: 6,
               justifyContent: "center", alignItems: "center" }}>
               <span style={{ fontSize: 13, color: "#B7B2D8", fontWeight: 700 }}>🌐</span>
