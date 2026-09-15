@@ -76,6 +76,7 @@ export const EN = {
   "⚖️ 哪一個比較{0}?": "⚖️ Which one is {0}?",
   "⚖️ 比輕重": "⚖️ Heavy or Light",
   "⚖️ 誰比較多?": "⚖️ Which Has More?",
+  "⚠️ 注音符號是「音素」,大部分語音唸不出來(上面的 ㄅ 試聽鈕沒聲音或很怪就是)。不確定就選「唸代表字」。": "⚠️ A bopomofo symbol is a phoneme and most voices cannot say it on its own (that's why the ㄅ button above is silent or odd). If unsure, pick Read a sample word.",
   "⚠️ 這台裝置找不到中文語音,注音遊戲會被英文聲音硬唸中文字,聽起來像外國人。請到手機的「設定 → 協助工具 → 朗讀內容 / 語音」加裝中文(台灣)語音。": "⚠️ No Chinese voice found on this device, so an English voice is reading the Chinese — which sounds very wrong. Add a Chinese (Taiwan) voice under Settings → Accessibility → Spoken Content / Text-to-speech.",
   "⚡ 注音快手": "⚡ Bopomofo Flash",
   "✅ 每一筆都描對了!": "✅ Every stroke traced correctly!",

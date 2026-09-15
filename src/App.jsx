@@ -362,7 +362,7 @@ const SIGHT_WORDS = [
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
 // 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
-const APP_VERSION = "v1.37";
+const APP_VERSION = "v1.38";
 const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
@@ -409,13 +409,27 @@ function useZhVoiceInfo() {
 //            教材用呼讀音就是這個原因,所以這是預設。
 // "symbol" = 直接把注音符號送給語音引擎。少數語音認得,多數唸不出來,所以讓家長自己選。
 const BOPO_READ_KEY = "wordpop-bopo-read";
+const BOPO_READ_FIXED_KEY = "wordpop-bopo-read-fixed";
 let BOPO_READ = (() => {
-  try { return localStorage.getItem(BOPO_READ_KEY) === "symbol" ? "symbol" : "char"; }
-  catch { return "char"; }
+  try {
+    const v = localStorage.getItem(BOPO_READ_KEY);
+    // v1.36 誤把「唸注音符號」當預設、也請家長試用,但注音符號是音素,
+    // 多數語音根本唸不出來。幫當時切過去的人自動切回代表字一次;
+    // 之後家長自己再選「唸注音符號」就會留著,不會再被改掉。
+    if (v === "symbol" && !localStorage.getItem(BOPO_READ_FIXED_KEY)) {
+      localStorage.setItem(BOPO_READ_FIXED_KEY, "1");
+      localStorage.setItem(BOPO_READ_KEY, "char");
+      return "char";
+    }
+    return v === "symbol" ? "symbol" : "char";
+  } catch { return "char"; }
 })();
 const setBopoRead = (m) => {
   BOPO_READ = m === "symbol" ? "symbol" : "char";
-  try { localStorage.setItem(BOPO_READ_KEY, BOPO_READ); } catch { /* 無痕模式就不保存 */ }
+  try {
+    localStorage.setItem(BOPO_READ_KEY, BOPO_READ);
+    localStorage.setItem(BOPO_READ_FIXED_KEY, "1"); // 家長自己選過就不再自動調整
+  } catch { /* 無痕模式就不保存 */ }
 };
 // 一個注音符號要「唸出來」的文字(read 是特地挑過聲調的代表字,沒有就用 sound)
 const bopoRead = (b) => (!b ? "" : BOPO_READ === "symbol" ? b.s : (b.read || b.sound));
@@ -10157,6 +10171,11 @@ canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
                     );
                   })}
                 </div>
+                {bopoRead2 === "symbol" && (
+                  <div style={{ fontSize: 12, color: "#C0392B", marginTop: 8, lineHeight: 1.7 }}>
+                    {t("⚠️ 注音符號是「音素」,大部分語音唸不出來(上面的 ㄅ 試聽鈕沒聲音或很怪就是)。不確定就選「唸代表字」。")}
+                  </div>
+                )}
               </div>
             )}
             <div style={{ marginTop: 14, display: "flex", gap: 6,
