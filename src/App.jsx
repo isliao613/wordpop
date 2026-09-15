@@ -362,7 +362,7 @@ const SIGHT_WORDS = [
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
 // 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
-const APP_VERSION = "v1.38";
+const APP_VERSION = "v1.39";
 const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
@@ -2170,6 +2170,7 @@ function BopoRecordMode({ speak, onExit }) {
 
   return (
     <div style={{ textAlign: "center" }}>
+      <h2 style={{ color: T.ink, fontSize: 22, margin: "0 0 8px" }}>{t("🎤 自己錄注音發音")}</h2>
       <p style={{ color: T.sub, fontSize: 14, margin: "0 0 4px", lineHeight: 1.7 }}>
         {t("合成語音唸不好注音,自己錄最準——而且對小小孩來說,爸媽的聲音最好。")}
       </p>
@@ -5324,8 +5325,7 @@ function BopoBlendMode({ speak, addStars }) {
     ps.forEach((p, i) => {
       setTimeout(() => {
         setLit(i);
-        const b = BOPOMOFO.find((x) => x.s === p);
-        zh(speak, b ? bopoRead(b) : p, { rate: 0.8 });
+        sayBopoSym(speak, p, { rate: 0.8 });
       }, i * 800);
     });
     setTimeout(() => { setLit(ps.length); zh(speak, q.ans.word, { rate: 0.85 }); }, ps.length * 800 + 250);
