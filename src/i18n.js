@@ -650,6 +650,26 @@ export const EN = {
   "🫧 單字泡泡": "🫧 Word Bubbles",
   "🫧 數字泡泡": "🫧 Number Bubbles",
   "🫧 注音泡泡": "🫧 Bopomofo Bubbles",
+
+  // 注音錄音(家長)
+  "🎤 自己錄注音發音": "🎤 Record the bopomofo sounds yourself",
+  "機器唸不出注音的音素。爸媽自己錄 37 個音,遊戲就會改用你的聲音,比任何語音都準。": "Speech engines cannot say bopomofo phonemes. Record the 37 sounds yourself and the games will use your voice — far better than any synthetic one.",
+  "🎤 錄注音發音 ({0}/37)": "🎤 Record bopomofo ({0}/37)",
+  "合成語音唸不好注音,自己錄最準——而且對小小孩來說,爸媽的聲音最好。": "Synthetic voices handle bopomofo badly. Your own recording is the most accurate — and for a small child, a parent's voice is the best one.",
+  "唸「呼讀音」就好(ㄅ 唸「ㄅㄛ」、ㄆ 唸「ㄆㄛ」),短促一點。按一下開始、再按一下結束(最長 2.5 秒)。": "Just say the teaching syllable (ㄅ as \u201cbo\u201d, ㄆ as \u201cpo\u201d), nice and short. Tap once to start, tap again to stop (2.5 seconds max).",
+  "已錄 {0} / {1} 個": "{0} of {1} recorded",
+  "有錄音的符號,注音遊戲就會直接播你的聲音;沒錄的還是用合成語音。": "Symbols you have recorded play your voice in the games; the rest still use the synthetic voice.",
+  "📂 匯入音檔": "📂 Import audio files",
+  "匯入時會用檔名配對:檔名含注音符號(ㄅ.mp3)、羅馬拼法(bo.mp3)或編號(01.mp3)都可以。": "Files are matched by name: the bopomofo symbol (ㄅ.mp3), the romanization (bo.mp3) or the number (01.mp3) all work.",
+  "🗑 刪掉全部錄音": "🗑 Delete all recordings",
+  "要刪掉全部的注音錄音嗎?": "Delete every bopomofo recording?",
+  "確定刪掉": "Yes, delete",
+  "← 回主選單": "← Back to menu",
+  "這個瀏覽器不支援錄音,建議用 Chrome 或 Safari": "This browser cannot record audio — try Chrome or Safari",
+  "拿不到麥克風權限,請在瀏覽器允許使用麥克風": "No microphone access — please allow the microphone in your browser",
+  "✅ {0} 錄好了": "✅ {0} recorded",
+  "匯入 {0} 個{1}": "Imported {0} {1}",
+  ",{0} 個檔名對不上": ", {0} file name(s) did not match",
 };
 
 /** t("中文") → 目前語言的字串 */

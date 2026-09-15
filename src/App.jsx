@@ -731,6 +731,31 @@ function useSpeech() {
     return p;
   }, [loadBuffer]);
 
+  // 播放一段已經有的音檔(blob / data URL),並先停掉正在播的東西
+  const playClip = useCallback((url, { onEnd } = {}) => {
+    const ss = window.speechSynthesis;
+    if (ss && (ss.speaking || ss.pending)) ss.cancel();
+    if (audioRef.current) {
+      audioRef.current.onended = null;
+      audioRef.current.pause();
+    }
+    try {
+      const a = blessedRef.current || new Audio();
+      blessedRef.current = a;
+      audioRef.current = a;
+      a.src = url;
+      a.volume = 1;
+      a.playbackRate = 1;
+      a.onended = onEnd || null;
+      const pr = a.play();
+      if (pr && pr.catch) pr.catch(() => { if (onEnd) onEnd(); });
+      return true;
+    } catch {
+      if (onEnd) onEnd();
+      return false;
+    }
+  }, []);
+
   const speak = useCallback(
     async (text, { rate = 0.85, onEnd, lang } = {}) => {
       // 停掉正在播的(增益快速滑到 0 再停,避免「喀」一聲)
@@ -859,8 +884,11 @@ function useSpeech() {
       // 錯開發送,避免一次打太多請求
       (words || []).forEach((w, i) => setTimeout(() => fn.prefetch(w), i * 120));
     };
+    // 直接播一段音檔(家長自己錄的注音發音)。走和真人音檔同一條路:
+    // iOS 只允許「在手勢裡播過一次」的 Audio 元件由程式播放,所以沿用同一顆。
+    fn.playClip = (url, opts = {}) => playClip(url, opts);
     return fn;
-  }, [speak, findHumanAudio]);
+  }, [speak, findHumanAudio, playClip]);
 }
 
 // ---------- 3D 按鈕 ----------
@@ -2033,6 +2061,227 @@ function SchoolSayMode({ speak, addStars }) {
       {!SR && (
         <p style={{ color: "#B7B2D8", fontSize: 12, marginTop: 14 }}>{tf("此瀏覽器不支援語音辨識,改由家長確認模式(建議用 Chrome)")}</p>
       )}
+    </div>
+  );
+}
+
+// ---------- 注音錄音(家長)----------
+// 合成語音唸不好注音的呼讀音,自己錄一次最準,而且對小小孩來說
+// 爸媽的聲音比任何錄音都好。也可以匯入現成音檔。
+const BOPO_ROM = ["bo","po","mo","fo","de","te","ne","le","ge","ke","he","ji","qi","xi",
+  "zhi","chi","shi","ri","zi","ci","si","yi","wu","yu","a","o","e","eh","ai","ei","ao",
+  "ou","an","en","ang","eng","er"];
+const recMime = () => {
+  const c = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg"];
+  if (typeof MediaRecorder === "undefined") return "";
+  return c.find((t) => { try { return MediaRecorder.isTypeSupported(t); } catch { return false; } }) || "";
+};
+// 檔名對應到注音符號:檔名含注音符號 > 含羅馬拼法 > 兩位數編號
+function matchSymbol(filename) {
+  const base = filename.replace(/\.[^.]+$/, "").trim();
+  const sym = [...base].find((ch) => BOPO_BY_SYMBOL[ch]);
+  if (sym) return sym;
+  const low = base.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const ri = BOPO_ROM.indexOf(low);
+  if (ri >= 0) return BOPOMOFO[ri].s;
+  const num = Number(low);
+  if (Number.isInteger(num) && num >= 1 && num <= BOPOMOFO.length) return BOPOMOFO[num - 1].s;
+  return null;
+}
+
+function BopoRecordMode({ speak, onExit }) {
+  const count = useBopoClips();
+  const [recording, setRecording] = useState(null);   // 正在錄的符號
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [confirmClearAll, setConfirmClearAll] = useState(false);
+  const recRef = useRef(null);
+  const streamRef = useRef(null);
+  const stopTimer = useRef(0);
+  const fileRef = useRef(null);
+
+  const cleanup = useCallback(() => {
+    clearTimeout(stopTimer.current);
+    try { recRef.current?.state === "recording" && recRef.current.stop(); } catch { /* 已停 */ }
+    recRef.current = null;
+    try { streamRef.current?.getTracks().forEach((t) => t.stop()); } catch { /* ignore */ }
+    streamRef.current = null;
+  }, []);
+  useEffect(() => cleanup, [cleanup]);
+  useEffect(() => { bopoClipsLoad(); }, []);
+
+  const start = async (b) => {
+    if (recording || busy) return;
+    const mime = recMime();
+    if (!navigator.mediaDevices?.getUserMedia || !mime) {
+      setMsg(t("這個瀏覽器不支援錄音,建議用 Chrome 或 Safari"));
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const rec = new MediaRecorder(stream, { mimeType: mime });
+      recRef.current = rec;
+      const chunks = [];
+      rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+      rec.onstop = async () => {
+        try { streamRef.current?.getTracks().forEach((x) => x.stop()); } catch { /* ignore */ }
+        streamRef.current = null;
+        setRecording(null);
+        const blob = new Blob(chunks, { type: mime });
+        if (blob.size > 0) {
+          await bopoClipSave(b.s, blob);
+          setMsg(tf("✅ {0} 錄好了", b.s));
+          setTimeout(() => setMsg(""), 1500);
+        }
+      };
+      setRecording(b.s);
+      setMsg("");
+      rec.start();
+      stopTimer.current = setTimeout(() => { try { rec.stop(); } catch { /* ignore */ } }, 2500);
+    } catch {
+      setMsg(t("拿不到麥克風權限,請在瀏覽器允許使用麥克風"));
+      setRecording(null);
+    }
+  };
+  const stop = () => { clearTimeout(stopTimer.current); try { recRef.current?.stop(); } catch { /* ignore */ } };
+
+  const onFiles = async (e) => {
+    const files = [...(e.target.files || [])];
+    if (!files.length) return;
+    setBusy(true);
+    let ok = 0, miss = [];
+    for (const f of files) {
+      const sym = matchSymbol(f.name);
+      if (!sym) { miss.push(f.name); continue; }
+      try { await bopoClipSave(sym, f); ok++; } catch { miss.push(f.name); }
+    }
+    setBusy(false);
+    e.target.value = "";
+    setMsg(tf("匯入 {0} 個{1}", ok, miss.length ? tf(",{0} 個檔名對不上", miss.length) : ""));
+  };
+
+  const clearAll = async () => {
+    setBusy(true);
+    for (const b of BOPOMOFO) if (bopoClipUrls[b.s]) await bopoClipRemove(b.s);
+    setBusy(false);
+    setConfirmClearAll(false);
+  };
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <p style={{ color: T.sub, fontSize: 14, margin: "0 0 4px", lineHeight: 1.7 }}>
+        {t("合成語音唸不好注音,自己錄最準——而且對小小孩來說,爸媽的聲音最好。")}
+      </p>
+      <p style={{ color: T.sub, fontSize: 13, margin: "0 0 12px", lineHeight: 1.7 }}>
+        {t("唸「呼讀音」就好(ㄅ 唸「ㄅㄛ」、ㄆ 唸「ㄆㄛ」),短促一點。按一下開始、再按一下結束(最長 2.5 秒)。")}
+      </p>
+
+      <div style={{ background: T.card, borderRadius: 18, padding: "12px 14px",
+        boxShadow: "0 5px 0 #E0DBF7", marginBottom: 12 }}>
+        <div style={{ fontWeight: 800, color: T.ink, fontSize: 17 }}>
+          {tf("已錄 {0} / {1} 個", count, BOPOMOFO.length)}
+        </div>
+        <div style={{ height: 12, background: "#EFECFB", borderRadius: 999, marginTop: 8, overflow: "hidden" }}>
+          <div style={{ width: `${(count / BOPOMOFO.length) * 100}%`, height: "100%",
+            background: count === BOPOMOFO.length ? T.yellow : T.green, borderRadius: 999,
+            transition: "width .3s" }} />
+        </div>
+        <div style={{ fontSize: 12, color: T.sub, marginTop: 8, lineHeight: 1.6 }}>
+          {t("有錄音的符號,注音遊戲就會直接播你的聲音;沒錄的還是用合成語音。")}
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginBottom: 12 }}>
+        <ChunkyButton color={T.purple} dark={T.purpleDark} onClick={() => fileRef.current?.click()}
+          style={{ fontSize: 15, padding: "10px 16px" }}>
+          {t("📂 匯入音檔")}
+        </ChunkyButton>
+        <ChunkyButton color="#B7B2D8" dark="#9A95BF" onClick={onExit}
+          style={{ fontSize: 15, padding: "10px 16px" }}>
+          {t("← 回主選單")}
+        </ChunkyButton>
+      </div>
+      <input ref={fileRef} type="file" accept="audio/*" multiple onChange={onFiles} style={{ display: "none" }} />
+      <p style={{ color: "#B7B2D8", fontSize: 12, margin: "0 0 12px", lineHeight: 1.6 }}>
+        {t("匯入時會用檔名配對:檔名含注音符號(ㄅ.mp3)、羅馬拼法(bo.mp3)或編號(01.mp3)都可以。")}
+      </p>
+      {msg && (
+        <div style={{ color: T.greenDark, fontWeight: 700, fontSize: 14, marginBottom: 10 }}>{msg}</div>
+      )}
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        {BOPOMOFO.map((b, i) => {
+          const has = !!bopoClipUrls[b.s];
+          const isRec = recording === b.s;
+          return (
+            <div key={b.s} style={{
+              display: "flex", alignItems: "center", gap: 6,
+              background: has ? "#E9FBEF" : T.card,
+              border: `3px solid ${isRec ? T.red : has ? T.green : "#E8E4FA"}`,
+              borderRadius: 14, padding: "6px 6px 6px 10px",
+              boxShadow: "0 4px 0 #E0DBF7",
+            }}>
+              <button onClick={() => (has ? sayBopo(speak, b) : undefined)}
+                style={{
+                  flex: 1, minWidth: 0, textAlign: "left", background: "none", border: "none",
+                  fontFamily: "inherit", cursor: has ? "pointer" : "default", padding: "4px 0",
+                }}>
+                <span style={{ fontSize: 24, fontWeight: 800, color: T.purple }}>{b.s}</span>
+                <span style={{ fontSize: 12, color: T.sub, marginLeft: 6 }}>{BOPO_ROM[i]}</span>
+              </button>
+              <button onClick={() => (isRec ? stop() : start(b))} disabled={busy || (recording && !isRec)}
+                aria-label={`${b.s} 錄音`}
+                style={{
+                  width: 34, height: 34, flex: "0 0 auto", borderRadius: "50%",
+                  background: isRec ? T.red : has ? "#FFFFFF" : T.pink,
+                  border: `2px solid ${isRec ? "#C94F4E" : has ? "#E0DBF7" : "#D14B7D"}`,
+                  color: isRec ? "#fff" : has ? T.sub : "#fff",
+                  fontSize: 14, fontFamily: "inherit", cursor: "pointer", lineHeight: 1,
+                  animation: isRec ? "wp-pulse 1s ease-in-out infinite" : "none",
+                }}>
+                {isRec ? "■" : "●"}
+              </button>
+              {has && (
+                <button onClick={() => bopoClipRemove(b.s)} aria-label={`${b.s} 刪除錄音`}
+                  style={{
+                    width: 28, height: 28, flex: "0 0 auto", borderRadius: 8,
+                    background: "#F6F4FE", border: "2px solid #E0DBF7", color: T.sub,
+                    fontSize: 12, fontFamily: "inherit", cursor: "pointer", lineHeight: 1,
+                  }}>🗑</button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ marginTop: 16 }}>
+        {confirmClearAll ? (
+          <div>
+            <div style={{ color: T.sub, fontSize: 14, fontWeight: 700, marginBottom: 8 }}>
+              {t("要刪掉全部的注音錄音嗎?")}
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+              <button onClick={clearAll}
+                style={{ fontFamily: "inherit", fontWeight: 700, fontSize: 14, background: T.red,
+                  color: "#fff", border: "none", borderRadius: 999, padding: "9px 18px",
+                  cursor: "pointer", boxShadow: "0 3px 0 #C94F4E" }}>{t("確定刪掉")}</button>
+              <button onClick={() => setConfirmClearAll(false)}
+                style={{ fontFamily: "inherit", fontWeight: 700, fontSize: 14, background: "#E8E4FA",
+                  color: T.sub, border: "none", borderRadius: 999, padding: "9px 18px", cursor: "pointer" }}>
+                {t("取消")}</button>
+            </div>
+          </div>
+        ) : (
+          count > 0 && (
+            <button onClick={() => setConfirmClearAll(true)}
+              style={{ fontFamily: "inherit", fontWeight: 700, fontSize: 13, background: "none",
+                border: "none", color: "#B7B2D8", cursor: "pointer", textDecoration: "underline" }}>
+              {t("🗑 刪掉全部錄音")}
+            </button>
+          )
+        )}
+      </div>
     </div>
   );
 }
@@ -4897,7 +5146,7 @@ function BopoMatchMode({ speak, addStars }) {
   const [picked, setPicked] = useState(null);
   const [done, setDone] = useState(false);
 
-  const say = useCallback(() => zh(speak, bopoRead(q.ans), { rate: 0.75 }), [q, speak]);
+  const say = useCallback(() => sayBopo(speak, q.ans, { rate: 0.75 }), [q, speak]);
   useEffect(() => {
     const t = setTimeout(say, 400);
     return () => clearTimeout(t);
@@ -5039,7 +5288,7 @@ function BopoLearnMode({ speak }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
         {list.map((b) => (
           <button key={b.s}
-            onClick={() => zh(speak, bopoRead(b), { rate: 0.8, onEnd: () => zh(speak, b.word, { rate: 0.85 }) })}
+            onClick={() => sayBopo(speak, b, { rate: 0.8, onEnd: () => zh(speak, b.word, { rate: 0.85 }) })}
             style={{
               background: T.card, border: "3px solid #E8E4FA", borderRadius: 18,
               padding: "12px 4px", fontFamily: "inherit", cursor: "pointer",
@@ -5250,7 +5499,7 @@ function BopoBubbleMode({ speak, addStars }) {
   const [cheer, setCheer] = useState("");
   const [done, setDone] = useState(false);
 
-  const say = useCallback(() => zh(speak, bopoRead(round.target), { rate: 0.8 }), [round, speak]);
+  const say = useCallback(() => sayBopo(speak, round.target, { rate: 0.8 }), [round, speak]);
   useEffect(() => {
     if (!done) {
       const t = setTimeout(say, 500);
@@ -5338,7 +5587,7 @@ function BopoPairsMode({ speak, addStars }) {
 
   const flip = (i) => {
     if (lock || open.includes(i) || matched.has(cards[i].b.s)) return;
-    zh(speak, bopoRead(cards[i].b), { rate: 0.85 });
+    sayBopo(speak, cards[i].b, { rate: 0.85 });
     if (open.length === 0) { setOpen([i]); return; }
     const j = open[0];
     if (cards[j].b.s === cards[i].b.s) {
@@ -5698,6 +5947,81 @@ const BOPO_BY_SYMBOL = Object.fromEntries(BOPOMOFO.map((b) => [b.s, b]));
 // 顯示用:代表字;唸出來用:bopoReadSym()(會跟著「注音怎麼唸」的設定走)
 const BOPO_SOUND = Object.fromEntries(BOPOMOFO.map((b) => [b.s, b.sound]));
 const bopoReadSym = (sym) => bopoRead(BOPO_BY_SYMBOL[sym]) || sym;
+
+// ---------- 注音音檔(家長自己錄 / 匯入)----------
+// 存在 IndexedDB(音檔是 Blob,localStorage 塞不下也存不了)。
+// 只要某個符號有音檔,注音遊戲就直接播它,不再用合成語音。
+const BOPO_AUDIO_DB = "wordpop-bopo-audio";
+const BOPO_AUDIO_STORE = "clips";
+let bopoClipUrls = {};          // 符號 -> objectURL(播放用)
+const bopoClipListeners = new Set();
+const notifyBopoClips = () => {
+  const n = Object.keys(bopoClipUrls).length;
+  bopoClipListeners.forEach((fn) => fn(n));
+};
+
+function openBopoDB() {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === "undefined") return reject(new Error("no indexedDB"));
+    const req = indexedDB.open(BOPO_AUDIO_DB, 1);
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains(BOPO_AUDIO_STORE))
+        req.result.createObjectStore(BOPO_AUDIO_STORE);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+function bopoTx(mode, fn) {
+  return openBopoDB().then((db) => new Promise((resolve, reject) => {
+    const tx = db.transaction(BOPO_AUDIO_STORE, mode);
+    const req = fn(tx.objectStore(BOPO_AUDIO_STORE));
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  }));
+}
+async function bopoClipSave(sym, blob) {
+  await bopoTx("readwrite", (st) => st.put(blob, sym));
+  if (bopoClipUrls[sym]) URL.revokeObjectURL(bopoClipUrls[sym]);
+  bopoClipUrls[sym] = URL.createObjectURL(blob);
+  notifyBopoClips();
+}
+async function bopoClipRemove(sym) {
+  await bopoTx("readwrite", (st) => st.delete(sym));
+  if (bopoClipUrls[sym]) URL.revokeObjectURL(bopoClipUrls[sym]);
+  delete bopoClipUrls[sym];
+  notifyBopoClips();
+}
+async function bopoClipsLoad() {
+  try {
+    const keys = await bopoTx("readonly", (st) => st.getAllKeys());
+    const blobs = await bopoTx("readonly", (st) => st.getAll());
+    const next = {};
+    keys.forEach((k, i) => { if (blobs[i]) next[k] = URL.createObjectURL(blobs[i]); });
+    Object.values(bopoClipUrls).forEach(URL.revokeObjectURL);
+    bopoClipUrls = next;
+    notifyBopoClips();
+  } catch { /* 無痕模式或不支援 IndexedDB 就當作沒有音檔 */ }
+}
+function useBopoClips() {
+  const [n, setN] = useState(() => Object.keys(bopoClipUrls).length);
+  useEffect(() => {
+    bopoClipListeners.add(setN);
+    setN(Object.keys(bopoClipUrls).length);
+    return () => { bopoClipListeners.delete(setN); };
+  }, []);
+  return n;
+}
+
+// 唸一個注音符號:有自己錄的音檔就播音檔,沒有才退回合成語音
+const sayBopo = (speak, b, opts = {}) => {
+  const url = b && bopoClipUrls[b.s];
+  if (url && speak.playClip) return speak.playClip(url, { onEnd: opts.onEnd });
+  return zh(speak, bopoRead(b), opts);
+};
+const sayBopoSym = (speak, sym, opts = {}) => sayBopo(speak, BOPO_BY_SYMBOL[sym], opts);
+
+
 const ZH_CONSONANTS = BOPOMOFO.slice(0, 21);   // 聲母 21
 const ZH_VOWELS = BOPOMOFO.slice(24);          // 韻母 13
 const ZH_NUM = ["零", "一", "二", "三", "四", "五", "六"];
@@ -6079,7 +6403,7 @@ function ZhFindMode({ speak, addStars }) {
   return (
     <PickQuiz speak={speak} addStars={addStars} doneIcon="🔍" hint={t("聽注音的聲音,找出符號")}
       makeQ={makeQ}
-      say={(q) => zh(speak, bopoRead(q.ans), { rate: 0.6 })}
+      say={(q) => sayBopo(speak, q.ans, { rate: 0.6 })}
       options={(q) => q.opts} keyOf={(o) => o.s}
       isRight={(o, q) => o.s === q.ans.s}
       renderPrompt={(q, picked) => (
@@ -6111,7 +6435,7 @@ function ZhTypeMode({ speak, addStars }) {
   return (
     <PickQuiz speak={speak} addStars={addStars} cols={2} doneIcon="🧠" hint={t("這個注音放前面還是後面?")}
       makeQ={makeQ}
-      say={(q) => zh(speak, bopoRead(q.item), { rate: 0.6 })}
+      say={(q) => sayBopo(speak, q.item, { rate: 0.6 })}
       options={() => ["c", "v"]} keyOf={(o) => o}
       isRight={(o, q) => (o === "c") === q.isC}
       renderPrompt={(q, picked) => (
@@ -6201,7 +6525,7 @@ function ZhSpellMode({ speak, addStars }) {
       if (nf >= parts.length) {
         setDoneWord(true); setWins((w) => w + 1); addStars(2);
         zh(speak, word.w, { rate: 0.85, onEnd: () => zh(speak, t("太棒了!"), { rate: 0.95 }) });
-      } else zh(speak, bopoReadSym(tile.ch), { rate: 0.7 });
+      } else sayBopoSym(speak, tile.ch, { rate: 0.7 });
     } else {
       setWrongId(tile.id);
       setTimeout(() => setWrongId(null), 600);
@@ -6368,7 +6692,7 @@ function ZhSequenceMode({ speak, addStars }) {
     clearTimers();
     setLitIdx(-1);
     seq.forEach((b, i) => {
-      timers.current.push(setTimeout(() => { setLitIdx(i); zh(speak, bopoRead(b), { rate: 0.7 }); }, 500 + i * 950));
+      timers.current.push(setTimeout(() => { setLitIdx(i); sayBopo(speak, b, { rate: 0.7 }); }, 500 + i * 950));
     });
     timers.current.push(setTimeout(() => { setLitIdx(-1); setStep(0); setPhase("input"); }, 500 + seq.length * 950 + 300));
     return clearTimers;
@@ -6379,7 +6703,7 @@ function ZhSequenceMode({ speak, addStars }) {
   const tap = (b) => {
     if (phase !== "input") return;
     if (b.s === seq[step].s) {
-      zh(speak, bopoRead(b), { rate: 0.75 });
+      sayBopo(speak, b, { rate: 0.75 });
       const ns = step + 1;
       if (ns >= seq.length) {
         addStars(1); setRight((r) => r + 1); setPhase("good");
@@ -6390,7 +6714,7 @@ function ZhSequenceMode({ speak, addStars }) {
         }, 1300));
       } else setStep(ns);
     } else {
-      zh(speak, bopoRead(seq[step]), { rate: 0.7 });
+      sayBopo(speak, seq[step], { rate: 0.7 });
       timers.current.push(setTimeout(() => setPhase("show"), 700));
     }
   };
@@ -6723,7 +7047,7 @@ function ZhSightMode({ speak, addStars }) {
 
   useEffect(() => {
     if (view === "quiz" && target) {
-      const t = setTimeout(() => zh(speak, bopoRead(target), { rate: 0.65 }), 400);
+      const t = setTimeout(() => sayBopo(speak, target, { rate: 0.65 }), 400);
       return () => clearTimeout(t);
     }
   }, [view, target, speak]);
@@ -6756,7 +7080,7 @@ function ZhSightMode({ speak, addStars }) {
     } else {
       setWrongSet((s) => new Set(s).add(target.s));
       setEncourage(t("沒關係!仔細聽,它等一下還會再出現 💪"));
-      zh(speak, bopoRead(target), { rate: 0.6 });
+      sayBopo(speak, target, { rate: 0.6 });
       setTimeout(() => {
         const rest = [...queue.slice(1), queue[0]];
         setQueue(rest); setPicked(null);
@@ -6862,7 +7186,7 @@ function ZhSightMode({ speak, addStars }) {
         marginBottom: 14, boxShadow: "0 5px 0 #E0DBF7" }}>
         <p style={{ color: T.sub, margin: "0 0 10px", fontSize: 15 }}>{t("仔細聽,點出正確的注音,氣球就會變星星!")}</p>
         <ChunkyButton color={T.yellow} dark={T.yellowDark} style={{ color: T.ink }}
-          onClick={() => target && zh(speak, bopoRead(target), { rate: 0.65 })}>{t("🔊 再聽一次")}</ChunkyButton>
+          onClick={() => target && sayBopo(speak, target, { rate: 0.65 })}>{t("🔊 再聽一次")}</ChunkyButton>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: nChoices === 2 ? "1fr 1fr" : "1fr 1fr 1fr", gap: 12 }}>
         {options.map((b) => {
@@ -9199,7 +9523,7 @@ function BopoWriteMode({ speak, addStars }) {
     setIdx(i);
     setCelebrate(false);
     setCheer("");
-    zh(speak, bopoRead(BOPOMOFO[i]), { rate: 0.8 });
+    sayBopo(speak, BOPOMOFO[i], { rate: 0.8 });
   };
 
   const markDone = () => {
@@ -9228,7 +9552,7 @@ function BopoWriteMode({ speak, addStars }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center",
         gap: 10, marginBottom: 12 }}>
         <ChunkyButton color={T.yellow} dark={T.yellowDark}
-          onClick={() => zh(speak, bopoRead(item), { rate: 0.8 })}
+          onClick={() => sayBopo(speak, item, { rate: 0.8 })}
           style={{ color: T.ink, padding: "10px 18px", fontSize: 16 }}>{tf("🔊 {0} 怎麼唸", s)}</ChunkyButton>
         <button
           onClick={() => zh(speak, item.word, { rate: 0.85 })}
@@ -9834,6 +10158,8 @@ export default function WordPop() {
   // 介面語言:換語言只要讓最上層重畫一次,底下所有 t() 就會重新取值
   const [lang, setLangState] = useState(LANG);
   const switchLang = (l) => { setLang(l); setLangState(l); };
+  useEffect(() => { bopoClipsLoad(); }, []);
+  const bopoClipCount = useBopoClips();
   const zhVoiceInfo = useZhVoiceInfo();
   const zhVoice = zhVoiceInfo.state;
   const [bopoRead2, setBopoRead2] = useState(BOPO_READ);
@@ -10176,6 +10502,24 @@ canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
                     {t("⚠️ 注音符號是「音素」,大部分語音唸不出來(上面的 ㄅ 試聽鈕沒聲音或很怪就是)。不確定就選「唸代表字」。")}
                   </div>
                 )}
+                <div style={{ borderTop: "2px dashed #E0DBF7", marginTop: 14, paddingTop: 12 }}>
+                  <div style={{ fontSize: 13, color: T.sub, fontWeight: 700, lineHeight: 1.7 }}>
+                    {t("🎤 自己錄注音發音")}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#B7B2D8", marginTop: 6, lineHeight: 1.7 }}>
+                    {t("機器唸不出注音的音素。爸媽自己錄 37 個音,遊戲就會改用你的聲音,比任何語音都準。")}
+                  </div>
+                  <button
+                    onClick={() => setMode("boporec")}
+                    style={{
+                      marginTop: 10, fontFamily: "inherit", fontWeight: 800, fontSize: 14,
+                      padding: "10px 16px", borderRadius: 14, cursor: "pointer",
+                      border: "none", background: T.purple, color: "#fff",
+                      boxShadow: "0 4px 0 " + T.purpleDark,
+                    }}>
+                    {tf("🎤 錄注音發音 ({0}/37)", bopoClipCount)}
+                  </button>
+                </div>
               </div>
             )}
             <div style={{ marginTop: 14, display: "flex", gap: 6,
@@ -10209,6 +10553,7 @@ canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
         {mode === "sight" && <SightMode speak={speak} addStars={addStars} />}
         {mode === "school" && <SchoolWordsMode speak={speak} addStars={addStars} />}
         {mode === "schoolsay" && <SchoolSayMode speak={speak} addStars={addStars} />}
+        {mode === "boporec" && <BopoRecordMode speak={speak} onExit={() => setMode("home")} />}
         {mode === "sound" && <FirstSoundMode speak={speak} addStars={addStars} />}
         {mode === "sayit" && <SayItMode speak={speak} addStars={addStars} />}
         {mode === "write" && <WriteMode speak={speak} addStars={addStars} />}
