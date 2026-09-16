@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { BOPO_STROKES } from "./bopomofoStrokes.js";
-import { t, tf, LANG, setLang } from "./i18n.js";
+import { t, tf, LANG, setLang, LANG_KEY } from "./i18n.js";
 
 // ---------- 單字庫(大班程度・約 200 字)----------
 const WORD_BANK = {
@@ -362,7 +362,7 @@ const SIGHT_WORDS = [
 
 // 版號:每次更新往上跳(顯示在首頁底部,方便確認手機拿到最新版)
 // 日期由 Vite 建置時自動戳上(見 vite.config.js 的 __BUILD_DATE__)
-const APP_VERSION = "v1.39";
+const APP_VERSION = "v1.40";
 const BUILD_DATE = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
 // ---------- 設計 tokens ----------
@@ -6021,6 +6021,203 @@ const sayBopo = (speak, b, opts = {}) => {
 };
 const sayBopoSym = (speak, sym, opts = {}) => sayBopo(speak, BOPO_BY_SYMBOL[sym], opts);
 
+/* ---------- 備份與還原(家長) ----------
+ *
+ * 為什麼需要這個:iOS Safari 有一條規則,網站「7 天沒被打開」就會把網頁自己寫的
+ * 儲存空間(localStorage 和 IndexedDB)整個清掉。家長錄的 37 個注音、孩子的星星
+ * 和進度全都在這個範圍內,可能兩三週後就不見了。
+ *
+ * 兩道防線:
+ *   1) 把網站「加到主畫面」安裝起來就不受那條規則限制(下面會提示家長怎麼做)
+ *   2) 匯出成一個檔案自己留著,換手機或真的被清掉時可以還原
+ */
+const BACKUP_VERSION = 1;
+// 要備份的 localStorage 鍵。刻意不含 wordpop-audio-cache:那是單字音檔網址的
+// 網路快取,掉了會自己重建,放進來只會讓備份檔變大。
+// 這些鍵有一半在檔案更後面才宣告,所以要用函式延後取值,不能在模組初始化時就求值
+const backupKeys = () => [
+  STARS_KEY, SIGHT_KEY, MATCH_KEY, TRACE_KEY, BOPO_TRACE_KEY,
+  ZH_SIGHT_KEY, NUM_TRACE_KEY, SCHOOL_KEY, SUBJECT_KEY,
+  BOPO_READ_KEY, BOPO_READ_FIXED_KEY, LANG_KEY,
+];
+
+const blobToDataUrl = (blob) => new Promise((resolve, reject) => {
+  const r = new FileReader();
+  r.onload = () => resolve(String(r.result));
+  r.onerror = () => reject(r.error);
+  r.readAsDataURL(blob);
+});
+
+async function buildBackup() {
+  const local = {};
+  for (const k of backupKeys()) {
+    try {
+      const v = localStorage.getItem(k);
+      if (v !== null) local[k] = v;
+    } catch { /* 讀不到就跳過 */ }
+  }
+  // 注音錄音:從 IndexedDB 原樣取出,轉成 data URL 才能放進 JSON
+  const clips = {};
+  try {
+    const keys = await bopoTx("readonly", (st) => st.getAllKeys());
+    const blobs = await bopoTx("readonly", (st) => st.getAll());
+    for (let i = 0; i < keys.length; i++) {
+      if (blobs[i]) clips[keys[i]] = await blobToDataUrl(blobs[i]);
+    }
+  } catch { /* 沒有 IndexedDB 就只備份進度 */ }
+  return {
+    app: "wordpop",
+    backupVersion: BACKUP_VERSION,
+    appVersion: APP_VERSION,
+    savedAt: new Date().toISOString(),
+    local,
+    clips,
+  };
+}
+
+async function applyBackup(data) {
+  if (!data || data.app !== "wordpop" || typeof data.local !== "object")
+    throw new Error("not a wordpop backup");
+  let keys = 0, clips = 0;
+  for (const k of backupKeys()) {
+    const v = data.local?.[k];
+    if (typeof v !== "string") continue;
+    try { localStorage.setItem(k, v); keys++; } catch { /* 空間不足就跳過 */ }
+  }
+  for (const [sym, url] of Object.entries(data.clips || {})) {
+    if (typeof url !== "string" || !url.startsWith("data:")) continue;
+    try {
+      const blob = await (await fetch(url)).blob();
+      await bopoClipSave(sym, blob);
+      clips++;
+    } catch { /* 單一音檔壞掉不影響其他 */ }
+  }
+  return { keys, clips };
+}
+
+// 把備份存成檔案。iOS Safari 會存進「檔案」App,Android/桌機是一般下載。
+function downloadBackup(data) {
+  const name = `wordpop-backup-${data.savedAt.slice(0, 10)}.json`;
+  const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // 立刻 revoke 在部分瀏覽器會讓下載中斷,延遲一下比較保險
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  return name;
+}
+
+// 已經「加到主畫面」安裝起來了嗎?裝起來才不會被 7 天規則清掉。
+function isInstalled() {
+  try {
+    return window.matchMedia?.("(display-mode: standalone)").matches || navigator.standalone === true;
+  } catch { return false; }
+}
+const isIOS = () => {
+  try {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  } catch { return false; }
+};
+
+function BackupPanel() {
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const fileRef = useRef(null);
+  const installed = isInstalled();
+
+  const onExport = async () => {
+    if (busy) return;
+    setBusy(true); setErr(""); setMsg("");
+    try {
+      const data = await buildBackup();
+      const n = Object.keys(data.clips).length;
+      const name = downloadBackup(data);
+      setMsg(tf("已存成 {0}(含 {1} 個注音錄音)", name, n));
+    } catch {
+      setErr(t("備份失敗,請再試一次"));
+    }
+    setBusy(false);
+  };
+
+  const onImport = async (e) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f || busy) return;
+    setBusy(true); setErr(""); setMsg("");
+    try {
+      const data = JSON.parse(await f.text());
+      const r = await applyBackup(data);
+      setMsg(tf("還原好了:{0} 項進度、{1} 個注音錄音,正在重新整理…", r.keys, r.clips));
+      // 一定要重整:畫面上的星星還是舊的記憶體值,不重整會在下一次加星星時把還原的數字蓋掉
+      setTimeout(() => { try { location.reload(); } catch { /* ignore */ } }, 1200);
+      return;
+    } catch {
+      setErr(t("這個檔案看起來不是 WordPop 的備份檔"));
+    }
+    setBusy(false);
+  };
+
+  return (
+    <div style={{ background: T.card, borderRadius: 18, padding: "14px",
+      boxShadow: "0 5px 0 #E0DBF7", margin: "10px auto 0", maxWidth: 380, textAlign: "left" }}>
+      <div style={{ fontSize: 12, color: T.sub, lineHeight: 1.75 }}>
+        {t("iPhone 的 Safari 有個規則:網站 7 天沒打開,就會把星星、進度和你錄的注音全部清掉。")}
+      </div>
+
+      {!installed && (
+        <div style={{ background: "#FFF6E5", border: "2px solid #F6D08A", borderRadius: 14,
+          padding: "10px 12px", marginTop: 10 }}>
+          <div style={{ fontSize: 13, color: "#8A6100", fontWeight: 800, lineHeight: 1.6 }}>
+            {t("📲 把 WordPop 加到主畫面就不會被清掉")}
+          </div>
+          <div style={{ fontSize: 12, color: "#8A6100", marginTop: 6, lineHeight: 1.75 }}>
+            {isIOS()
+              ? t("Safari 下方「分享」→ 往下找「加入主畫面」→ 新增。之後從主畫面的圖示打開就好。")
+              : t("瀏覽器選單 →「安裝應用程式」或「加到主畫面」。之後從圖示打開就好。")}
+          </div>
+        </div>
+      )}
+      {installed && (
+        <div style={{ fontSize: 12, color: T.greenDark, fontWeight: 700, marginTop: 8, lineHeight: 1.6 }}>
+          {t("✅ 已經裝在主畫面了,不會被 7 天規則清掉")}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+        <button onClick={onExport} disabled={busy}
+          style={{ fontFamily: "inherit", fontWeight: 800, fontSize: 14, padding: "9px 14px",
+            borderRadius: 14, cursor: busy ? "default" : "pointer", border: "none",
+            background: T.purple, color: "#fff", boxShadow: `0 4px 0 ${T.purpleDark}`,
+            opacity: busy ? 0.6 : 1 }}>
+          {t("📥 下載備份檔")}
+        </button>
+        <button onClick={() => fileRef.current?.click()} disabled={busy}
+          style={{ fontFamily: "inherit", fontWeight: 800, fontSize: 14, padding: "9px 14px",
+            borderRadius: 14, cursor: busy ? "default" : "pointer",
+            border: "2px solid #E0DBF7", background: "#F6F4FE", color: T.ink,
+            opacity: busy ? 0.6 : 1 }}>
+          {t("📤 還原備份")}
+        </button>
+        <input ref={fileRef} type="file" accept="application/json,.json"
+          onChange={onImport} style={{ display: "none" }} />
+      </div>
+
+      <div style={{ fontSize: 12, color: "#B7B2D8", marginTop: 10, lineHeight: 1.7 }}>
+        {t("備份檔含星星、各遊戲進度、學校單字表打勾和你錄的注音;還原後重新整理一次頁面。")}
+      </div>
+      {msg && <div style={{ color: T.greenDark, fontSize: 13, fontWeight: 700, marginTop: 8 }}>{msg}</div>}
+      {err && <div style={{ color: T.red, fontSize: 13, fontWeight: 700, marginTop: 8 }}>{err}</div>}
+    </div>
+  );
+}
+
+
 
 const ZH_CONSONANTS = BOPOMOFO.slice(0, 21);   // 聲母 21
 const ZH_VOWELS = BOPOMOFO.slice(24);          // 韻母 13
@@ -9803,6 +10000,18 @@ const SUBJECTS = [
     sub: "數學:數數、比大小、加減、形狀、時鐘、錢" },
 ];
 const SUBJECT_KEY = "wordpop-subject";
+// 星星以前只存在記憶體裡,重整就歸零——但「清空學習紀錄」寫的是「清空所有星星和關卡紀錄」,
+// 代表本來就該留著。存起來,累積的成就才有意義(也才有東西可以備份)。
+const STARS_KEY = "wordpop-stars";
+function loadStars() {
+  try {
+    const n = parseInt(localStorage.getItem(STARS_KEY) || "0", 10);
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  } catch { return 0; }
+}
+function saveStars(n) {
+  try { localStorage.setItem(STARS_KEY, String(n)); } catch { /* 無痕模式就不保存 */ }
+}
 
 const MENU_GROUPS = [
   {
@@ -10150,8 +10359,9 @@ const MENU_GROUPS = [
 export default function WordPop() {
   const speak = useSpeech();
   const [mode, setMode] = useState("home");
-  const [stars, setStars] = useState(0);
+  const [stars, setStars] = useState(loadStars);
   const addStars = useCallback((n) => setStars((s) => s + n), []);
+  useEffect(() => { saveStars(stars); }, [stars]);
   const [confirmClear, setConfirmClear] = useState(false);
   const [cleared, setCleared] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
@@ -10164,6 +10374,7 @@ export default function WordPop() {
   const zhVoice = zhVoiceInfo.state;
   const [bopoRead2, setBopoRead2] = useState(BOPO_READ);
   const [showVoice, setShowVoice] = useState(false);
+  const [showBackup, setShowBackup] = useState(false);
   const switchBopoRead = (m) => { setBopoRead(m); setBopoRead2(m); };
   // 目前選的科目分頁(記住上次選的)
   const [subject, setSubject] = useState(() => {
@@ -10194,6 +10405,7 @@ export default function WordPop() {
       localStorage.removeItem(ZH_SIGHT_KEY);
       localStorage.removeItem(NUM_TRACE_KEY);
       localStorage.removeItem(SCHOOL_KEY);
+      localStorage.removeItem(STARS_KEY);
     } catch { /* 清不掉就算了 */ }
     setStars(0);
     setConfirmClear(false);
@@ -10450,7 +10662,9 @@ canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
                 <div style={{ fontSize: 13, color: T.sub, lineHeight: 1.8 }}>
                   {t("這台裝置的中文語音:")}
                   <b style={{ color: zhVoice === "none" ? T.red : T.ink }}>
-                    {zhVoice === "none" ? t("找不到 ❌") : `${zhVoiceInfo.name} (${zhVoiceInfo.lang})`}
+                    {zhVoice === "none" ? t("找不到 ❌")
+                      : zhVoice === "unknown" || !zhVoiceInfo.name ? t("偵測中…")
+                      : `${zhVoiceInfo.name} (${zhVoiceInfo.lang})`}
                   </b>
                 </div>
                 <div style={{ fontSize: 13, color: T.sub, marginTop: 8, lineHeight: 1.7 }}>
@@ -10522,6 +10736,18 @@ canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
                 </div>
               </div>
             )}
+            <div>
+              <button
+                onClick={() => setShowBackup((v) => !v)}
+                style={{
+                  marginTop: 10, fontFamily: "inherit", fontWeight: 700, fontSize: 13,
+                  background: "none", border: "none", color: "#B7B2D8",
+                  cursor: "pointer", textDecoration: "underline",
+                }}>
+                {tf("💾 備份與還原(家長) {0}", showBackup ? t("▲ 收起") : t("▼ 展開"))}
+              </button>
+            </div>
+            {showBackup && <BackupPanel />}
             <div style={{ marginTop: 14, display: "flex", gap: 6,
               justifyContent: "center", alignItems: "center" }}>
               <span style={{ fontSize: 13, color: "#B7B2D8", fontWeight: 700 }}>🌐</span>

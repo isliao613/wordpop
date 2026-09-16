@@ -19,9 +19,16 @@ function readLang() {
 
 export let LANG = readLang();
 
+// <html lang> 要跟著介面語言走:螢幕閱讀器用它挑發音,瀏覽器用它決定要不要問
+// 「要翻譯這個頁面嗎?」——寫死 zh-Hant 的話,英文版會被當成中文唸/中文翻譯
+export function syncHtmlLang() {
+  try { document.documentElement.lang = LANG === "en" ? "en" : "zh-Hant"; } catch { /* SSR/測試環境沒有 document */ }
+}
+
 export function setLang(l) {
   LANG = l === "en" ? "en" : "zh";
   try { localStorage.setItem(LANG_KEY, LANG); } catch { /* 無痕模式就不保存 */ }
+  syncHtmlLang();
 }
 
 export const EN = {
@@ -651,6 +658,21 @@ export const EN = {
   "🫧 數字泡泡": "🫧 Number Bubbles",
   "🫧 注音泡泡": "🫧 Bopomofo Bubbles",
 
+  // 備份與還原(家長)
+  "💾 備份與還原(家長) {0}": "💾 Backup and restore (parents) {0}",
+  "iPhone 的 Safari 有個規則:網站 7 天沒打開,就會把星星、進度和你錄的注音全部清掉。": "Safari on iPhone clears a site's saved data — stars, progress and the bopomofo you recorded — after 7 days without opening it.",
+  "📲 把 WordPop 加到主畫面就不會被清掉": "📲 Add WordPop to your home screen and nothing gets cleared",
+  "Safari 下方「分享」→ 往下找「加入主畫面」→ 新增。之後從主畫面的圖示打開就好。": "In Safari tap Share at the bottom → scroll to \u201cAdd to Home Screen\u201d → Add. From then on, open it from the icon.",
+  "瀏覽器選單 →「安裝應用程式」或「加到主畫面」。之後從圖示打開就好。": "Browser menu → \u201cInstall app\u201d or \u201cAdd to Home screen\u201d. From then on, open it from the icon.",
+  "✅ 已經裝在主畫面了,不會被 7 天規則清掉": "✅ Installed to your home screen — the 7-day rule does not apply",
+  "📥 下載備份檔": "📥 Download a backup",
+  "📤 還原備份": "📤 Restore a backup",
+  "備份檔含星星、各遊戲進度、學校單字表打勾和你錄的注音;還原後重新整理一次頁面。": "The backup holds stars, game progress, the school word list ticks and your bopomofo recordings. Reload the page after restoring.",
+  "已存成 {0}(含 {1} 個注音錄音)": "Saved as {0} ({1} bopomofo recordings included)",
+  "還原好了:{0} 項進度、{1} 個注音錄音,正在重新整理…": "Restored: {0} progress entries, {1} bopomofo recordings. Reloading…",
+  "備份失敗,請再試一次": "Backup failed — please try again",
+  "這個檔案看起來不是 WordPop 的備份檔": "That file does not look like a WordPop backup",
+  "偵測中…": "checking…",
   // 注音錄音(家長)
   "🎤 自己錄注音發音": "🎤 Record the bopomofo sounds yourself",
   "機器唸不出注音的音素。爸媽自己錄 37 個音,遊戲就會改用你的聲音,比任何語音都準。": "Speech engines cannot say bopomofo phonemes. Record the 37 sounds yourself and the games will use your voice — far better than any synthetic one.",

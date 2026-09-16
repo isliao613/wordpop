@@ -1,7 +1,7 @@
 {
-  "name": "WordPop 英語發音遊戲",
+  "name": "WordPop ABC・ㄅㄆㄇ・數字 學習遊戲",
   "short_name": "WordPop",
-  "description": "給大班孩子的英語啟蒙遊戲,32 個小遊戲涵蓋聽說讀寫算與理解。",
+  "description": "給大班孩子的學習遊戲:ABC、ㄅㄆㄇ、數字三個科目共 92 個小遊戲,涵蓋聽說讀寫算與理解。",
   "lang": "zh-Hant",
   "start_url": "./",
   "scope": "./",
