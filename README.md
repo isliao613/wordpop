@@ -8,6 +8,8 @@
 
 - **92 個遊戲**，分成 ABC / ㄅㄆㄇ / 數字 三個科目分頁；三個科目各 30 個、彼此對等,另加一份學校單字表:認識單字、聽聲音找字、聽懂句子、拼讀 Phonics、拼字與字母、拼音與聲調、數數與加減、形狀與生活數學、動動腦、故事、常見字 Sight Words、開口與動手
 - **ㄅㄆㄇ 注音**：**30 個遊戲,與 ABC 完全對等**——認符號、聽音、**拼音**(ㄍ+ㄡ=ㄍㄡ)、**聲調**、韻母家族、聽懂中文句子、注音小故事、跟讀與手寫;使用裝置的中文(zh-TW)語音,手寫採**教育部標準筆順**
+- **可以離線玩**：開過一次之後,沒網路照樣能玩(Service Worker 快取整個 App;單字的真人發音也會存起來,同一個字只下載一次)
+- **備份與還原**：iPhone 的 Safari 會在「7 天沒打開」時清掉網站存的資料——星星、進度、家長錄的注音都在內。首頁家長區可以把全部資料匯出成一個檔案,換手機或被清掉時再匯入還原;也會提示把 WordPop 加到主畫面(裝起來就不受那條規則限制)
 - **注音可以用爸媽自己的聲音**：注音符號是「音素」,合成語音唸不出來(只能唸波、坡、摸這類代表字,而且是唸詞的語氣)。首頁 →「🔍 注音發音檢查(家長)」→「🎤 錄注音發音」可以把 37 個符號一個一個錄起來,或批次匯入音檔(檔名 ㄅ.mp3 / bo.mp3 / 01.mp3 都能自動配對);錄過的符號,注音遊戲就直接播家長的聲音,沒錄的照樣用合成語音。錄音只存在裝置本機(IndexedDB),不上傳
 - **真人發音優先**：單字優先播 Wiktionary 真人錄音，查無音檔自動退回合成語音；音量正規化、跨裝置一致
 - **手寫練習**：A–Z 大小寫描寫，四線三格習字格、筆順編號與箭頭、筆順示範動畫、強制正確筆順與方向、支援 Apple Pencil(防手掌誤觸 + 筆壓)
@@ -51,7 +53,16 @@
 
 ## 🛠️ 技術
 
-React + Vite，單一元件 `src/App.jsx`；介面語言表在 `src/i18n.js`(以中文原文當 key,查不到就顯示中文)。GitHub Actions 自動部署到 GitHub Pages。
+React + Vite。GitHub Actions 自動部署到 GitHub Pages。
+
+| 檔案 | 內容 |
+| --- | --- |
+| `src/App.jsx` | 所有遊戲元件 |
+| `src/data/words.js` | 單字庫、Phonics、Sight Words——要加減單字改這裡 |
+| `src/theme.js` | 版號與配色 |
+| `src/i18n.js` | 中英介面對照表(以中文原文當 key,查不到就顯示中文) |
+| `src/sw-register.js` / `public/sw.js` | 離線快取 |
+| `tests/` | Playwright 測試,見 [tests/README.md](./tests/README.md) |
 
 ## 💻 本機開發
 
@@ -59,6 +70,14 @@ React + Vite，單一元件 `src/App.jsx`；介面語言表在 `src/i18n.js`(以
 npm install
 npm run dev      # 本機預覽 http://localhost:5173/wordpop/
 npm run build    # 建置(推送前務必通過)
+```
+
+改完之後跑測試(Service Worker 只在正式版註冊,所以要測建置後的版本):
+
+```bash
+npm run build
+npx vite preview --port 4173 &
+npm test         # 中英全站煙霧測試 + 備份還原 + 離線 + 注音發音
 ```
 
 推送到 `main` 會由 GitHub Actions 自動建置並部署。
