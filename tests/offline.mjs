@@ -57,11 +57,19 @@ await ctx.setOffline(false);
 
 // 部署新版之後,重整一次就要換到新版
 if (process.env.WORDPOP_SKIP_UPDATE_TEST !== "1") {
-  const APP = new URL("../src/App.jsx", import.meta.url).pathname;
-  const orig = readFileSync(APP, "utf8");
-  const cur = orig.match(/const APP_VERSION = "(v[\d.]+)";/)?.[1];
+  // 版號搬過家(App.jsx → theme.js),所以別寫死檔名,找出真的宣告它的那個檔
+  const CANDIDATES = ["../src/theme.js", "../src/App.jsx"];
+  const RE = /const APP_VERSION = "(v[\d.]+)";/;
+  let APP = null, orig = null, cur = null;
+  for (const rel of CANDIDATES) {
+    const path = new URL(rel, import.meta.url).pathname;
+    const text = readFileSync(path, "utf8");
+    const m = text.match(RE);
+    if (m) { APP = path; orig = text; cur = m[1]; break; }
+  }
+  if (!APP) throw new Error("找不到宣告 APP_VERSION 的檔案,測試需要更新");
   try {
-    writeFileSync(APP, orig.replace(`const APP_VERSION = "${cur}";`, 'const APP_VERSION = "v9.99";'));
+    writeFileSync(APP, orig.replace(RE, 'const APP_VERSION = "v9.99";'));
     execSync("npm run build", { cwd: new URL("..", import.meta.url).pathname, stdio: "pipe" });
     await page.reload({ waitUntil: "load" });
     await page.waitForTimeout(2500);
