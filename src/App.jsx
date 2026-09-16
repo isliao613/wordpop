@@ -6211,6 +6211,10 @@ function BackupPanel() {
       <div style={{ fontSize: 12, color: "#B7B2D8", marginTop: 10, lineHeight: 1.7 }}>
         {t("備份檔含星星、各遊戲進度、學校單字表打勾和你錄的注音;還原後重新整理一次頁面。")}
       </div>
+      <div style={{ borderTop: "2px dashed #E0DBF7", marginTop: 12, paddingTop: 10,
+        fontSize: 12, color: T.sub, lineHeight: 1.7 }}>
+        {t("📴 開過一次之後就能離線玩,車上、捷運、飛機沒網路也沒問題(單字的真人發音要連過一次網才會存下來)。")}
+      </div>
       {msg && <div style={{ color: T.greenDark, fontSize: 13, fontWeight: 700, marginTop: 8 }}>{msg}</div>}
       {err && <div style={{ color: T.red, fontSize: 13, fontWeight: 700, marginTop: 8 }}>{err}</div>}
     </div>

@@ -672,6 +672,7 @@ export const EN = {
   "還原好了:{0} 項進度、{1} 個注音錄音,正在重新整理…": "Restored: {0} progress entries, {1} bopomofo recordings. Reloading…",
   "備份失敗,請再試一次": "Backup failed — please try again",
   "這個檔案看起來不是 WordPop 的備份檔": "That file does not look like a WordPop backup",
+  "📴 開過一次之後就能離線玩,車上、捷運、飛機沒網路也沒問題(單字的真人發音要連過一次網才會存下來)。": "📴 After one visit the games work offline — in the car, on the train, on a plane. (A word\u2019s human recording is saved the first time it plays online.)",
   "偵測中…": "checking…",
   // 注音錄音(家長)
   "🎤 自己錄注音發音": "🎤 Record the bopomofo sounds yourself",
