@@ -9623,7 +9623,7 @@ const SUBJECTS = [
   { key: "abc",  icon: "🔤", label: "ABC",   color: T.purple, dark: T.purpleDark,
     sub: "英文:聽、說、讀、寫、理解" },
   { key: "bopo", icon: "ㄅ",  label: "ㄅㄆㄇ", color: "#D63031", dark: "#A32320",
-    sub: "注音:認符號、拼音、聲調、聽力與標準筆順手寫" },
+    sub: "注音:聽懂中文、押韻、聲調、注音故事與跟讀" },
   { key: "num",  icon: "🔢", label: "數字",  color: "#3867D6", dark: "#284D9E",
     sub: "數學:數數、比大小、加減、形狀、時鐘、錢" },
 ];
@@ -9984,6 +9984,23 @@ const MENU_GROUPS = [
   },
 ];
 
+// 注音符號是音素,合成語音唸不準(只能唸代表字,還帶著唸詞的語調),
+// 所以會「唸出注音符號」的遊戲先從選單拿掉。元件和路由都還在,
+// 之後有準確的音源時,從這個清單移掉就會回來。
+// 保留的 ㄅㄆㄇ 遊戲只唸一般中文詞句(畫面上可以顯示注音)。
+const BOPO_SOUND_OFF = new Set([
+  "bopolearn", "bopoorder",                         // 認識注音
+  "bopohunt", "zhend", "bopobubble",                // 聽聲音找注音
+  "bopoblend", "zhmedial", "zhfamily",              // 拼音
+  "zhspell", "bopomatch", "zhfind", "zhtype",       // 認符號與拼注音
+  "zhmissing", "zhseq",                             // 動動腦
+  "zhsight", "bopopairs",                           // 注音快手
+  "bopowrite",                                      // 注音手寫(看到符號時會唸出來)
+]);
+const VISIBLE_GROUPS = MENU_GROUPS
+  .map((g) => ({ ...g, items: g.items.filter((it) => !BOPO_SOUND_OFF.has(it.mode)) }))
+  .filter((g) => g.items.length > 0);
+
 export default function WordPop() {
   const speak = useSpeech();
   const [mode, setMode] = useState("home");
@@ -10145,7 +10162,7 @@ canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
             </div>
 
             <div style={{ maxWidth: 420, margin: "0 auto" }}>
-              {MENU_GROUPS.filter((g) => g.subject === subject).map((group) => (
+              {VISIBLE_GROUPS.filter((g) => g.subject === subject).map((group) => (
                 <div key={group.label} style={{ marginBottom: 18 }}>
                   <div
                     style={{
@@ -10201,7 +10218,7 @@ canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
                         margin: "2px 0 8px", paddingBottom: 4, borderBottom: "2px solid #EFECFB" }}>
                         {sub.icon} {t(sub.label)}
                       </div>
-                      {MENU_GROUPS.filter((g) => g.subject === sub.key).map((group) => (
+                      {VISIBLE_GROUPS.filter((g) => g.subject === sub.key).map((group) => (
                     <div key={group.label} style={{ marginBottom: 12 }}>
                       <div style={{ fontWeight: 700, fontSize: 14, color: T.purple, marginBottom: 6 }}>
                         {t(group.label)}

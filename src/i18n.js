@@ -326,7 +326,7 @@ export const EN = {
   "沒關係!仔細聽,它等一下還會再出現 💪": "Never mind! Listen closely — it'll come round again 💪",
   "沒關係,再聽一次就會記得了 💪": "Never mind — one more listen and you'll remember 💪",
   "沒關係,再試一次!先按「先聽一次」聽清楚 💪": "Never mind, try again! Press Listen first to hear it clearly 💪",
-  "注音:認符號、拼音、聲調、聽力與標準筆順手寫": "Bopomofo: symbols, blending, tones, listening and standard stroke order",
+  "注音:聽懂中文、押韻、聲調、注音故事與跟讀": "Bopomofo: listening in Chinese, rhymes, tones, stories and read-aloud",
   "注音怎麼唸:": "Bopomofo reading: ",
   "注音符號": "bopomofo symbol",
   "注音遊戲用的不是台灣的中文語音,口音會不太一樣;裝了中文(台灣)語音會更準。": "The bopomofo games are using a non-Taiwan Chinese voice, so the accent differs. Installing a Chinese (Taiwan) voice makes it more accurate.",
