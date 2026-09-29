@@ -8,7 +8,7 @@ const HIDDEN = [
   "📚 認識注音", "ㄅ ㄅㄆㄇ 接接看", "🔍 注音獵人", "🔎 韻母偵探", "🫧 注音泡泡",
   "🚂 拼音小火車", "🅰️ 中間的音(介音)", "👨‍👩‍👧 韻母家族", "🧩 拼注音小廚師",
   "🧩 注音配對", "🔎 注音找找看", "🔠 聲母還是韻母?", "🕵️ 少了誰?(注音)",
-  "🧠 記憶排排看(注音)", "⚡ 注音快手", "🎴 注音翻翻樂", "✍️ 注音手寫",
+  "🧠 記憶排排看(注音)", "⚡ 注音快手", "🎴 注音翻翻樂",
 ];
 // 代表字:ㄅㄆㄇ… 用來「唸」符號的字(單獨出現就是在唸注音)
 const PROXY = new Set(["波", "坡", "摸", "佛", "德", "特", "呢", "勒", "哥", "科", "喝",
@@ -39,8 +39,8 @@ const labels = await page.evaluate(() => [...document.querySelectorAll("#root bu
     && x !== "ㄅ\nㄅㄆㄇ"));
 const visible = [...new Set(labels)];
 const stillShown = HIDDEN.filter((h) => visible.includes(h));
-r.check("會唸注音符號的 17 個遊戲都不在選單上", stillShown.length === 0, stillShown.join("、"));
-r.check("ㄅㄆㄇ 分頁剩 13 個遊戲", visible.length === 13, `實際 ${visible.length}:${visible.join("、")}`);
+r.check("會唸注音符號的 16 個遊戲都不在選單上", stillShown.length === 0, stillShown.join("、"));
+r.check("ㄅㄆㄇ 分頁剩 14 個遊戲(含靜音的注音手寫)", visible.length === 14, `實際 ${visible.length}:${visible.join("、")}`);
 
 const leaked = [];
 let totalSpoken = 0;

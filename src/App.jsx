@@ -9348,14 +9348,15 @@ function BopoWriteMode({ speak, addStars }) {
     setIdx(i);
     setCelebrate(false);
     setCheer("");
-    sayBopo(speak, BOPOMOFO[i], { rate: 0.8 });
+    // 不唸注音符號:合成語音唸不準,換符號時保持安靜
   };
 
   const markDone = () => {
     setCelebrate(true);
     setCheer("");
     addStars(2);
-    zh(speak, `${bopoRead(item)}!${item.word}`, { rate: 0.9 });
+    // 只唸例詞(一般中文詞唸得準),不唸注音符號本身
+    zh(speak, item.word, { rate: 0.9 });
     setDoneSet((prev) => {
       const next = new Set(prev);
       next.add(s);
@@ -9376,9 +9377,6 @@ function BopoWriteMode({ speak, addStars }) {
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center",
         gap: 10, marginBottom: 12 }}>
-        <ChunkyButton color={T.yellow} dark={T.yellowDark}
-          onClick={() => sayBopo(speak, item, { rate: 0.8 })}
-          style={{ color: T.ink, padding: "10px 18px", fontSize: 16 }}>{tf("🔊 {0} 怎麼唸", s)}</ChunkyButton>
         <button
           onClick={() => zh(speak, item.word, { rate: 0.85 })}
           style={{
@@ -9995,7 +9993,6 @@ const BOPO_SOUND_OFF = new Set([
   "zhspell", "bopomatch", "zhfind", "zhtype",       // 認符號與拼注音
   "zhmissing", "zhseq",                             // 動動腦
   "zhsight", "bopopairs",                           // 注音快手
-  "bopowrite",                                      // 注音手寫(看到符號時會唸出來)
 ]);
 const VISIBLE_GROUPS = MENU_GROUPS
   .map((g) => ({ ...g, items: g.items.filter((it) => !BOPO_SOUND_OFF.has(it.mode)) }))
