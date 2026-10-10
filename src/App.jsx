@@ -1311,9 +1311,10 @@ function SchoolPlanPicker({ sem, known, plan, onStart, onCancel, startLabel }) {
 
       {head(t("① 範圍"))}
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-        {chip(same(all), t("全部"), () => setPick(new Set(all)))}
-        {sem.cols.map((c, i) => chip(same(c), tf("第 {0} 行", i + 1), () => setPick(new Set(c))))}
-        {chip(todo.length > 0 && same(todo), t("還沒打勾的"), () => setPick(new Set(todo)), todo.length === 0)}
+        {/* 選一整行或還沒打勾的,通常就是想全部考完;選全部 45 個才預設只考 10 個 */}
+        {chip(same(all), t("全部"), () => { setPick(new Set(all)); setCap(10); })}
+        {sem.cols.map((c, i) => chip(same(c), tf("第 {0} 行", i + 1), () => { setPick(new Set(c)); setCap(0); }))}
+        {chip(todo.length > 0 && same(todo), t("還沒打勾的"), () => { setPick(new Set(todo)); setCap(0); }, todo.length === 0)}
       </div>
       <p style={{ color: T.sub, fontSize: 12, margin: "8px 0", lineHeight: 1.6, textAlign: "left" }}>{t("跟紙本排得一樣。點上面的「第幾行」選一整直行,點左邊的數字選一整橫排,也可以一個字一個字點。")}</p>
 

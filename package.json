@@ -8,8 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "icons": "node tools/make-icons.mjs",
-    "test": "node tests/smoke.mjs && node tests/backup.mjs && node tests/bopomofo.mjs && node tests/offline.mjs",
-    "test:quick": "node tests/backup.mjs && node tests/bopomofo.mjs"
+    "test": "node tests/smoke.mjs && node tests/backup.mjs && node tests/school.mjs && node tests/bopomofo.mjs && node tests/offline.mjs",
+    "test:quick": "node tests/backup.mjs && node tests/school.mjs && node tests/bopomofo.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",

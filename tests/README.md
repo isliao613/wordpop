@@ -27,6 +27,7 @@ WORDPOP_URL=http://localhost:4173/wordpop/ npm test
 | `smoke.mjs` | 中英 × 三個科目分頁的每一個入口都進去點,只要有 JS 錯誤就失敗。改完 `App.jsx` 必跑 |
 | `backup.mjs` | 備份 → 清光資料 → 還原,星星/進度/注音錄音都要一模一樣回來 |
 | `offline.mjs` | Service Worker 裝得起來、斷網照樣能玩、部署新版一次重整就換新 |
+| `school.mjs` | 學校單字表:選一整直行/一整橫排/自己挑字、照順序出題、範圍會記住、跟讀版也能選範圍 |
 | `bopomofo.mjs` | 有家長錄音時要播錄音,而且沒有任何地方偷用合成語音唸單一注音符號 |
 
 `offline.mjs` 會暫時改 `src/App.jsx` 的版號、重建、再改回來,用來模擬部署新版。
