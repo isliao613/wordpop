@@ -1212,11 +1212,191 @@ function loadSchoolKnown() {
   }
 }
 
+// ----- 考試範圍(兩個學校單字遊戲共用)-----
+// 可以照紙本一部分一部分考:選一整直行(第 1/2/3 行)、一整橫排、或一個字一個字挑;
+// 順序可以照單字表、打亂、或還沒打勾的先;題數可以全部或只考幾題。
+// 每個學期各記一份,下次打開就是上次選的範圍。
+const SCHOOL_PLAN_KEY = "wordpop-school-plan";
+const SCHOOL_ORDERS = [
+  ["sheet", "照單字表順序"],
+  ["random", "打亂順序"],
+  ["todo", "還沒打勾的先"],
+];
+// 預設和以前一樣:全部的字、還沒打勾的先、考 10 題
+const defaultSchoolPlan = (sem) => ({ pick: schoolList(sem), order: "todo", cap: 10 });
+function loadSchoolPlans() {
+  try {
+    const o = JSON.parse(localStorage.getItem(SCHOOL_PLAN_KEY) || "{}");
+    return o && typeof o === "object" && !Array.isArray(o) ? o : {};
+  } catch {
+    return {};
+  }
+}
+function schoolPlanFor(plans, sem) {
+  const all = schoolList(sem);
+  const p = plans[sem.key];
+  if (!p || !Array.isArray(p.pick)) return defaultSchoolPlan(sem);
+  const pick = all.filter((w) => p.pick.includes(w));
+  return {
+    pick: pick.length ? pick : all,
+    order: SCHOOL_ORDERS.some(([k]) => k === p.order) ? p.order : "todo",
+    cap: [0, 5, 10].includes(p.cap) ? p.cap : 10,
+  };
+}
+function saveSchoolPlan(plans, sem, plan) {
+  const next = { ...plans, [sem.key]: plan };
+  try { localStorage.setItem(SCHOOL_PLAN_KEY, JSON.stringify(next)); } catch { /* 存不了就只用這一次 */ }
+  return next;
+}
+// 依範圍和順序排出這次要考的字
+function buildSchoolQueue(sem, plan, known) {
+  const picked = schoolList(sem).filter((w) => plan.pick.includes(w));   // 單字表順序
+  let q = picked;
+  if (plan.order === "random") q = shuffle(picked);
+  else if (plan.order === "todo")
+    q = [...picked.filter((w) => !known.has(w)), ...picked.filter((w) => known.has(w))];
+  return plan.cap && plan.cap < q.length ? q.slice(0, plan.cap) : q;
+}
+// 一句話說明目前的範圍,例如「第 1 行・照單字表順序・15 個字」
+function schoolPlanSummary(sem, plan) {
+  const all = schoolList(sem);
+  const same = (ws) => ws.length === plan.pick.length && ws.every((w) => plan.pick.includes(w));
+  let scope = tf("自選 {0} 個字", plan.pick.length);
+  if (same(all)) scope = t("全部");
+  else sem.cols.forEach((c, i) => { if (same(c)) scope = tf("第 {0} 行", i + 1); });
+  const n = plan.cap && plan.cap < plan.pick.length ? plan.cap : plan.pick.length;
+  const order = t(SCHOOL_ORDERS.find(([k]) => k === plan.order)?.[1] || "");
+  return tf("{0}・{1}・{2} 個字", scope, order, n);
+}
+
+function SchoolPlanPicker({ sem, known, plan, onStart, onCancel, startLabel }) {
+  const all = useMemo(() => schoolList(sem), [sem]);
+  const [pick, setPick] = useState(() => new Set(plan.pick));
+  const [order, setOrder] = useState(plan.order);
+  const [cap, setCap] = useState(plan.cap);
+  const rowCount = Math.max(...sem.cols.map((c) => c.length));
+  const rows = Array.from({ length: rowCount }, (_, r) => sem.cols.map((c) => c[r]).filter(Boolean));
+  const todo = all.filter((w) => !known.has(w));
+
+  const same = (ws) => ws.length === pick.size && ws.every((w) => pick.has(w));
+  // 整組都選了就整組取消,否則整組加進來
+  const toggleGroup = (ws) => setPick((prev) => {
+    const next = new Set(prev);
+    const allIn = ws.every((w) => next.has(w));
+    ws.forEach((w) => (allIn ? next.delete(w) : next.add(w)));
+    return next;
+  });
+
+  const n = pick.size;
+  const effCap = cap && cap < n ? cap : 0;
+  const total = effCap || n;
+
+  const chip = (on, label, onClick, disabled) => (
+    <button key={label} onClick={onClick} disabled={disabled}
+      style={{
+        fontFamily: "inherit", fontWeight: 700, fontSize: 14,
+        padding: "7px 13px", borderRadius: 999, cursor: disabled ? "default" : "pointer",
+        border: `2px solid ${on ? T.purpleDark : "#E0DBF7"}`,
+        background: on ? T.purple : T.card, color: on ? "#fff" : T.ink,
+        opacity: disabled ? 0.4 : 1,
+      }}>{label}</button>
+  );
+  const head = (txt) => (
+    <div style={{ fontSize: 14, fontWeight: 800, color: T.ink, margin: "14px 0 8px", textAlign: "left" }}>{txt}</div>
+  );
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <h2 style={{ color: T.ink, fontSize: 21, margin: "0 0 4px" }}>{tf("要考{0}的哪些字?", t(sem.label))}</h2>
+
+      {head(t("① 範圍"))}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {chip(same(all), t("全部"), () => setPick(new Set(all)))}
+        {sem.cols.map((c, i) => chip(same(c), tf("第 {0} 行", i + 1), () => setPick(new Set(c))))}
+        {chip(todo.length > 0 && same(todo), t("還沒打勾的"), () => setPick(new Set(todo)), todo.length === 0)}
+      </div>
+      <p style={{ color: T.sub, fontSize: 12, margin: "8px 0", lineHeight: 1.6, textAlign: "left" }}>{t("跟紙本排得一樣。點上面的「第幾行」選一整直行,點左邊的數字選一整橫排,也可以一個字一個字點。")}</p>
+
+      <div style={{ overflowX: "auto" }}>
+        <div style={{ display: "grid", gridTemplateColumns: `30px repeat(${sem.cols.length}, minmax(0, 1fr))`,
+          gap: 4, minWidth: 300 }}>
+          <div />
+          {sem.cols.map((c, i) => {
+            const on = c.every((w) => pick.has(w));
+            return (
+              <button key={i} onClick={() => toggleGroup(c)}
+                style={{
+                  fontFamily: "inherit", fontWeight: 800, fontSize: 13, padding: "6px 2px",
+                  borderRadius: 10, cursor: "pointer",
+                  border: `2px solid ${on ? T.purpleDark : "#E0DBF7"}`,
+                  background: on ? T.purple : "#F6F4FE", color: on ? "#fff" : T.sub,
+                }}>{tf("第 {0} 行", i + 1)}</button>
+            );
+          })}
+          {rows.map((row, r) => {
+            const rowOn = row.every((w) => pick.has(w));
+            return [
+              <button key={`r${r}`} onClick={() => toggleGroup(row)} aria-label={tf("第 {0} 排", r + 1)}
+                style={{
+                  fontFamily: "inherit", fontWeight: 800, fontSize: 12, padding: 0,
+                  borderRadius: 8, cursor: "pointer",
+                  border: `2px solid ${rowOn ? T.purpleDark : "#E0DBF7"}`,
+                  background: rowOn ? T.purple : "#F6F4FE", color: rowOn ? "#fff" : T.sub,
+                }}>{r + 1}</button>,
+              ...sem.cols.map((c, ci) => {
+                const w = c[r];
+                if (!w) return <div key={`${r}-${ci}`} />;
+                const on = pick.has(w);
+                return (
+                  <button key={`${r}-${ci}`} onClick={() => toggleGroup([w])}
+                    style={{
+                      position: "relative", fontFamily: "inherit", fontWeight: 700, fontSize: 16,
+                      padding: "7px 2px", borderRadius: 10, cursor: "pointer",
+                      border: `2px solid ${on ? T.purple : "#E8E4FA"}`,
+                      background: on ? "#EDE9FF" : T.card, color: on ? T.ink : "#B7B2D8",
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    }}>
+                    {w}
+                    {known.has(w) && (
+                      <span style={{ position: "absolute", top: 1, right: 4, fontSize: 10,
+                        color: T.greenDark }}>✓</span>
+                    )}
+                  </button>
+                );
+              }),
+            ];
+          })}
+        </div>
+      </div>
+
+      {head(t("② 順序"))}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {SCHOOL_ORDERS.map(([k, label]) => chip(order === k, t(label), () => setOrder(k)))}
+      </div>
+
+      {head(t("③ 考幾個"))}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {chip(!effCap, tf("全部 {0} 個", n), () => setCap(0))}
+        {n > 10 && chip(effCap === 10, t("10 個"), () => setCap(10))}
+        {n > 5 && chip(effCap === 5, t("5 個"), () => setCap(5))}
+      </div>
+
+      <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap", marginTop: 18 }}>
+        <ChunkyButton color={T.pink} dark="#D14B7D" disabled={n === 0}
+          onClick={() => onStart({ pick: all.filter((w) => pick.has(w)), order, cap: effCap })}>
+          {n === 0 ? t("先選幾個字") : tf(startLabel, total)}
+        </ChunkyButton>
+        <ChunkyButton color="#B7B2D8" dark="#9A95BF" onClick={onCancel}>{t("取消")}</ChunkyButton>
+      </div>
+    </div>
+  );
+}
+
 function SchoolWordsMode({ speak, addStars }) {
-  const QUIZ_TOTAL = 10;
   const [semIdx, setSemIdx] = useState(0);
   const [known, setKnown] = useState(loadSchoolKnown);
-  const [view, setView] = useState("list"); // list | quiz | result
+  const [plans, setPlans] = useState(loadSchoolPlans);
+  const [view, setView] = useState("list"); // list | setup | quiz | result
   const [queue, setQueue] = useState([]);
   const [options, setOptions] = useState([]);
   const [qNo, setQNo] = useState(1);
@@ -1227,6 +1407,8 @@ function SchoolWordsMode({ speak, addStars }) {
 
   const sem = SCHOOL_WORDS[semIdx];
   const words = useMemo(() => schoolList(sem), [sem]);
+  const plan = schoolPlanFor(plans, sem);
+  const QUIZ_TOTAL = queue.length;
   const knownCount = words.filter((w) => known.has(w)).length;
   const allDone = knownCount === words.length;
   const target = view === "quiz" ? queue[qNo - 1] : null;
@@ -1261,11 +1443,11 @@ function SchoolWordsMode({ speak, addStars }) {
   const makeOptions = (w) =>
     shuffle([w, ...shuffle(words.filter((x) => x !== w)).slice(0, 2)]);
 
-  const startQuiz = () => {
-    // 優先考還沒打勾的字;不夠 10 個再從會的字裡補
-    const todo = shuffle(words.filter((w) => !known.has(w)));
-    const rest = shuffle(words.filter((w) => known.has(w)));
-    const q = [...todo, ...rest].slice(0, QUIZ_TOTAL);
+  // 照選好的範圍、順序、題數出題(選項的干擾字還是從整學期挑,只選一個字也有三個選項)
+  const startQuiz = (p) => {
+    setPlans((prev) => saveSchoolPlan(prev, sem, p));
+    const q = buildSchoolQueue(sem, p, known);
+    if (!q.length) return;
     setQueue(q); setQNo(1); setRight(0); setGotRight(new Set());
     setOptions(makeOptions(q[0])); setPicked(null); setView("quiz");
     speak.prefetchMany?.(q);
@@ -1283,7 +1465,7 @@ function SchoolWordsMode({ speak, addStars }) {
       speak(target, { rate: 0.7 });
     }
     setTimeout(() => {
-      if (qNo >= QUIZ_TOTAL) setView("result");
+      if (qNo >= queue.length) setView("result");
       else {
         const n = qNo + 1;
         setQNo(n); setOptions(makeOptions(queue[n - 1])); setPicked(null);
@@ -1310,6 +1492,13 @@ function SchoolWordsMode({ speak, addStars }) {
     });
     setConfirmReset(false);
   };
+
+  // ----- 選範圍 -----
+  if (view === "setup")
+    return (
+      <SchoolPlanPicker key={sem.key} sem={sem} known={known} plan={plan}
+        startLabel="🎯 開始考({0} 題)" onStart={startQuiz} onCancel={() => setView("list")} />
+    );
 
   // ----- 挑戰 -----
   if (view === "quiz")
@@ -1415,11 +1604,16 @@ function SchoolWordsMode({ speak, addStars }) {
         )}
       </div>
 
-      <ChunkyButton color={T.pink} dark="#D14B7D" onClick={startQuiz} style={{ width: "100%" }}>{tf("🎯 來考考我({0} 題)", QUIZ_TOTAL)}</ChunkyButton>
-      <p style={{ color: "#B7B2D8", fontSize: 12, margin: "8px 0 12px" }}>{t("考試會先挑")}<b>{t("還沒打勾")}</b>{t("的字")}</p>
+      <ChunkyButton color={T.pink} dark="#D14B7D" onClick={() => setView("setup")} style={{ width: "100%" }}>{t("🎯 來考考我")}</ChunkyButton>
+      <p style={{ color: "#B7B2D8", fontSize: 12, margin: "8px 0 12px" }}>{tf("上次的範圍:{0}(可以改成只考第幾行、第幾排或自己挑字)", schoolPlanSummary(sem, plan))}</p>
 
+      {sem.cols.map((col, ci) => (
+      <div key={ci}>
+      <div style={{ textAlign: "left", fontSize: 14, fontWeight: 800, color: T.sub, margin: ci ? "16px 0 8px 4px" : "0 0 8px 4px" }}>
+        {tf("第 {0} 行", ci + 1)} <span style={{ fontWeight: 700, color: "#B7B2D8" }}>{tf("({0} / {1} 會了)", col.filter((w) => known.has(w)).length, col.length)}</span>
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-        {words.map((w) => {
+        {col.map((w) => {
           const ok = known.has(w);
           const swatch = SCHOOL_SWATCH[w];
           return (
@@ -1460,6 +1654,8 @@ function SchoolWordsMode({ speak, addStars }) {
           );
         })}
       </div>
+      </div>
+      ))}
 
       <div style={{ marginTop: 16 }}>
         {confirmReset ? (
@@ -1505,6 +1701,8 @@ const sayTargets = (w) => SAY_HOMOPHONES[w] || [w.toLowerCase()];
 function SchoolSayMode({ speak, addStars }) {
   const [semIdx, setSemIdx] = useState(0);
   const [known, setKnown] = useState(loadSchoolKnown);
+  const [plans, setPlans] = useState(loadSchoolPlans);
+  const [picking, setPicking] = useState(false);
   const [idx, setIdx] = useState(0);
   const [status, setStatus] = useState("idle"); // idle | listening | correct | tryagain
   const [heard, setHeard] = useState("");
@@ -1514,12 +1712,9 @@ function SchoolSayMode({ speak, addStars }) {
 
   const sem = SCHOOL_WORDS[semIdx];
   const words = useMemo(() => schoolList(sem), [sem]);
-  // 還沒打勾的排前面,先練不會的
-  const queue = useMemo(
-    () => [...words.filter((w) => !known.has(w)), ...words.filter((w) => known.has(w))],
-    // 只在換學期時重排,免得打勾後題目跳掉
-    [words] // eslint-disable-line react-hooks/exhaustive-deps
-  );
+  const plan = schoolPlanFor(plans, sem);
+  // 照選好的範圍和順序排;只在換學期或改範圍時重排,免得唸對打勾後題目跳掉
+  const [queue, setQueue] = useState(() => buildSchoolQueue(SCHOOL_WORDS[0], schoolPlanFor(loadSchoolPlans(), SCHOOL_WORDS[0]), loadSchoolKnown()));
   const word = queue[idx] || queue[0];
 
   const SR = typeof window !== "undefined" &&
@@ -1613,6 +1808,19 @@ function SchoolSayMode({ speak, addStars }) {
   const knownCount = words.filter((w) => known.has(w)).length;
   const swatch = SCHOOL_SWATCH[word];
 
+  if (picking)
+    return (
+      <SchoolPlanPicker key={sem.key} sem={sem} known={known} plan={plan}
+        startLabel="🎤 開始唸({0} 個字)"
+        onCancel={() => setPicking(false)}
+        onStart={(p) => {
+          setPlans((prev) => saveSchoolPlan(prev, sem, p));
+          setQueue(buildSchoolQueue(sem, p, known));
+          setPicking(false);
+          goto(0);
+        }} />
+    );
+
   return (
     <div style={{ textAlign: "center" }}>
       <p style={{ color: T.sub, fontSize: 14, margin: "0 0 12px" }}>{t("看著字")}<b style={{ color: T.purple }}>{t("大聲唸出來")}</b>{t(",唸對得 ⭐⭐,還會自動在單字表上打勾!")}</p>
@@ -1621,7 +1829,10 @@ function SchoolSayMode({ speak, addStars }) {
         {SCHOOL_WORDS.map((s, i) => {
           const on = i === semIdx;
           return (
-            <button key={s.key} onClick={() => { setSemIdx(i); goto(0); }}
+            <button key={s.key} onClick={() => {
+              setSemIdx(i); goto(0);
+              setQueue(buildSchoolQueue(s, schoolPlanFor(plans, s), known));
+            }}
               style={{
                 fontFamily: "inherit", fontWeight: 700, fontSize: 15,
                 padding: "8px 16px", borderRadius: 999, cursor: "pointer",
@@ -1635,6 +1846,14 @@ function SchoolSayMode({ speak, addStars }) {
         })}
       </div>
 
+      <button onClick={() => { stopListening(); setPicking(true); }}
+        style={{
+          fontFamily: "inherit", fontWeight: 700, fontSize: 13, marginBottom: 8,
+          background: "#F6F4FE", border: "2px solid #E0DBF7", borderRadius: 999,
+          padding: "6px 14px", color: T.ink, cursor: "pointer",
+        }}>
+        {tf("📋 範圍:{0} ・ 改範圍", schoolPlanSummary(sem, plan))}
+      </button>
       <div style={{ color: T.sub, fontWeight: 700, fontSize: 13, marginBottom: 10 }}>{tf("第 {0} / {1} 個・這學期已會 {2} / {3}・本次唸對 {4} 個", idx + 1, queue.length, knownCount, words.length, wins)}</div>
 
       <div style={{ background: T.card, borderRadius: 24, padding: "26px 16px",
@@ -5661,7 +5880,7 @@ const BACKUP_VERSION = 1;
 // 這些鍵有一半在檔案更後面才宣告,所以要用函式延後取值,不能在模組初始化時就求值
 const backupKeys = () => [
   STARS_KEY, SIGHT_KEY, MATCH_KEY, TRACE_KEY, BOPO_TRACE_KEY,
-  ZH_SIGHT_KEY, NUM_TRACE_KEY, SCHOOL_KEY, SUBJECT_KEY,
+  ZH_SIGHT_KEY, NUM_TRACE_KEY, SCHOOL_KEY, SCHOOL_PLAN_KEY, SUBJECT_KEY,
   BOPO_READ_KEY, BOPO_READ_FIXED_KEY, LANG_KEY,
 ];
 
