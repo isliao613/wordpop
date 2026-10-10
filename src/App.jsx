@@ -1700,7 +1700,7 @@ function SchoolWordsMode({ speak, addStars }) {
 // 判讀要寬:小朋友的發音加上語音辨識,短字常被聽成近音字(the→duh、am→um、of→off)。
 // 寬鬆的原則:
 //   1) 每個字有一張「聽起來差不多」的清單,清單上的都算對
-//   2) 4 個字母以上的字,差一個字母也算對(yellow→yello、make→mike)
+//   2) 4 個字母以上的字,開頭字母一樣、只差一個字母也算對(yellow→yello、make→mike)
 //   3) 但如果聽到的剛好是單字表上「另一個字」,就不算——then/when、where/there
 //      這種分不清楚是真的還沒學會,不是辨識的問題(真正的同音字 to/two/too、no/know 例外,寫在清單裡)
 //   4) 數字當字看(2 → two)、相鄰兩個字併起來也看(a way → away、in to → into)、
@@ -1753,9 +1753,13 @@ function editDistance(a, b) {
   const dp = Array.from({ length: a.length + 1 }, (_, i) => [i]);
   for (let j = 1; j <= b.length; j++) dp[0][j] = j;
   for (let i = 1; i <= a.length; i++)
-    for (let j = 1; j <= b.length; j++)
+    for (let j = 1; j <= b.length; j++) {
       dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1,
         dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      // 前後兩個字母對調(littel → little)只算差一個
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1])
+        dp[i][j] = Math.min(dp[i][j], dp[i - 2][j - 2] + 1);
+    }
   return dp[a.length][b.length];
 }
 
@@ -1773,7 +1777,8 @@ function sayMatches(word, transcript) {
     if (near.has(tk)) return true;
     if (SCHOOL_ALL.has(tk)) return false;               // 是另一個學校單字:真的唸錯了
     if (target.length >= 3 && tk === `${target}s`) return true;
-    return target.length >= 4 && tk.length >= 3 && editDistance(tk, target) <= 1;
+    // 開頭字母要一樣:make→take、look→book 是真的唸錯,不是辨識的問題
+    return target.length >= 4 && tk.length >= 3 && tk[0] === target[0] && editDistance(tk, target) <= 1;
   });
 }
 

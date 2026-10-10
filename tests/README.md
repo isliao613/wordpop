@@ -28,6 +28,7 @@ WORDPOP_URL=http://localhost:4173/wordpop/ npm test
 | `backup.mjs` | 備份 → 清光資料 → 還原,星星/進度/注音錄音都要一模一樣回來 |
 | `offline.mjs` | Service Worker 裝得起來、斷網照樣能玩、部署新版一次重整就換新 |
 | `school.mjs` | 學校單字表:選一整直行/一整橫排/自己挑字、照順序出題、範圍會記住、跟讀版也能選範圍 |
+| `schoolsay.mjs` | 學校單字跟讀:換字自動先唸、開始收音時示範音被取消、近音字算對、唸成另一個學校單字不算、家長可以按算對 |
 | `bopomofo.mjs` | 有家長錄音時要播錄音,而且沒有任何地方偷用合成語音唸單一注音符號 |
 
 `offline.mjs` 會暫時改 `src/App.jsx` 的版號、重建、再改回來,用來模擬部署新版。
