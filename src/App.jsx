@@ -380,31 +380,40 @@ function useSpeech() {
     }
   }, []);
 
+  // 每次出聲或喊停都換一個世代號;還在查音檔的舊請求發現世代變了就不出聲,
+  // 免得查得比較慢的那一筆在下一個字、或在麥克風收音時才突然冒出來
+  const genRef = useRef(0);
+  const halt = useCallback(() => {
+    // 停掉正在播的(增益快速滑到 0 再停,避免「喀」一聲)
+    const ss = window.speechSynthesis;
+    if (ss && (ss.speaking || ss.pending)) ss.cancel();
+    if (srcRef.current) {
+      const { src: oldSrc, g: oldG } = srcRef.current;
+      try {
+        oldSrc.onended = null;
+        const ctx0 = ctxRef.current;
+        if (oldG && ctx0) {
+          oldG.gain.cancelScheduledValues(ctx0.currentTime);
+          oldG.gain.setValueAtTime(oldG.gain.value, ctx0.currentTime);
+          oldG.gain.linearRampToValueAtTime(0.0001, ctx0.currentTime + 0.015);
+          oldSrc.stop(ctx0.currentTime + 0.02);
+        } else {
+          oldSrc.stop();
+        }
+      } catch { /* 已停 */ }
+      srcRef.current = null;
+    }
+    if (audioRef.current) {
+      audioRef.current.onended = null;
+      audioRef.current.pause();
+    }
+  }, []);
+
   const speak = useCallback(
     async (text, { rate = 0.85, onEnd, lang } = {}) => {
-      // 停掉正在播的(增益快速滑到 0 再停,避免「喀」一聲)
-      const ss = window.speechSynthesis;
-      if (ss && (ss.speaking || ss.pending)) ss.cancel();
-      if (srcRef.current) {
-        const { src: oldSrc, g: oldG } = srcRef.current;
-        try {
-          oldSrc.onended = null;
-          const ctx0 = ctxRef.current;
-          if (oldG && ctx0) {
-            oldG.gain.cancelScheduledValues(ctx0.currentTime);
-            oldG.gain.setValueAtTime(oldG.gain.value, ctx0.currentTime);
-            oldG.gain.linearRampToValueAtTime(0.0001, ctx0.currentTime + 0.015);
-            oldSrc.stop(ctx0.currentTime + 0.02);
-          } else {
-            oldSrc.stop();
-          }
-        } catch { /* 已停 */ }
-        srcRef.current = null;
-      }
-      if (audioRef.current) {
-        audioRef.current.onended = null;
-        audioRef.current.pause();
-      }
+      halt();
+      const gen = ++genRef.current;
+      const stale = () => gen !== genRef.current;
       // 中文(注音遊戲)直接走中文合成語音,不查英文字典
       if (lang && /^zh/i.test(lang)) {
         ttsSpeak(text, { rate, onEnd, lang });
@@ -415,9 +424,9 @@ function useSpeech() {
         const attempt = { cancelled: false };
         const tryHuman = async () => {
           const url = await findHumanAudio(text);
-          if (!url || attempt.cancelled) return false;
+          if (!url || attempt.cancelled || stale()) return false;
           const entry = await loadBuffer(url);
-          if (attempt.cancelled) return false;
+          if (attempt.cancelled || stale()) return false;
           // iOS:用祝福元件播「烘焙好的正規化 WAV」——無即時管線、無毛刺、不受靜音鍵影響
           if (IS_IOS) {
             try {
@@ -436,7 +445,7 @@ function useSpeech() {
           }
           // 桌機/Android:Web Audio 播放(音量已正規化,和合成音一致)
           const ctx = getCtx();
-          if (entry && ctx && !attempt.cancelled) {
+          if (entry && ctx && !attempt.cancelled && !stale()) {
             try {
               if (ctx.state !== "running") {
                 // resume 在部分瀏覽器會永遠不 resolve,用 250ms 競速保底
@@ -445,7 +454,7 @@ function useSpeech() {
                   new Promise((r) => setTimeout(r, 250)),
                 ]);
               }
-              if (ctx.state === "running" && !attempt.cancelled) {
+              if (ctx.state === "running" && !attempt.cancelled && !stale()) {
                 const src = ctx.createBufferSource();
                 src.buffer = entry.buf;
                 const pr = rate < 0.8 ? 0.85 : 1;
@@ -469,7 +478,7 @@ function useSpeech() {
               /* Web Audio 失敗 → 試祝福過的 Audio 元件 */
             }
           }
-          if (attempt.cancelled) return false;
+          if (attempt.cancelled || stale()) return false;
           // 備援:手勢裡祝福過的共用 Audio 元件(iOS 允許它由程式播放)
           try {
             const a = blessedRef.current || new Audio();
@@ -491,11 +500,12 @@ function useSpeech() {
         ]);
         if (ok === true) return "human";
         attempt.cancelled = true; // 超時後就算晚到也不要突然出聲
+        if (stale()) return "stopped"; // 等的時候被喊停或換了下一句,就不要補念合成音
       }
       ttsSpeak(text, { rate, onEnd });
       return "tts";
     },
-    [findHumanAudio, ttsSpeak, loadBuffer, getCtx]
+    [findHumanAudio, ttsSpeak, loadBuffer, getCtx, halt]
   );
 
   // speak.prefetch / speak.prefetchMany:題目出現時先在背景查好音檔
@@ -511,8 +521,10 @@ function useSpeech() {
     // 直接播一段音檔(家長自己錄的注音發音)。走和真人音檔同一條路:
     // iOS 只允許「在手勢裡播過一次」的 Audio 元件由程式播放,所以沿用同一顆。
     fn.playClip = (url, opts = {}) => playClip(url, opts);
+    // 停掉所有聲音,包括還在查音檔、等一下才會出聲的那一筆(開麥克風前用)
+    fn.stop = () => { genRef.current++; halt(); };
     return fn;
-  }, [speak, findHumanAudio, playClip]);
+  }, [speak, findHumanAudio, playClip, halt]);
 }
 
 // ---------- 3D 按鈕 ----------
@@ -1684,20 +1696,86 @@ function SchoolWordsMode({ speak, addStars }) {
 
 // ---------- 學校單字表:唸出來答題(語音辨識)----------
 // 用「唸得出來」當通過條件——這比三選一更接近老師在課堂上的檢核方式。
-// 語音辨識對這種短的功能字常常聽成同音字,所以放寬到真正分不出來的同音詞。
-const SAY_HOMOPHONES = {
-  I: ["i", "eye", "aye"],
-  a: ["a", "ay", "eh", "uh"],
-  to: ["to", "too", "two"], two: ["two", "to", "too"], too: ["too", "to", "two"],
-  for: ["for", "four", "fore"], four: ["four", "for", "fore"],
-  be: ["be", "bee", "b"], see: ["see", "sea", "c"],
-  here: ["here", "hear"], no: ["no", "know"], know: ["know", "no"],
-  our: ["our", "hour", "are"], one: ["one", "won"], some: ["some", "sum"],
-  there: ["there", "their", "theyre"], so: ["so", "sew", "sow"],
-  by: ["by", "buy", "bye"], new: ["new", "knew"], eat: ["eat", "eight"],
-  way: ["way", "weigh"], made: ["made", "maid"], its: ["its", "it's"],
+//
+// 判讀要寬:小朋友的發音加上語音辨識,短字常被聽成近音字(the→duh、am→um、of→off)。
+// 寬鬆的原則:
+//   1) 每個字有一張「聽起來差不多」的清單,清單上的都算對
+//   2) 4 個字母以上的字,差一個字母也算對(yellow→yello、make→mike)
+//   3) 但如果聽到的剛好是單字表上「另一個字」,就不算——then/when、where/there
+//      這種分不清楚是真的還沒學會,不是辨識的問題(真正的同音字 to/two/too、no/know 例外,寫在清單裡)
+//   4) 數字當字看(2 → two)、相鄰兩個字併起來也看(a way → away、in to → into)、
+//      加 s 也算(looks → look)
+const SAY_NEAR = {
+  I: ["eye", "aye", "hi", "high", "ai", "ay"],
+  am: ["um", "em", "an", "and", "im", "ham", "m"],
+  the: ["da", "duh", "de", "thee", "thuh", "dah"],
+  a: ["ay", "eh", "uh", "ah", "hey", "eight"],
+  to: ["too", "two", "tu"], two: ["to", "too", "tu"], too: ["to", "two", "tu"],
+  like: ["lake", "likes"], he: ["hi", "hee", "hey", "ee"],
+  is: ["his", "its", "as", "ease", "iz", "ez"],
+  have: ["half", "has", "hav", "haf"], my: ["mi", "mai", "mine", "ma"],
+  we: ["wee", "whee", "oui", "wii", "v"], make: ["mike", "made", "mak"],
+  me: ["mi", "mee"], for: ["four", "fore", "far", "fur", "fo", "foe"],
+  four: ["for", "fore", "fo"], with: ["wit", "wiff", "width", "whiff"],
+  she: ["shi", "shea", "shee"], see: ["sea", "c", "si", "cee"],
+  look: ["luke", "looks"], of: ["off", "uv", "ov", "love"],
+  are: ["r", "our", "or", "ar", "ah"], that: ["dat", "thats"],
+  do: ["due", "dew", "doo", "du"], you: ["u", "yu", "ewe", "yo", "ya"],
+  they: ["day", "dey", "theyre", "thay"], one: ["won", "on", "wan"],
+  three: ["tree", "free"], five: ["fife", "fi"], here: ["hear", "ear"],
+  go: ["goes", "goal"], from: ["form", "fro", "frum"],
+  blue: ["blew", "blu"], what: ["wat", "watt", "whats", "wot"],
+  green: ["greens", "grin"], was: ["wuz", "wus", "woz"], said: ["sed"],
+  where: ["wear", "ware"], any: ["annie", "enny", "ani"],
+  come: ["comb", "calm", "cum", "comes"], play: ["pray", "plays", "pley"],
+  her: ["hur", "hers"], how: ["hao", "hau"], down: ["dawn", "don", "downs"],
+  give: ["gives", "giv", "gif"], were: ["whir", "wer"], some: ["sum"],
+  live: ["leave", "liv", "lives", "life"], know: ["no"], no: ["know"],
+  find: ["fine", "fined", "finds"], over: ["ova", "ovah"], all: ["awe", "ol", "al"],
+  now: ["naw", "nao"], pretty: ["prity", "pritty", "priti"],
+  black: ["block", "blak"], brown: ["braun"], white: ["wight", "wite"],
+  good: ["goods", "gud"], open: ["opens", "opened"], could: ["cud", "cood"],
+  want: ["wont", "wanna", "wan"], every: ["evry", "avery"],
+  please: ["pleas", "plese"], may: ["mae", "mei"], this: ["dis", "these", "thiz"],
+  round: ["around", "rounds"], be: ["bee", "b", "bea"],
+  saw: ["sought", "sore", "sa", "sah", "soar"], our: ["hour", "are"],
+  eat: ["it", "eight", "eats", "eet"], soon: ["sun", "sewn"],
+  walk: ["work", "wok", "woke", "walks"], who: ["hoo", "hu", "whom", "whose"],
+  there: ["their", "theyre"], so: ["sew", "sow"], out: ["owt", "outs"],
+  then: ["den", "than"], new: ["knew", "nu", "news"], when: ["wen", "win"],
+  say: ["sei", "sae", "se", "says"], under: ["unda"],
 };
-const sayTargets = (w) => SAY_HOMOPHONES[w] || [w.toLowerCase()];
+const SAY_DIGITS = { 1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 8: "eight" };
+const SCHOOL_ALL = new Set(SCHOOL_WORDS.flatMap((s) => schoolList(s)).map((w) => w.toLowerCase()));
+
+function editDistance(a, b) {
+  if (Math.abs(a.length - b.length) > 2) return 99;
+  const dp = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+  for (let j = 1; j <= b.length; j++) dp[0][j] = j;
+  for (let i = 1; i <= a.length; i++)
+    for (let j = 1; j <= b.length; j++)
+      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return dp[a.length][b.length];
+}
+
+// 聽到的這句話裡,有沒有一個字可以算她唸對了 word
+function sayMatches(word, transcript) {
+  const target = word.toLowerCase();
+  const near = new Set([target, ...(SAY_NEAR[word] || [])]);
+  const raw = String(transcript).toLowerCase().replace(/[^a-z0-9' ]/g, " ")
+    .split(/\s+/).filter(Boolean)
+    .map((tk) => tk.replace(/'/g, ""))
+    .map((tk) => SAY_DIGITS[tk] || tk);
+  const toks = [...raw];
+  for (let i = 0; i + 1 < raw.length; i++) toks.push(raw[i] + raw[i + 1]);
+  return toks.some((tk) => {
+    if (near.has(tk)) return true;
+    if (SCHOOL_ALL.has(tk)) return false;               // 是另一個學校單字:真的唸錯了
+    if (target.length >= 3 && tk === `${target}s`) return true;
+    return target.length >= 4 && tk.length >= 3 && editDistance(tk, target) <= 1;
+  });
+}
 
 function SchoolSayMode({ speak, addStars }) {
   const [semIdx, setSemIdx] = useState(0);
@@ -1710,6 +1788,7 @@ function SchoolSayMode({ speak, addStars }) {
   const [wins, setWins] = useState(0);
   const recRef = useRef(null);
   const timerRef = useRef(0);
+  const autoRef = useRef(0);
 
   const sem = SCHOOL_WORDS[semIdx];
   const words = useMemo(() => schoolList(sem), [sem]);
@@ -1722,6 +1801,13 @@ function SchoolSayMode({ speak, addStars }) {
     (window.SpeechRecognition || window.webkitSpeechRecognition);
 
   useEffect(() => { speak.prefetch?.(word); }, [word, speak]);
+
+  // 換到新的字就先唸一次給她聽,不用自己按;要再聽就按「再聽一次」
+  useEffect(() => {
+    if (picking || !word) return undefined;
+    autoRef.current = setTimeout(() => speak(word), 450);
+    return () => clearTimeout(autoRef.current);
+  }, [word, idx, queue, picking, speak]);
 
   const stopListening = useCallback(() => {
     clearTimeout(timerRef.current);
@@ -1751,7 +1837,9 @@ function SchoolSayMode({ speak, addStars }) {
 
   const listen = () => {
     if (!SR || status === "listening") return;
-    window.speechSynthesis?.cancel(); // 不要讓麥克風收到喇叭的示範音
+    // 不要讓麥克風收到喇叭的示範音:取消還沒開始的自動唸,也停掉正在播或還在查的音檔
+    clearTimeout(autoRef.current);
+    if (speak.stop) speak.stop(); else window.speechSynthesis?.cancel();
     stopListening();
     try {
       const rec = new SR();
@@ -1759,9 +1847,9 @@ function SchoolSayMode({ speak, addStars }) {
       rec.lang = "en-US";
       rec.interimResults = true;   // 唸對立刻過關,不等瀏覽器判定講完
       rec.maxAlternatives = 5;
-      rec.continuous = false;
+      // 一直聽到時間到為止:先「嗯…」一聲再唸,或第一次沒唸好馬上再唸,都還算數
+      rec.continuous = true;
       setStatus("listening"); setHeard("");
-      const accepts = sayTargets(word);
       let settled = false;
       const succeed = () => {
         if (settled) return;
@@ -1779,18 +1867,15 @@ function SchoolSayMode({ speak, addStars }) {
         stopListening();
         setStatus("tryagain");
       };
-      // 逐字比對:把聽到的句子切成單字,要有一個「完全等於」目標字(或其同音字)
-      const hit = (transcript) => {
-        const toks = transcript.toLowerCase().replace(/[^a-z' ]/g, " ").split(/\s+/).filter(Boolean);
-        return toks.some((tk) => accepts.includes(tk.replace(/'/g, "")));
-      };
+      const hit = (transcript) => sayMatches(word, transcript);
       rec.onresult = (e) => {
         const alts = [];
         for (const res of e.results)
           for (const alt of res) alts.push(alt.transcript.trim());
-        if (alts[0]) setHeard(alts[0]);
+        const last = e.results[e.results.length - 1];
+        if (last && last[0]) setHeard(last[0].transcript.trim());
+        // 所有候選都看,不只看第一個;沒中就繼續聽,等時間到才算這次沒過
         if (alts.some(hit)) succeed();
-        else if (e.results[e.results.length - 1].isFinal) giveUp();
       };
       rec.onerror = giveUp;
       rec.onend = () => {
@@ -1799,7 +1884,7 @@ function SchoolSayMode({ speak, addStars }) {
       };
       timerRef.current = setTimeout(() => {
         try { rec.stop(); } catch { giveUp(); }
-      }, 6000);
+      }, 7000);
       rec.start();
     } catch {
       setStatus("tryagain");
@@ -1873,7 +1958,7 @@ function SchoolSayMode({ speak, addStars }) {
         <div style={{ display: "flex", gap: 10, justifyContent: "center",
           flexWrap: "wrap", marginTop: 14 }}>
           <ChunkyButton color={T.yellow} dark={T.yellowDark} style={{ color: T.ink }}
-            onClick={() => speak(word)} disabled={status === "listening"}>{t("🔊 先聽一次")}</ChunkyButton>
+            onClick={() => speak(word)} disabled={status === "listening"}>{t("🔊 再聽一次")}</ChunkyButton>
           {SR ? (
             <ChunkyButton
               color={status === "listening" ? T.red : T.pink}
@@ -1893,7 +1978,18 @@ function SchoolSayMode({ speak, addStars }) {
           <div style={{ marginTop: 14, fontSize: 20, color: T.greenDark, fontWeight: 700 }}>{t("🎉 唸對了!+2 ⭐")}</div>
         )}
         {status === "tryagain" && (
-          <div style={{ marginTop: 14, fontSize: 15, color: T.sub }}>{tf("{0}再試一次,先按「先聽一次」再慢慢唸 💪", heard ? tf("我聽到「{0}」,", heard) : "")}</div>
+          <div style={{ marginTop: 14, fontSize: 15, color: T.sub }}>
+            {tf("{0}再試一次,可以按「再聽一次」再慢慢唸 💪", heard ? tf("我聽到「{0}」,", heard) : "")}
+            {/* 機器還是聽錯的時候,家長在旁邊聽到唸對了可以直接算過 */}
+            <div style={{ marginTop: 10 }}>
+              <button onClick={() => { setStatus("correct"); setWins((n) => n + 1); addStars(2); markKnown(word); speak("Great job!", { rate: 1 }); }}
+                style={{
+                  fontFamily: "inherit", fontWeight: 700, fontSize: 13,
+                  background: "#F6F4FE", border: "2px solid #E0DBF7", borderRadius: 999,
+                  padding: "6px 14px", color: T.sub, cursor: "pointer",
+                }}>{t("👂 其實唸對了(家長按)")}</button>
+            </div>
+          </div>
         )}
       </div>
 
