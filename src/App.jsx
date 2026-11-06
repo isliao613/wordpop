@@ -2010,6 +2010,296 @@ function SchoolSayMode({ speak, addStars }) {
   );
 }
 
+// ---------- 字卡(Sight Words / 學校單字)----------
+// 像實體字卡一樣:卡片上只有字,不先唸——讓她自己看著唸;點卡片才出聲對答案。
+// 會了往右滑(或按「會了」)、還不熟往左滑(或按「再練」),練完可以只重練不熟的。
+// 學校單字按「會了」會順便在單字表上打勾(和紙本自我檢核一樣,不給星星,免得亂按刷星)。
+const FLASH_KEY = "wordpop-flash";
+const FLASH_SETS = [
+  ["sight", "常見字 Sight Words"],
+  ["s1", "學校單字・上學期"],
+  ["s2", "學校單字・下學期"],
+];
+function loadFlashPrefs() {
+  try {
+    const o = JSON.parse(localStorage.getItem(FLASH_KEY) || "{}");
+    return o && typeof o === "object" && !Array.isArray(o) ? o : {};
+  } catch {
+    return {};
+  }
+}
+function saveFlashPrefs(p) {
+  try { localStorage.setItem(FLASH_KEY, JSON.stringify(p)); } catch { /* 存不了就只用這一次 */ }
+}
+
+function FlashcardMode({ speak, defaultSet = "sight" }) {
+  const saved = useMemo(loadFlashPrefs, []);
+  const [set, setSet] = useState(() =>
+    FLASH_SETS.some(([k]) => k === saved[`set_${defaultSet}`]) ? saved[`set_${defaultSet}`] : defaultSet);
+  // 常見字:用「關」來分(和認字快手同一套,一關 5 個字)
+  const [levels, setLevels] = useState(() => {
+    const l = Array.isArray(saved.levels) ? saved.levels.filter((i) => i >= 0 && i < SIGHT_LEVELS.length) : [];
+    return new Set(l.length ? l : SIGHT_LEVELS.map((_, i) => i));
+  });
+  const [order, setOrder] = useState(saved.order === "random" ? "random" : "sheet");
+  const [cap, setCap] = useState([0, 5, 10].includes(saved.cap) ? saved.cap : 0);
+  const [plans, setPlans] = useState(loadSchoolPlans);
+  const [known, setKnown] = useState(loadSchoolKnown);
+  const [view, setView] = useState("setup"); // setup | pick | cards | done
+  const [deck, setDeck] = useState([]);
+  const [idx, setIdx] = useState(0);
+  const [got, setGot] = useState([]);
+  const [again, setAgain] = useState([]);
+  const [drag, setDrag] = useState(0);
+  const [fly, setFly] = useState(0);       // 卡片飛出去的方向:1 右(會了)、-1 左(再練)
+  const startX = useRef(null);
+  const busy = useRef(false);
+
+  const sem = SCHOOL_WORDS.find((s) => s.key === set);
+  const word = deck[idx];
+
+  const persist = (patch) => saveFlashPrefs({ ...loadFlashPrefs(), ...patch });
+  const chooseSet = (k) => { setSet(k); persist({ [`set_${defaultSet}`]: k }); };
+
+  const sightPool = SIGHT_LEVELS.flatMap((lv, i) => (levels.has(i) ? lv : []));
+  const sightCount = cap && cap < sightPool.length ? cap : sightPool.length;
+
+  const begin = (words) => {
+    if (!words.length) return;
+    setDeck(words); setIdx(0); setGot([]); setAgain([]); setDrag(0); setFly(0);
+    busy.current = false;
+    setView("cards");
+    speak.prefetchMany?.(words);
+  };
+  const startSight = () => {
+    persist({ levels: [...levels], order, cap });
+    let q = order === "random" ? shuffle(sightPool) : sightPool;
+    if (cap && cap < q.length) q = q.slice(0, cap);
+    begin(q);
+  };
+  const startSchool = (plan) => {
+    setPlans((prev) => saveSchoolPlan(prev, sem, plan));
+    begin(buildSchoolQueue(sem, plan, known));
+  };
+
+  const tick = (w) => {
+    if (!sem) return;
+    setKnown((prev) => {
+      if (prev.has(w)) return prev;
+      const next = new Set(prev).add(w);
+      try { localStorage.setItem(SCHOOL_KEY, JSON.stringify([...next])); } catch { /* ignore */ }
+      return next;
+    });
+  };
+
+  // 決定這張:1 = 會了、-1 = 再練。先讓卡片飛出去,再換下一張
+  const decide = useCallback((dir) => {
+    if (busy.current || !word) return;
+    busy.current = true;
+    setFly(dir);
+    if (dir > 0) { setGot((g) => [...g, word]); tick(word); }
+    else setAgain((a) => [...a, word]);
+    setTimeout(() => {
+      setFly(0); setDrag(0);
+      if (idx + 1 >= deck.length) setView("done");
+      else setIdx(idx + 1);
+      busy.current = false;
+    }, 220);
+  }, [word, idx, deck.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 鍵盤:→ 會了、← 再練、空白鍵聽發音(接鍵盤的 iPad 或電腦)
+  useEffect(() => {
+    if (view !== "cards") return undefined;
+    const onKey = (e) => {
+      if (e.key === "ArrowRight") decide(1);
+      else if (e.key === "ArrowLeft") decide(-1);
+      else if (e.key === " ") { e.preventDefault(); if (word) speak(word); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [view, decide, word, speak]);
+
+  const chip = (on, label, onClick, key) => (
+    <button key={key || label} onClick={onClick}
+      style={{
+        fontFamily: "inherit", fontWeight: 700, fontSize: 14,
+        padding: "7px 13px", borderRadius: 999, cursor: "pointer",
+        border: `2px solid ${on ? T.purpleDark : "#E0DBF7"}`,
+        background: on ? T.purple : T.card, color: on ? "#fff" : T.ink,
+      }}>{label}</button>
+  );
+  const head = (txt) => (
+    <div style={{ fontSize: 14, fontWeight: 800, color: T.ink, margin: "14px 0 8px", textAlign: "left" }}>{txt}</div>
+  );
+
+  // ----- 學校單字:用和考試同一個範圍選擇(第幾行、第幾排、自己挑)-----
+  if (view === "pick" && sem)
+    return (
+      <SchoolPlanPicker key={sem.key} sem={sem} known={known} plan={schoolPlanFor(plans, sem)}
+        startLabel="🃏 開始({0} 張)" onStart={startSchool} onCancel={() => setView("setup")} />
+    );
+
+  // ----- 練完 -----
+  if (view === "done")
+    return (
+      <div style={{ textAlign: "center", padding: "16px 0" }}>
+        <div style={{ fontSize: 60 }}>{again.length ? "🎉" : "🏆"}</div>
+        <h2 style={{ color: T.ink, fontSize: 24, margin: "8px 0 4px" }}>{tf("練完 {0} 張字卡!", deck.length)}</h2>
+        <p style={{ color: T.sub, fontSize: 15, margin: "4px 0 14px" }}>
+          {tf("會了 {0} 張・再練 {1} 張", got.length, again.length)}
+        </p>
+        {again.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginBottom: 16 }}>
+            {again.map((w, i) => (
+              <button key={`${w}-${i}`} onClick={() => speak(w)}
+                style={{ fontFamily: "inherit", fontWeight: 700, fontSize: 20, padding: "6px 14px",
+                  borderRadius: 12, border: "2px solid #F6D08A", background: "#FFF6E5",
+                  color: T.ink, cursor: "pointer" }}>{w}</button>
+            ))}
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+          {again.length > 0 && (
+            <ChunkyButton color={T.pink} dark="#D14B7D" onClick={() => begin(shuffle(again))}>
+              {tf("🔁 再練這 {0} 張", again.length)}
+            </ChunkyButton>
+          )}
+          <ChunkyButton color={T.purple} dark={T.purpleDark}
+            onClick={() => begin(order === "random" ? shuffle(deck) : deck)}>{t("🃏 整副再來一次")}</ChunkyButton>
+          <ChunkyButton color="#B7B2D8" dark="#9A95BF" onClick={() => setView("setup")}>{t("換一副")}</ChunkyButton>
+        </div>
+      </div>
+    );
+
+  // ----- 翻字卡 -----
+  if (view === "cards" && word) {
+    const dx = fly ? fly * 420 : drag;
+    return (
+      <div style={{ textAlign: "center" }}>
+        <div style={{ color: T.sub, fontWeight: 700, fontSize: 14, marginBottom: 10 }}>
+          {tf("第 {0} / {1} 張・會了 {2}・再練 {3}", idx + 1, deck.length, got.length, again.length)}
+        </div>
+        <div style={{ height: 10, background: "#EFECFB", borderRadius: 999, overflow: "hidden", marginBottom: 14 }}>
+          <div style={{ width: `${(idx / deck.length) * 100}%`, height: "100%", background: T.green,
+            borderRadius: 999, transition: "width .2s" }} />
+        </div>
+
+        <div
+          role="button" aria-label={tf("字卡:{0},點一下聽發音", word)}
+          onPointerDown={(e) => { startX.current = e.clientX; }}
+          onPointerMove={(e) => { if (startX.current !== null) setDrag(e.clientX - startX.current); }}
+          onPointerUp={(e) => {
+            const d = startX.current === null ? 0 : e.clientX - startX.current;
+            startX.current = null;
+            if (d > 70) decide(1);
+            else if (d < -70) decide(-1);
+            else { setDrag(0); speak(word); }
+          }}
+          onPointerCancel={() => { startX.current = null; setDrag(0); }}
+          style={{
+            background: T.card, borderRadius: 28, minHeight: 230,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: "0 8px 0 #E0DBF7", border: `4px solid ${dx > 40 ? T.green : dx < -40 ? T.yellow : "#E8E4FA"}`,
+            transform: `translateX(${dx}px) rotate(${dx / 30}deg)`,
+            transition: fly || !drag ? "transform .22s ease, border-color .15s" : "none",
+            opacity: fly ? 0 : 1, touchAction: "pan-y", userSelect: "none", cursor: "pointer",
+            marginBottom: 8,
+          }}>
+          <span style={{ fontSize: word.length > 6 ? 60 : 78, fontWeight: 800, color: T.ink }}>{word}</span>
+        </div>
+        <div style={{ color: "#B7B2D8", fontSize: 12, marginBottom: 14 }}>
+          {t("先自己唸唸看,再點卡片聽答案・會了往右滑、不熟往左滑")}
+        </div>
+
+        <div style={{ display: "flex", gap: 10, justifyContent: "center", marginBottom: 12 }}>
+          <ChunkyButton color={T.yellow} dark={T.yellowDark} style={{ color: T.ink, flex: 1 }}
+            onClick={() => decide(-1)}>{t("😕 再練")}</ChunkyButton>
+          <ChunkyButton color={T.green} dark={T.greenDark} style={{ flex: 1 }}
+            onClick={() => decide(1)}>{t("😀 會了")}</ChunkyButton>
+        </div>
+        <ChunkyButton color="#B7B2D8" dark="#9A95BF" onClick={() => speak(word)}>{t("🔊 聽發音")}</ChunkyButton>
+        <div>
+          <button onClick={() => setView("setup")}
+            style={{ marginTop: 14, fontFamily: "inherit", fontWeight: 700, fontSize: 14,
+              background: "none", border: "none", color: T.sub, cursor: "pointer" }}>{t("← 換一副")}</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ----- 選一副字卡 -----
+  return (
+    <div style={{ textAlign: "center" }}>
+      <h2 style={{ color: T.ink, fontSize: 21, margin: "0 0 4px" }}>{t("🃏 要練哪一副字卡?")}</h2>
+      <p style={{ color: T.sub, fontSize: 13, margin: "0 0 6px", lineHeight: 1.6 }}>
+        {t("卡片上只有字、不會先唸:讓她自己看著唸,點卡片才聽答案。")}
+      </p>
+
+      {head(t("① 哪一副"))}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {FLASH_SETS.map(([k, label]) => chip(set === k, t(label), () => chooseSet(k), k))}
+      </div>
+
+      {set === "sight" ? (
+        <>
+          {head(t("② 哪幾關(和認字快手同一套,一關 5 個字)"))}
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {chip(levels.size === SIGHT_LEVELS.length, t("全部"), () => setLevels(new Set(SIGHT_LEVELS.map((_, i) => i))), "all")}
+            {SIGHT_LEVELS.map((lv, i) => chip(levels.has(i) && levels.size < SIGHT_LEVELS.length,
+              tf("第 {0} 關", i + 1), () => setLevels((prev) => {
+                // 從「全部」點某一關 = 只要這一關;之後再點就是加減
+                if (prev.size === SIGHT_LEVELS.length) return new Set([i]);
+                const next = new Set(prev);
+                if (next.has(i)) next.delete(i); else next.add(i);
+                return next.size ? next : new Set(SIGHT_LEVELS.map((_, j) => j));
+              }), `lv${i}`))}
+          </div>
+          <div style={{ color: T.sub, fontSize: 13, margin: "8px 0 0", textAlign: "left", lineHeight: 1.7 }}>
+            {sightPool.join("・")}
+          </div>
+
+          {head(t("③ 順序"))}
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {chip(order === "sheet", t("照順序"), () => setOrder("sheet"))}
+            {chip(order === "random", t("打亂順序"), () => setOrder("random"))}
+          </div>
+
+          {head(t("④ 幾張"))}
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {chip(!cap || cap >= sightPool.length, tf("全部 {0} 張", sightPool.length), () => setCap(0))}
+            {sightPool.length > 10 && chip(cap === 10, t("10 張"), () => setCap(10))}
+            {sightPool.length > 5 && chip(cap === 5, t("5 張"), () => setCap(5))}
+          </div>
+
+          <div style={{ marginTop: 18 }}>
+            <ChunkyButton color={T.pink} dark="#D14B7D" onClick={startSight} style={{ width: "100%" }}>
+              {tf("🃏 開始({0} 張)", sightCount)}
+            </ChunkyButton>
+          </div>
+        </>
+      ) : (
+        <>
+          {head(t("② 範圍"))}
+          <div style={{ background: "#F6F4FE", borderRadius: 14, padding: "10px 12px", textAlign: "left",
+            color: T.ink, fontSize: 14, fontWeight: 700 }}>
+            {schoolPlanSummary(sem, schoolPlanFor(plans, sem))}
+            <div style={{ color: T.sub, fontSize: 12, fontWeight: 600, marginTop: 4 }}>
+              {t("和學校單字表的考試用同一個範圍;按「會了」會幫她在單字表上打勾")}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap", marginTop: 18 }}>
+            <ChunkyButton color={T.pink} dark="#D14B7D"
+              onClick={() => begin(buildSchoolQueue(sem, schoolPlanFor(plans, sem), known))}>
+              {tf("🃏 開始({0} 張)", buildSchoolQueue(sem, schoolPlanFor(plans, sem), known).length)}
+            </ChunkyButton>
+            <ChunkyButton color={T.purple} dark={T.purpleDark} onClick={() => setView("pick")}>{t("📋 改範圍")}</ChunkyButton>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ---------- 注音錄音(家長)----------
 // 合成語音唸不好注音的呼讀音,自己錄一次最準,而且對小小孩來說
 // 爸媽的聲音比任何錄音都好。也可以匯入現成音檔。
@@ -5982,7 +6272,7 @@ const BACKUP_VERSION = 1;
 // 這些鍵有一半在檔案更後面才宣告,所以要用函式延後取值,不能在模組初始化時就求值
 const backupKeys = () => [
   STARS_KEY, SIGHT_KEY, MATCH_KEY, TRACE_KEY, BOPO_TRACE_KEY,
-  ZH_SIGHT_KEY, NUM_TRACE_KEY, SCHOOL_KEY, SCHOOL_PLAN_KEY, SUBJECT_KEY,
+  ZH_SIGHT_KEY, NUM_TRACE_KEY, SCHOOL_KEY, SCHOOL_PLAN_KEY, FLASH_KEY, SUBJECT_KEY,
   BOPO_READ_KEY, BOPO_READ_FIXED_KEY, LANG_KEY,
 ];
 
@@ -10279,6 +10569,8 @@ const MENU_GROUPS = [
         tip: "就是學校那張檢核表:點字聽發音,唸得出來讓她自己打勾;考試會先挑還沒打勾的字" },
       { mode: "schoolsay", color: "#F0932B", dark: "#C4731A", label: "🎤 學校單字跟讀",
         tip: "看著字唸出來才算過,比選擇題更接近老師的檢核;唸對會自動幫她在單字表打勾" },
+      { mode: "schoolflash", color: "#8E44AD", dark: "#6C3483", label: "🃏 學校單字字卡",
+        tip: "像實體字卡:她先自己唸,點卡片聽答案;會了往右滑、不熟往左滑,會了的字會自動打勾" },
     ],
   },
   {
@@ -10289,6 +10581,8 @@ const MENU_GROUPS = [
         tip: "前幾關她都會,先讓她連拿皇冠建立信心再往後玩" },
       { mode: "match", color: "#EE5A6F", dark: "#C43D52", label: "🎴 單字翻翻樂",
         tip: "翻牌時鼓勵她跟著唸出聲,字形和聲音記得更牢" },
+      { mode: "flash", color: "#8E44AD", dark: "#6C3483", label: "🃏 Sight Word 字卡",
+        tip: "像實體字卡:她先自己唸,點卡片聽答案;可以選第幾關、打亂順序,練完只重練不熟的" },
     ],
   },
   {
@@ -10740,6 +11034,8 @@ canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
         {mode === "phonics" && <PhonicsMode speak={speak} />}
         {mode === "quiz" && <QuizMode speak={speak} addStars={addStars} onExit={() => setMode("home")} />}
         {mode === "sight" && <SightMode speak={speak} addStars={addStars} />}
+        {mode === "flash" && <FlashcardMode speak={speak} defaultSet="sight" />}
+        {mode === "schoolflash" && <FlashcardMode speak={speak} defaultSet="s1" />}
         {mode === "school" && <SchoolWordsMode speak={speak} addStars={addStars} />}
         {mode === "schoolsay" && <SchoolSayMode speak={speak} addStars={addStars} />}
         {mode === "boporec" && <BopoRecordMode speak={speak} onExit={() => setMode("home")} />}
